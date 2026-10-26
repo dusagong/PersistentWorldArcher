@@ -79,7 +79,9 @@ namespace PersistentWorld.Editor
                 if (stage == "Town")
                 {
                     RequireRuntimeComponent<ArcherController>(1);
+                    RequireRuntimeComponent<ArcherSpriteAnimator>(1);
                     RequireRuntimeComponent<NpcDialogue>(1);
+                    RequirePlayerSprite();
                     RequireRuntimeVisuals();
                     LoadNext("Field", "Field");
                 }
@@ -136,6 +138,16 @@ namespace PersistentWorld.Editor
                 {
                     throw new InvalidOperationException("A runtime placeholder visual has no sprite.");
                 }
+            }
+        }
+
+        private static void RequirePlayerSprite()
+        {
+            ArcherSpriteAnimator animator = UnityEngine.Object.FindFirstObjectByType<ArcherSpriteAnimator>();
+            SpriteRenderer renderer = animator == null ? null : animator.GetComponent<SpriteRenderer>();
+            if (renderer == null || renderer.sprite == null)
+            {
+                throw new InvalidOperationException("The player animation did not load a sprite frame.");
             }
         }
 

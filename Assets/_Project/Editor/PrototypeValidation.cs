@@ -16,6 +16,7 @@ namespace PersistentWorld.Editor
         public static void ValidateAll()
         {
             ValidateBuildSettings();
+            ValidatePlayerArt();
             ValidateScene("Town", expectedEnemies: 0, expectedBosses: 0, expectedNpcs: 1, expectedPortals: 1);
             ValidateScene("Field", expectedEnemies: 4, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
             ValidateScene("BossArena", expectedEnemies: 0, expectedBosses: 1, expectedNpcs: 0, expectedPortals: 1);
@@ -48,6 +49,7 @@ namespace PersistentWorld.Editor
         {
             EditorSceneManager.OpenScene(SceneFolder + "/" + sceneName + ".unity");
             RequireCount<ArcherController>(sceneName, 1);
+            RequireCount<ArcherSpriteAnimator>(sceneName, 1);
             RequireCount<EnemyController>(sceneName, expectedEnemies);
             RequireCount<BossController>(sceneName, expectedBosses);
             RequireCount<NpcDialogue>(sceneName, expectedNpcs);
@@ -58,6 +60,20 @@ namespace PersistentWorld.Editor
             if (mainCamera == null || !mainCamera.orthographic)
             {
                 throw new InvalidOperationException(sceneName + " requires one orthographic Main Camera.");
+            }
+        }
+
+        private static void ValidatePlayerArt()
+        {
+            Texture2D texture = Resources.Load<Texture2D>("Characters/ArcherRun");
+            if (texture == null)
+            {
+                throw new InvalidOperationException("Missing Resources/Characters/ArcherRun texture.");
+            }
+
+            if (!texture.isReadable || texture.width % 4 != 0 || texture.height % 2 != 0)
+            {
+                throw new InvalidOperationException("ArcherRun must be readable and divisible into a 4x2 frame grid.");
             }
         }
 

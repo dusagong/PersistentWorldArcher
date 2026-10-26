@@ -13,11 +13,13 @@ namespace PersistentWorld.Editor
     public static class PrototypeSceneBuilder
     {
         private const string SceneFolder = "Assets/_Project/Scenes";
+        private const string ArcherTexturePath = "Assets/_Project/Resources/Characters/ArcherRun.png";
 
         [MenuItem("Tools/Persistent World/Rebuild Prototype Scenes")]
         public static void BuildAll()
         {
             Directory.CreateDirectory(SceneFolder);
+            ConfigureArcherTexture();
             BuildTown();
             BuildField();
             BuildBossArena();
@@ -104,12 +106,32 @@ namespace PersistentWorld.Editor
             Health health = player.AddComponent<Health>();
             health.Configure(Faction.Player, 100, false);
             player.AddComponent<ArcherController>();
-
-            PlaceholderVisual visual = player.AddComponent<PlaceholderVisual>();
-            visual.Configure(new Color(0.2f, 0.75f, 1f), new Vector2(0.8f, 1.2f));
+            SpriteRenderer spriteRenderer = player.AddComponent<SpriteRenderer>();
+            spriteRenderer.sortingOrder = 10;
+            player.AddComponent<ArcherSpriteAnimator>();
 
             Camera.main.GetComponent<CameraFollow>().SetTarget(player.transform);
             return player;
+        }
+
+        private static void ConfigureArcherTexture()
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(ArcherTexturePath) as TextureImporter;
+            if (importer == null)
+            {
+                throw new FileNotFoundException("Missing archer sprite sheet.", ArcherTexturePath);
+            }
+
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.maxTextureSize = 4096;
+            importer.SaveAndReimport();
         }
 
         private static void CreateNpc(Vector2 position)

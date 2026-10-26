@@ -37,6 +37,7 @@ namespace PersistentWorld.Player
         public float BackstepRemaining => Mathf.Max(0f, backstepReadyAt - Time.time);
         public float FocusRemaining => Mathf.Max(0f, focusReadyAt - Time.time);
         public bool IsFocused => Time.time < focusEndsAt;
+        public Vector2 AimDirection => aimDirection;
         public string NearbyPrompt { get; private set; }
 
         private void Awake()
