@@ -15,6 +15,14 @@ namespace PersistentWorld.Editor
         private const string SceneFolder = "Assets/_Project/Scenes";
         private const string ArcherTexturePath = "Assets/_Project/Resources/Characters/ArcherRun.png";
 
+        [MenuItem("Tools/Persistent World/Validate and Play Town")]
+        public static void ValidateAndPlayTown()
+        {
+            PrototypeValidation.ValidateAll();
+            EditorSceneManager.OpenScene(SceneFolder + "/Town.unity");
+            EditorApplication.EnterPlaymode();
+        }
+
         [MenuItem("Tools/Persistent World/Rebuild Prototype Scenes")]
         public static void BuildAll()
         {
@@ -44,6 +52,7 @@ namespace PersistentWorld.Editor
             CreateNpc(new Vector2(2f, 1f));
             CreatePortal(new Vector2(7.5f, 0f), "Field", "Enter the field");
             CreateWalls(10f, 6f);
+            EnvironmentArtBuilder.Create("Town");
             EditorSceneManager.SaveScene(scene, SceneFolder + "/Town.unity");
         }
 
@@ -59,6 +68,7 @@ namespace PersistentWorld.Editor
             CreateEnemy(new Vector2(4f, -2f), false);
             CreateEnemy(new Vector2(0f, -3f), true);
             CreateWalls(10f, 6f);
+            EnvironmentArtBuilder.Create("Field");
             EditorSceneManager.SaveScene(scene, SceneFolder + "/Field.unity");
         }
 
@@ -70,6 +80,7 @@ namespace PersistentWorld.Editor
             CreateBoss(new Vector2(2f, 0f));
             CreatePortal(new Vector2(-8f, -4f), "Field", "Leave the boss arena");
             CreateWalls(10f, 6f);
+            EnvironmentArtBuilder.Create("BossArena");
             EditorSceneManager.SaveScene(scene, SceneFolder + "/BossArena.unity");
         }
 
@@ -79,6 +90,7 @@ namespace PersistentWorld.Editor
             cameraObject.tag = "MainCamera";
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.orthographic = true;
+            camera.clearFlags = CameraClearFlags.SolidColor;
             camera.orthographicSize = 5.625f;
             camera.backgroundColor = background;
             cameraObject.transform.position = new Vector3(0f, 0f, -10f);
@@ -109,6 +121,7 @@ namespace PersistentWorld.Editor
             SpriteRenderer spriteRenderer = player.AddComponent<SpriteRenderer>();
             spriteRenderer.sortingOrder = 10;
             player.AddComponent<ArcherSpriteAnimator>();
+            player.AddComponent<WorldDepthSort>();
 
             Camera.main.GetComponent<CameraFollow>().SetTarget(player.transform);
             return player;

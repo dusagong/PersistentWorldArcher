@@ -20,7 +20,11 @@ Unity Hub에서 이 폴더를 열면 필요한 씬이 이미 Build Settings에 �
 - 궁수 스킬: Q 2단 발사, E 백스텝 대쉬, 우클릭 집중 사격 강화
 - 공용 전투: 체력, 진영, 피해, 투사체, 사망 처리
 - 플레이어 에셋: 사용자 제공 8프레임 스프라이트 시트, 이동 애니메이션과 좌우 반전
-- 기타 에셋: 코드로 생성하는 단색 임시 도형
+- 배경: Cainos Pixel Art Top Down - Basic 잔디/돌길 타일맵, 나무, 우물, 소품, 보스 제단
+- NPC/적/포탈: 단색 임시 도형 유지
+
+배경 에셋 설치 방법은 [ENVIRONMENT_SETUP.md](Assets/_Project/Editor/ENVIRONMENT_SETUP.md)를 참고하세요.
+공개 저장소에는 Asset Store 원본 텍스처를 포함하지 않으므로 팀원도 해당 무료 에셋을 받아야 합니다.
 
 ## 조작
 

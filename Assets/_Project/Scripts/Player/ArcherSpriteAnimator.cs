@@ -12,18 +12,24 @@ namespace PersistentWorld.Player
         private const int FrameCount = Columns * Rows;
         private const int AlphaThreshold = 8;
         private const int Padding = 8;
-        private const float PixelsPerUnit = 180f;
+        private const float PixelsPerUnit = 300f;
+        private const int DashRows = 3;
+        private const float DashDuration = 0.6f;
 
         [SerializeField] private float framesPerSecond = 10f;
 
         private static Texture2D cachedTexture;
         private static Sprite[] cachedFrames;
+        private static Texture2D cachedDashTexture;
+        private static Sprite[] cachedDashFrames;
 
         private SpriteRenderer spriteRenderer;
         private Rigidbody2D body;
         private ArcherController controller;
         private int frameIndex;
         private float frameTimer;
+        private float dashStartedAt;
+        private bool playingDash;
 
         private void Awake()
         {
@@ -31,14 +37,51 @@ namespace PersistentWorld.Player
             body = GetComponent<Rigidbody2D>();
             controller = GetComponent<ArcherController>();
             cachedFrames = GetOrCreateFrames();
+            cachedDashFrames = GetOrCreateDashFrames();
 
             spriteRenderer.color = Color.white;
             spriteRenderer.sortingOrder = 10;
             SetFrame(0);
         }
 
+        private void OnEnable()
+        {
+            controller = GetComponent<ArcherController>();
+            controller.BackstepStarted += PlayDash;
+        }
+
+        private void OnDisable()
+        {
+            controller.BackstepStarted -= PlayDash;
+            playingDash = false;
+        }
+
+        private void PlayDash()
+        {
+            if (cachedDashFrames == null || cachedDashFrames.Length == 0) return;
+            dashStartedAt = Time.time;
+            playingDash = true;
+            // Lock facing for the roll; mouse movement must not flip it halfway through.
+            spriteRenderer.flipX = controller.AimDirection.x < 0f;
+            spriteRenderer.sprite = cachedDashFrames[0];
+        }
+
         private void Update()
         {
+            if (playingDash)
+            {
+                float progress = (Time.time - dashStartedAt) / DashDuration;
+                if (progress < 1f)
+                {
+                    int dashFrame = Mathf.Min((int)(progress * cachedDashFrames.Length), cachedDashFrames.Length - 1);
+                    spriteRenderer.sprite = cachedDashFrames[dashFrame];
+                    return;
+                }
+                playingDash = false;
+                frameTimer = 0f;
+                frameIndex = 0;
+                SetFrame(0);
+            }
             if (cachedFrames == null || cachedFrames.Length == 0)
             {
                 return;
@@ -128,6 +171,33 @@ namespace PersistentWorld.Player
             cachedTexture = texture;
             cachedFrames = frames;
             return cachedFrames;
+        }
+
+        private static Sprite[] GetOrCreateDashFrames()
+        {
+            Texture2D texture = Resources.Load<Texture2D>("Characters/ArcherDash");
+            if (texture == null)
+            {
+                Debug.LogError("Missing Resources/Characters/ArcherDash sprite sheet.");
+                return null;
+            }
+            if (cachedDashTexture == texture && cachedDashFrames != null) return cachedDashFrames;
+
+            int width = texture.width / Columns;
+            int height = texture.height / DashRows;
+            Sprite[] frames = new Sprite[Columns * DashRows];
+            // Match the run sheet even if Unity resized the older run texture on import.
+            float pixelsPerUnit = cachedTexture == null ? PixelsPerUnit : PixelsPerUnit * texture.width / cachedTexture.width;
+            for (int i = 0; i < frames.Length; i++)
+            {
+                Rect rect = new Rect(i % Columns * width, (DashRows - 1 - i / Columns) * height, width, height);
+                // Keep the full cell and a shared anchor: trimming rotating poses separately causes jitter.
+                frames[i] = Sprite.Create(texture, rect, new Vector2(.5f, .06f), pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                frames[i].name = $"ArcherDash_{i:00}";
+            }
+            cachedDashTexture = texture;
+            cachedDashFrames = frames;
+            return frames;
         }
 
         private static Rect FindVisibleRect(

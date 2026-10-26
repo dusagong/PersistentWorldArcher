@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using PersistentWorld.Combat;
 using PersistentWorld.Core;
@@ -38,6 +39,7 @@ namespace PersistentWorld.Player
         public float FocusRemaining => Mathf.Max(0f, focusReadyAt - Time.time);
         public bool IsFocused => Time.time < focusEndsAt;
         public Vector2 AimDirection => aimDirection;
+        public event Action BackstepStarted;
         public string NearbyPrompt { get; private set; }
 
         private void Awake()
@@ -70,7 +72,7 @@ namespace PersistentWorld.Player
 
             if (Input.GetKeyDown(KeyCode.E) && Time.time >= backstepReadyAt)
             {
-                StartCoroutine(Backstep());
+                TryBackstep();
             }
             else if (Input.GetMouseButtonDown(1) && Time.time >= focusReadyAt)
             {
@@ -130,9 +132,17 @@ namespace PersistentWorld.Player
             }
         }
 
+        public bool TryBackstep()
+        {
+            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < backstepReadyAt) return false;
+            StartCoroutine(Backstep());
+            return true;
+        }
+
         private IEnumerator Backstep()
         {
             isDashing = true;
+            BackstepStarted?.Invoke();
             backstepReadyAt = Time.time + backstepCooldown;
             Vector2 dashDirection = -aimDirection;
             float speed = backstepDistance / backstepDuration;

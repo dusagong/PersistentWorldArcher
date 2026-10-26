@@ -38,3 +38,7 @@ crashlytics-build.properties
 *.aab
 *.unitypackage
 
+# Asset Store source files are installed per team member, not redistributed publicly.
+Assets/Cainos/
+Assets/Cainos.meta
+

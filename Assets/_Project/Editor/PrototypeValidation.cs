@@ -75,6 +75,9 @@ namespace PersistentWorld.Editor
             {
                 throw new InvalidOperationException("ArcherRun must be readable and divisible into a 4x2 frame grid.");
             }
+            Texture2D dash = Resources.Load<Texture2D>("Characters/ArcherDash");
+            if (dash == null || dash.width != 2560 || dash.height != 1080)
+                throw new InvalidOperationException("ArcherDash must retain its 2560x1080 4x3 frame grid.");
         }
 
         private static void RequireCount<T>(string sceneName, int expected) where T : UnityEngine.Object
