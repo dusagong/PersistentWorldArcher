@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using PersistentWorld.Combat;
 using PersistentWorld.Items;
@@ -19,6 +20,7 @@ namespace PersistentWorld.UI
         private readonly Dictionary<string, Sprite> icons = new Dictionary<string, Sprite>();
         private ItemSession session;
         private PanelSettings settings;
+        private UIDocument document;
         private Font font;
         private VisualElement screen, menu, panel, grid;
         private Label capacity, title, description, message, setStatus;
@@ -34,7 +36,16 @@ namespace PersistentWorld.UI
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() => active = null;
 
-        private void Start()
+        private void OnEnable() => StartCoroutine(InitializeWhenReady());
+
+        private IEnumerator InitializeWhenReady()
+        {
+            session = GetComponent<ItemSession>();
+            while (session != null && session.Profile == null) yield return null;
+            if (session != null) Initialize();
+        }
+
+        private void Initialize()
         {
             session = GetComponent<ItemSession>();
             active = this;
@@ -46,7 +57,7 @@ namespace PersistentWorld.UI
             var ui = new GameObject("Inventory UI");
             ui.transform.SetParent(transform, false);
             ui.SetActive(false);
-            var document = ui.AddComponent<UIDocument>();
+            document = ui.AddComponent<UIDocument>();
             document.panelSettings = settings;
             document.visualTreeAsset = tree;
             ui.SetActive(true);
@@ -74,7 +85,7 @@ namespace PersistentWorld.UI
                 var button = new Button(() => SelectEquipped(slot));
                 button.name = "equipment-" + slot.ToString().ToLowerInvariant();
                 button.AddToClassList("equipment-slot");
-                button.Add(new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore });
+                button.Add(new UpgradeItemIcon());
                 button.Add(new Label(SlotName(slot)) { pickingMode = PickingMode.Ignore });
                 screen.Q(SlotsIndex(slot) < 3 ? "equipment-left" : "equipment-right").Add(button);
                 equipmentButtons.Add(slot, button);
@@ -175,8 +186,9 @@ namespace PersistentWorld.UI
             foreach (var pair in equipmentButtons)
             {
                 ItemCatalog.TryGet(profile.GetEquipped(pair.Key), out ItemDefinition equipped);
-                pair.Value.Q<Image>().sprite = equipped == null ? null : Icon(equipped);
-                pair.Value.tooltip = equipped?.Name ?? SlotName(pair.Key) + " · 비어 있음";
+                pair.Value.Q<UpgradeItemIcon>().SetItem(equipped == null ? null : Icon(equipped), equipped == null ? 0 : profile.GetUpgradeLevel(equipped.Id));
+                pair.Value.Q<Label>().text = SlotName(pair.Key) + (equipped != null && profile.GetUpgradeLevel(equipped.Id) > 0 ? " +" + profile.GetUpgradeLevel(equipped.Id) : "");
+                pair.Value.tooltip = equipped == null ? SlotName(pair.Key) + " · 비어 있음" : profile.DisplayName(equipped);
                 pair.Value.EnableInClassList("selected", selectedSlot == pair.Key);
             }
             int pieces = profile.GetBonuses().SetPieces;
@@ -196,8 +208,16 @@ namespace PersistentWorld.UI
                     int quantity = System.Math.Min(remaining, limit);
                     var cell = new Button(() => { selectedId = item.Id; selectedSlot = EquipmentSlot.None; Refresh(); });
                     cell.AddToClassList("bag-cell");
-                    cell.tooltip = item.Name;
-                    cell.Add(new Image { sprite = Icon(item), scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore });
+                    cell.tooltip = profile.DisplayName(item);
+                    var icon = new UpgradeItemIcon();
+                    icon.SetItem(Icon(item), profile.GetUpgradeLevel(item.Id));
+                    cell.Add(icon);
+                    if (profile.GetUpgradeLevel(item.Id) > 0)
+                    {
+                        var upgrade = new Label("+" + profile.GetUpgradeLevel(item.Id)) { pickingMode = PickingMode.Ignore };
+                        upgrade.AddToClassList("upgrade-level");
+                        cell.Add(upgrade);
+                    }
                     if (!item.IsEquipment)
                     {
                         var count = new Label(quantity.ToString()) { pickingMode = PickingMode.Ignore };
@@ -230,14 +250,14 @@ namespace PersistentWorld.UI
                 return;
             }
             bool equipped = selectedSlot != EquipmentSlot.None;
-            title.text = item.Name + (equipped ? " · 장착 중" : "");
+            title.text = session.Profile.DisplayName(item) + (equipped ? " · 장착 중" : "");
             if (!item.IsEquipment)
             {
                 description.text = Categories[(int)item.Category] + $" · 총 보유 {session.Profile.Inventory.GetCount(item.Id)}개";
                 return;
             }
             string stats = "";
-            if (item.Attack != 0) stats += $"공격력 +{item.Attack}  ";
+            if (item.Attack != 0) stats += $"공격력 +{item.Attack + session.Profile.GetUpgradeLevel(item.Id)}  ";
             if (item.Defense != 0) stats += $"방어력 +{item.Defense}  ";
             if (item.MoveSpeed != 0) stats += $"이동속도 +{item.MoveSpeed:0.0}";
             bool allowed = item.CanEquip(session.Profile.Class);
@@ -276,12 +296,28 @@ namespace PersistentWorld.UI
             }
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
+            StopAllCoroutines();
+            Close();
             if (session != null && session.Profile != null) session.Profile.Changed -= MarkDirty;
             if (active == this) active = null;
+            if (document != null) Destroy(document.gameObject);
             if (settings != null) Destroy(settings);
             if (font != null) Destroy(font);
+            document = null;
+            settings = null;
+            font = null;
+            screen = null;
+            menu = null;
+            panel = null;
+            grid = null;
+            equipmentButtons.Clear();
+            tabs.Clear();
+            icons.Clear();
+            selectedId = null;
+            selectedSlot = EquipmentSlot.None;
+            dirty = false;
         }
     }
 }

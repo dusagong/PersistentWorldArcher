@@ -23,6 +23,7 @@
 .bag-cell { width: 12.5%; height: 20%; padding: 3px; background-color: rgb(37, 49, 65); border-width: 2px; border-color: rgb(24, 33, 46); }
 .bag-cell > Image { flex-grow: 1; min-height: 0; }
 .stack-count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; background-color: rgba(12, 17, 24, 0.85); }
+.upgrade-level { position: absolute; right: 4px; top: 2px; font-size: 14px; color: rgb(255, 214, 126); background-color: rgba(12, 17, 24, 0.85); }
 .selection-panel { flex-direction: row; align-items: center; flex-shrink: 0; min-height: 100px; margin-top: 14px; padding: 12px; background-color: rgb(29, 40, 54); }
 .selection-copy { flex-grow: 1; flex-shrink: 1; margin-right: 16px; }
 .selection-title { font-size: 18px; margin-bottom: 6px; }

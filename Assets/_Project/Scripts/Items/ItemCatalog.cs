@@ -72,6 +72,9 @@ namespace PersistentWorld.Items
             return id != null && byId.TryGetValue(id, out item);
         }
 
+        public static string StartingWeapon(PlayerClass playerClass) => playerClass == PlayerClass.Warrior
+            ? "greatsword" : playerClass == PlayerClass.Archer ? "bow" : "grimoire";
+
         private static ItemDefinition Gear(string id, string name, string icon, EquipmentSlot slot,
             PlayerClass? job, int attack, int defense = 0, float speed = 0) =>
             new ItemDefinition(id, name, ItemCategory.Equipment, "Items/Equipment/" + icon,

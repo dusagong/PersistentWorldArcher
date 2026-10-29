@@ -19,6 +19,7 @@ namespace PersistentWorld.Items
         private readonly Dictionary<EquipmentSlot, string> equipped = new Dictionary<EquipmentSlot, string>();
         public PlayerClass Class { get; }
         public Inventory Inventory { get; }
+        public int WeaponUpgradeLevel { get; private set; }
         public event Action Changed;
         public IReadOnlyDictionary<EquipmentSlot, string> Equipped =>
             new ReadOnlyDictionary<EquipmentSlot, string>(equipped);
@@ -29,11 +30,64 @@ namespace PersistentWorld.Items
         {
             if (!Enum.IsDefined(typeof(PlayerClass), playerClass)) throw new ArgumentOutOfRangeException(nameof(playerClass));
             Class = playerClass;
-            Inventory = new Inventory(capacity, stackLimit);
+            Inventory = new Inventory(capacity, stackLimit) { Owner = this };
             Inventory.Changed += () => Changed?.Invoke();
         }
 
         public string GetEquipped(EquipmentSlot slot) => equipped.TryGetValue(slot, out string id) ? id : null;
+
+        public bool OwnsEquipment(string itemId) => ItemCatalog.TryGet(itemId, out ItemDefinition item) && item.IsEquipment &&
+            (Inventory.HasItem(itemId, 1) || GetEquipped(item.Slot) == itemId);
+
+        public static PlayerInventoryProfile CreateNew(PlayerClass playerClass = PlayerClass.Archer)
+        {
+            var profile = new PlayerInventoryProfile(playerClass);
+            profile.EnsureStartingWeapon();
+            return profile;
+        }
+
+        internal void EnsureStartingWeapon()
+        {
+            if (GetEquipped(EquipmentSlot.Weapon) != null) return;
+            string id = ItemCatalog.StartingWeapon(Class);
+            if (Inventory.HasItem(id, 1)) TryEquip(id, out _);
+            else equipped.Add(EquipmentSlot.Weapon, id);
+        }
+
+        public int GetUpgradeLevel(string itemId) => itemId == ItemCatalog.StartingWeapon(Class) ? WeaponUpgradeLevel : 0;
+
+        public string DisplayName(ItemDefinition item)
+        {
+            int level = GetUpgradeLevel(item.Id);
+            return item.Name + (level > 0 ? " +" + level : "");
+        }
+
+        public bool CanUpgradeWeapon(out string reason)
+        {
+            if (GetEquipped(EquipmentSlot.Weapon) != ItemCatalog.StartingWeapon(Class))
+            { reason = "직업 무기를 장착한 뒤 강화해주세요."; return false; }
+            if (WeaponUpgradeLevel >= WeaponUpgrading.MaximumLevel)
+            { reason = "최대 강화 단계(+3)입니다."; return false; }
+            return Inventory.CanExchange(WeaponUpgrading.MaterialsFor(WeaponUpgradeLevel + 1), Array.Empty<ItemAmount>(), out reason);
+        }
+
+        public bool TryUpgradeWeapon(out string reason)
+        {
+            if (!CanUpgradeWeapon(out reason)) return false;
+            int previous = WeaponUpgradeLevel;
+            WeaponUpgradeLevel++;
+            // Autosave and UI subscribers must observe the level and material deduction together.
+            if (Inventory.TryExchange(WeaponUpgrading.MaterialsFor(WeaponUpgradeLevel), Array.Empty<ItemAmount>(), out reason)) return true;
+            WeaponUpgradeLevel = previous;
+            return false;
+        }
+
+        internal bool RestoreWeaponUpgrade(int level)
+        {
+            if (level < 0 || level > WeaponUpgrading.MaximumLevel) return false;
+            WeaponUpgradeLevel = level;
+            return true;
+        }
 
         public bool TryEquip(string itemId, out string reason)
         {
@@ -70,6 +124,7 @@ namespace PersistentWorld.Items
             {
                 if (!ItemCatalog.TryGet(id, out ItemDefinition item)) continue;
                 attack += item.Attack;
+                if (item.Slot == EquipmentSlot.Weapon) attack += GetUpgradeLevel(id);
                 defense += item.Defense;
                 speed += item.MoveSpeed;
                 if (item.SetId == ItemCatalog.FieldSet) setPieces++;

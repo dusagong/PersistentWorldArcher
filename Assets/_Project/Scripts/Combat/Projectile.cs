@@ -1,4 +1,5 @@
 using PersistentWorld.Core;
+using PersistentWorld.Items;
 using UnityEngine;
 
 namespace PersistentWorld.Combat
@@ -29,6 +30,9 @@ namespace PersistentWorld.Combat
             visual.Configure(color, new Vector2(0.32f, 0.12f));
             Projectile projectile = projectileObject.AddComponent<Projectile>();
             projectile.Initialize(direction, damage, sourceFaction, owner, speed, lifetime);
+            var equipment = owner != null ? owner.GetComponentInParent<PlayerEquipment>() : null;
+            if (sourceFaction == Faction.Player && equipment?.Profile?.GetEquipped(EquipmentSlot.Weapon) != null)
+                WeaponUpgradeVisuals.ApplyProjectile(projectileObject, equipment.Profile.WeaponUpgradeLevel);
             return projectile;
         }
 

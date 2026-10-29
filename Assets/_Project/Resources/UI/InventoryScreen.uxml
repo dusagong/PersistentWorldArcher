@@ -1,5 +1,6 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
     <ui:Style src="InventoryStyles.uss" />
+    <ui:Style src="ItemIcons.uss" />
     <ui:VisualElement name="inventory-screen" class="inventory-screen hidden">
         <ui:VisualElement name="pause-menu" class="inventory-menu hidden">
             <ui:Label text="메뉴" class="inventory-title" />

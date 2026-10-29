@@ -10,11 +10,12 @@ namespace PersistentWorld.Items
         public EquipmentRecipe(string resultId, int materialOne, int materialTwo)
         {
             ResultId = resultId;
-            Materials = Array.AsReadOnly(new[]
-            {
-                new ItemAmount(ItemCatalog.MaterialOne, materialOne),
-                new ItemAmount(ItemCatalog.MaterialTwo, materialTwo)
-            });
+            if (materialOne < 0 || materialTwo < 0 || (materialOne == 0 && materialTwo == 0))
+                throw new ArgumentOutOfRangeException(nameof(materialOne), "제작 재료는 한 종류 이상 필요합니다.");
+            var materials = new List<ItemAmount>();
+            if (materialOne > 0) materials.Add(new ItemAmount(ItemCatalog.MaterialOne, materialOne));
+            if (materialTwo > 0) materials.Add(new ItemAmount(ItemCatalog.MaterialTwo, materialTwo));
+            Materials = materials.AsReadOnly();
         }
     }
 
@@ -28,34 +29,27 @@ namespace PersistentWorld.Items
         {
             EquipmentRecipe recipe = Find(resultId);
             if (recipe == null) { reason = "장비 제작법이 없습니다."; return false; }
+            if (inventory == null) { reason = "인벤토리가 준비되지 않았습니다."; return false; }
+            if (inventory.HasItem(resultId, 1) || (inventory.Owner != null && inventory.Owner.OwnsEquipment(resultId)))
+            { reason = "이미 보유한 장비입니다."; return false; }
             return inventory.CanExchange(recipe.Materials, new[] { new ItemAmount(resultId, 1) }, out reason);
         }
 
         public static bool TryCraft(Inventory inventory, string resultId, out string reason)
         {
+            if (!CanCraft(inventory, resultId, out reason)) return false;
             EquipmentRecipe recipe = Find(resultId);
-            if (recipe == null) { reason = "장비 제작법이 없습니다."; return false; }
             return inventory.TryExchange(recipe.Materials, new[] { new ItemAmount(resultId, 1) }, out reason);
         }
 
         private static List<EquipmentRecipe> BuildRecipes()
         {
-            // Prototype material costs, tuned separately from the PDF's fixed equipment rules.
+            // Design requirement: every armor piece uses five MaterialOne only.
             var result = new List<EquipmentRecipe>();
             foreach (ItemDefinition item in ItemCatalog.All)
             {
-                if (!item.IsEquipment) continue;
-                int first, second;
-                switch (item.Slot)
-                {
-                    case EquipmentSlot.Weapon: first = 8; second = 4; break;
-                    case EquipmentSlot.Head: first = 4; second = 2; break;
-                    case EquipmentSlot.Chest: first = 6; second = 3; break;
-                    case EquipmentSlot.Legs: first = 4; second = 2; break;
-                    case EquipmentSlot.Hands: first = 3; second = 2; break;
-                    default: first = 3; second = 1; break;
-                }
-                result.Add(new EquipmentRecipe(item.Id, first, second));
+                if (!item.IsEquipment || item.Slot == EquipmentSlot.Weapon) continue;
+                result.Add(new EquipmentRecipe(item.Id, 5, 0));
             }
             return result;
         }

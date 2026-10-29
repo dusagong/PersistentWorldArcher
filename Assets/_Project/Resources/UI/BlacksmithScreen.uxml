@@ -1,9 +1,10 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
     <ui:Style src="BlacksmithStyles.uss" />
+    <ui:Style src="ItemIcons.uss" />
     <ui:VisualElement name="blacksmith-screen" class="blacksmith-screen">
         <ui:VisualElement class="blacksmith-panel">
             <ui:VisualElement class="header">
-                <ui:Label text="대장장이 · 장비 제작" class="title" />
+                <ui:Label text="대장장이 · 제작 / 강화" class="title" />
                 <ui:Button name="close-button" text="닫기 (ESC)" />
             </ui:VisualElement>
             <ui:Label name="materials" class="materials" />

@@ -15,6 +15,7 @@ namespace PersistentWorld.Items
         {
             public int version;
             public int playerClass;
+            public int weaponUpgradeLevel;
             public List<SavedItem> inventory;
             public List<SavedEquipment> equipment;
         }
@@ -22,12 +23,17 @@ namespace PersistentWorld.Items
         public static bool TrySave(string path, PlayerInventoryProfile profile, out string error)
         {
             error = string.Empty;
+            if (profile == null)
+            {
+                error = "저장할 인벤토리가 아직 준비되지 않았습니다.";
+                return false;
+            }
             string temporary = null;
             try
             {
                 var data = new SaveData
                 {
-                    version = 1, playerClass = (int)profile.Class,
+                    version = 2, playerClass = (int)profile.Class, weaponUpgradeLevel = profile.WeaponUpgradeLevel,
                     inventory = new List<SavedItem>(), equipment = new List<SavedEquipment>()
                 };
                 foreach (var pair in profile.Inventory.Counts)
@@ -65,7 +71,7 @@ namespace PersistentWorld.Items
             try
             {
                 SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(path));
-                if (data == null || data.version != 1 || data.inventory == null || data.equipment == null ||
+                if (data == null || (data.version != 1 && data.version != 2) || data.inventory == null || data.equipment == null ||
                     !Enum.IsDefined(typeof(PlayerClass), data.playerClass))
                     throw new InvalidDataException("지원하지 않거나 올바르지 않은 인벤토리 저장 형식입니다.");
                 var restored = new PlayerInventoryProfile((PlayerClass)data.playerClass);
@@ -84,6 +90,9 @@ namespace PersistentWorld.Items
                     if (item == null || !restored.RestoreEquipped((EquipmentSlot)item.slot, item.id))
                         throw new InvalidDataException("저장된 장비의 직업 또는 부위가 올바르지 않습니다.");
                 }
+                if (!restored.RestoreWeaponUpgrade(data.version == 1 ? 0 : data.weaponUpgradeLevel))
+                    throw new InvalidDataException("저장된 무기 강화 단계가 올바르지 않습니다.");
+                if (data.version == 1) restored.EnsureStartingWeapon();
                 profile = restored;
                 return InventoryLoadResult.Loaded;
             }

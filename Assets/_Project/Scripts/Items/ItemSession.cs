@@ -30,6 +30,27 @@ namespace PersistentWorld.Items
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            LoadProfile();
+            gameObject.AddComponent<BlacksmithWindow>();
+            gameObject.AddComponent<InventoryWindow>();
+        }
+
+        private void OnEnable()
+        {
+            if (Instance != null && Instance != this) return;
+            Instance = this;
+            // Managed profile/event state is lost during an Editor assembly reload.
+            if (Profile == null) LoadProfile();
+            Profile.Changed -= Save;
+            Profile.Changed += Save;
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            BindPlayers();
+            Save();
+        }
+
+        private void LoadProfile()
+        {
             SavePath = Path.Combine(Application.persistentDataPath, "inventory-v1.json");
 #if UNITY_EDITOR
             // Batch validation must never read or overwrite the developer's actual profile.
@@ -40,24 +61,26 @@ namespace PersistentWorld.Items
             }
 #endif
             InventoryLoadResult result = InventorySaveStore.Load(SavePath, out var restored, out string error);
-            Profile = restored ?? new PlayerInventoryProfile();
+            Profile = restored ?? PlayerInventoryProfile.CreateNew();
             CanSave = result != InventoryLoadResult.Failed;
             SaveError = error;
             if (!CanSave) Debug.LogError("Inventory load failed. Existing save is preserved; autosave disabled. " + error);
-            Profile.Changed += Save;
-            SceneManager.sceneLoaded += OnSceneLoaded;
-            gameObject.AddComponent<BlacksmithWindow>();
-            gameObject.AddComponent<InventoryWindow>();
         }
 
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        private void BindPlayers()
         {
+            if (Profile == null) return;
             foreach (ArcherController archer in FindObjectsByType<ArcherController>(FindObjectsSortMode.None))
             {
                 PlayerEquipment equipment = archer.GetComponent<PlayerEquipment>();
                 if (equipment == null) equipment = archer.gameObject.AddComponent<PlayerEquipment>();
                 equipment.Bind(Profile);
             }
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            BindPlayers();
             if (scene.name == "Town" && FindFirstObjectByType<BlacksmithNpc>() == null)
             {
                 GameObject npc = new GameObject("Blacksmith");
@@ -72,16 +95,17 @@ namespace PersistentWorld.Items
 
         public void Save()
         {
-            if (!CanSave) return;
+            if (!CanSave || Profile == null || string.IsNullOrWhiteSpace(SavePath)) return;
             if (InventorySaveStore.TrySave(SavePath, Profile, out string error)) SaveError = string.Empty;
             else { SaveError = error; Debug.LogWarning("Inventory could not be saved: " + error); }
         }
 
         private void OnApplicationPause(bool paused) { if (paused) Save(); }
         private void OnApplicationQuit() => Save();
-        private void OnDestroy()
+        private void OnDisable()
         {
             if (Instance != this) return;
+            Save();
             SceneManager.sceneLoaded -= OnSceneLoaded;
             if (Profile != null) Profile.Changed -= Save;
             Instance = null;

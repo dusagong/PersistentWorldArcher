@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using PersistentWorld.Combat;
 using PersistentWorld.Items;
 using UnityEngine;
@@ -25,7 +27,16 @@ namespace PersistentWorld.UI
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() => active = null;
 
-        private void Start()
+        private void OnEnable() => StartCoroutine(InitializeWhenReady());
+
+        private IEnumerator InitializeWhenReady()
+        {
+            session = GetComponent<ItemSession>();
+            while (session != null && session.Profile == null) yield return null;
+            if (session != null) Initialize();
+        }
+
+        private void Initialize()
         {
             session = GetComponent<ItemSession>();
             active = this;
@@ -67,7 +78,7 @@ namespace PersistentWorld.UI
             smith = blacksmith;
             visible = true;
             screen.style.display = DisplayStyle.Flex;
-            message.text = "장비를 제작한 뒤 장착할 수 있습니다.";
+            message.text = "방어구는 제작하고, 시작 무기는 최대 +3까지 강화할 수 있습니다.";
             Refresh();
         }
 
@@ -100,27 +111,65 @@ namespace PersistentWorld.UI
             materials.text = $"인벤토리 {inventory.UsedSlots}/{inventory.Capacity}칸  |  " +
                 $"재료 1: {inventory.GetCount(ItemCatalog.MaterialOne)}  ·  재료 2: {inventory.GetCount(ItemCatalog.MaterialTwo)}";
             recipes.Clear();
-            foreach (EquipmentRecipe recipe in EquipmentCrafting.All)
+            foreach (ItemDefinition item in ItemCatalog.All)
             {
-                ItemCatalog.TryGet(recipe.ResultId, out ItemDefinition item);
                 if (!item.CanEquip(profile.Class)) continue;
-                var row = new VisualElement();
+                bool weapon = item.Slot == EquipmentSlot.Weapon;
+                EquipmentRecipe recipe = weapon ? null : EquipmentCrafting.Find(item.Id);
+                if (!weapon && recipe == null) continue;
+                var row = new VisualElement { name = "recipe-" + item.Id };
                 row.AddToClassList("recipe-row");
-                var icon = new Image { sprite = Resources.Load<Sprite>(item.IconPath), scaleMode = ScaleMode.ScaleToFit };
+                var icon = new UpgradeItemIcon();
+                icon.SetItem(Resources.Load<Sprite>(item.IconPath), profile.GetUpgradeLevel(item.Id));
                 icon.AddToClassList("item-icon");
                 row.Add(icon);
                 var description = new VisualElement();
                 description.AddToClassList("recipe-description");
                 bool equipped = profile.GetEquipped(item.Slot) == item.Id;
-                var nameLabel = new Label(item.Name + (equipped ? "  [장착 중]" : ""));
+                bool owned = profile.OwnsEquipment(item.Id);
+                var nameLabel = new Label(profile.DisplayName(item) + (equipped ? "  [장착 중]" : owned ? "  [보유]" : "  [미보유]"));
                 nameLabel.AddToClassList("item-name");
                 description.Add(nameLabel);
-                description.Add(new Label($"공격 +{item.Attack} · 방어 +{item.Defense} · 이동 +{item.MoveSpeed:0.0}"));
-                description.Add(new Label($"재료 1 × {recipe.Materials[0].Quantity} + 재료 2 × {recipe.Materials[1].Quantity}" +
-                    $"  |  보유 {inventory.GetCount(item.Id)}"));
+                description.Add(new Label($"공격 +{item.Attack + profile.GetUpgradeLevel(item.Id)} · 방어 +{item.Defense} · 이동 +{item.MoveSpeed:0.0}"));
+                IReadOnlyList<ItemAmount> costs = null;
+                string progress = null;
+                if (weapon)
+                {
+                    int level = profile.WeaponUpgradeLevel;
+                    if (level >= WeaponUpgrading.MaximumLevel) progress = "최대 강화 +3 · 공격력 추가 +3";
+                    else
+                    {
+                        costs = WeaponUpgrading.MaterialsFor(level + 1);
+                        progress = $"강화 +{level} → +{level + 1}";
+                    }
+                }
+                else costs = recipe.Materials;
+                var requirements = new VisualElement();
+                requirements.AddToClassList("requirements");
+                if (progress != null)
+                {
+                    var label = new Label(progress);
+                    label.AddToClassList("recipe-progress");
+                    requirements.Add(label);
+                }
+                if (costs != null)
+                    foreach (ItemAmount cost in costs)
+                    {
+                        if (cost.Quantity < 1) continue;
+                        ItemCatalog.TryGet(cost.ItemId, out ItemDefinition material);
+                        int have = inventory.GetCount(cost.ItemId);
+                        var label = new Label($"{material.Name} {have}/{cost.Quantity}");
+                        label.AddToClassList("material-requirement");
+                        label.AddToClassList(have >= cost.Quantity ? "material-enough" : "material-missing");
+                        requirements.Add(label);
+                    }
+                description.Add(requirements);
                 row.Add(description);
-                var craft = new Button(() => Craft(item.Id)) { text = "제작" };
-                craft.SetEnabled(EquipmentCrafting.CanCraft(inventory, item.Id, out _));
+                var craft = new Button(() => { if (weapon) UpgradeWeapon(); else Craft(item.Id); })
+                { name = "make-" + item.Id, text = weapon ? "강화" : owned ? "보유" : "제작" };
+                bool canMake = weapon ? profile.CanUpgradeWeapon(out string reason) : EquipmentCrafting.CanCraft(inventory, item.Id, out reason);
+                craft.SetEnabled(canMake);
+                craft.tooltip = canMake ? (weapon ? "100% 성공 · 추가 공격력 +1" : "방어구 제작") : reason;
                 row.Add(craft);
                 var equip = new Button(() => ToggleEquipment(item)) { text = equipped ? "해제" : "장착" };
                 equip.SetEnabled(equipped || inventory.HasItem(item.Id, 1));
@@ -137,6 +186,13 @@ namespace PersistentWorld.UI
             Refresh();
         }
 
+        private void UpgradeWeapon()
+        {
+            bool success = session.Profile.TryUpgradeWeapon(out string reason);
+            message.text = success ? $"무기를 +{session.Profile.WeaponUpgradeLevel}로 강화했습니다." : reason;
+            Refresh();
+        }
+
         private void ToggleEquipment(ItemDefinition item)
         {
             bool equipped = session.Profile.GetEquipped(item.Slot) == item.Id;
@@ -146,12 +202,23 @@ namespace PersistentWorld.UI
             Refresh();
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
+            StopAllCoroutines();
+            Close();
             if (session != null && session.Profile != null) session.Profile.Changed -= MarkDirty;
             if (active == this) active = null;
+            if (document != null) Destroy(document.gameObject);
             if (settings != null) Destroy(settings);
             if (font != null) Destroy(font);
+            document = null;
+            settings = null;
+            font = null;
+            screen = null;
+            recipes = null;
+            materials = null;
+            message = null;
+            dirty = false;
         }
     }
 }

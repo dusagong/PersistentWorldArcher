@@ -117,6 +117,7 @@ namespace PersistentWorld.Player
 
         private void FireArrow(float angleOffset = 0f)
         {
+            if (!HasWeapon) return;
             Vector2 direction = Quaternion.Euler(0f, 0f, angleOffset) * aimDirection;
             int equippedDamage = attackDamage + EquipmentBonuses.Attack;
             int damage = IsFocused ? Mathf.RoundToInt(equippedDamage * 1.5f) : equippedDamage;
@@ -127,6 +128,7 @@ namespace PersistentWorld.Player
 
         private IEnumerator DoubleShot()
         {
+            if (!HasWeapon) yield break;
             doubleShotReadyAt = Time.time + doubleShotCooldown;
             FireArrow(-3f);
             yield return new WaitForSeconds(0.12f);
@@ -135,6 +137,8 @@ namespace PersistentWorld.Player
                 FireArrow(3f);
             }
         }
+
+        private bool HasWeapon => GetComponent<PlayerEquipment>()?.Profile?.GetEquipped(EquipmentSlot.Weapon) != null;
 
         public bool TryBackstep()
         {

@@ -11,6 +11,7 @@ namespace PersistentWorld.Items
         private Dictionary<string, int> counts = new Dictionary<string, int>(StringComparer.Ordinal);
         public int Capacity { get; }
         public int StackLimit { get; }
+        internal PlayerInventoryProfile Owner { get; set; }
         public event Action Changed;
         public int UsedSlots => CountSlots(counts);
         // Return a snapshot so callers cannot modify the source of truth.
