@@ -22,6 +22,15 @@ namespace PersistentWorld.Player
         [SerializeField] private float focusDuration = 5f;
         [SerializeField] private float focusCooldown = 10f;
 
+        [Header("Skill 2 - Arrow Rain (prototype values)")]
+        [SerializeField] private int arrowRainDamage = 30;
+        [SerializeField] private float arrowRainRange = 6f;
+        [SerializeField] private float arrowRainCooldown = 8f;
+
+        [Header("Skill 3 - Power Shot (prototype values)")]
+        [SerializeField] private int powerShotDamage = 50;
+        [SerializeField] private float powerShotCooldown = 10f;
+
         private Rigidbody2D body;
         private Health health;
         private Vector2 moveInput;
@@ -31,12 +40,16 @@ namespace PersistentWorld.Player
         private float backstepReadyAt;
         private float focusReadyAt;
         private float focusEndsAt;
+        private float arrowRainReadyAt;
+        private float powerShotReadyAt;
         private bool isDashing;
 
         public Health Health => health;
         public float DoubleShotRemaining => Mathf.Max(0f, doubleShotReadyAt - Time.time);
         public float BackstepRemaining => Mathf.Max(0f, backstepReadyAt - Time.time);
         public float FocusRemaining => Mathf.Max(0f, focusReadyAt - Time.time);
+        public float ArrowRainRemaining => Mathf.Max(0f, arrowRainReadyAt - Time.time);
+        public float PowerShotRemaining => Mathf.Max(0f, powerShotReadyAt - Time.time);
         public bool IsFocused => Time.time < focusEndsAt;
         public Vector2 AimDirection => aimDirection;
         public event Action BackstepStarted;
@@ -80,11 +93,19 @@ namespace PersistentWorld.Player
             }
             else if (Input.GetKeyDown(KeyCode.Q) && Time.time >= doubleShotReadyAt)
             {
-                StartCoroutine(DoubleShot());
+                TryDoubleShot();
+            }
+            else if (Input.GetKeyDown(KeyCode.R) && Camera.main != null)
+            {
+                TryArrowRain(Camera.main.ScreenToWorldPoint(Input.mousePosition));
+            }
+            else if (Input.GetKeyDown(KeyCode.T))
+            {
+                TryPowerShot();
             }
             else if (Input.GetMouseButton(0) && Time.time >= attackReadyAt)
             {
-                FireArrow();
+                TryBasicAttack();
             }
         }
 
@@ -112,23 +133,84 @@ namespace PersistentWorld.Player
             }
         }
 
-        private void FireArrow(float angleOffset = 0f)
+        public bool TryBasicAttack()
+        {
+            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < attackReadyAt) return false;
+            Vector2 direction = aimDirection;
+            if (BasicAttackEffect.PlayCast(transform, direction) == null) return false;
+            attackReadyAt = Time.time + (IsFocused ? attackInterval * .6f : attackInterval);
+            StartCoroutine(BasicAttack(direction));
+            return true;
+        }
+
+        private IEnumerator BasicAttack(Vector2 direction)
+        {
+            yield return new WaitForSeconds(BasicAttackEffect.ReleaseDelay);
+            if (!isActiveAndEnabled || health.IsDead) yield break;
+            int damage = IsFocused ? Mathf.RoundToInt(attackDamage * 1.5f) : attackDamage;
+            Vector2 position = (Vector2)transform.position + Vector2.up * .35f + direction * .5f;
+            Projectile projectile = Projectile.Spawn(position, direction, damage, Faction.Player, gameObject, Color.white);
+            BasicAttackEffect.AttachArrow(projectile);
+        }
+
+        private void FireArrow(float angleOffset = 0f, bool hidePlaceholder = false)
         {
             Vector2 direction = Quaternion.Euler(0f, 0f, angleOffset) * aimDirection;
             int damage = IsFocused ? Mathf.RoundToInt(attackDamage * 1.5f) : attackDamage;
             Color color = IsFocused ? new Color(1f, 0.8f, 0.15f) : new Color(0.9f, 1f, 0.3f);
-            Projectile.Spawn((Vector2)transform.position + direction * 0.5f, direction, damage, Faction.Player, gameObject, color);
+            Projectile projectile = Projectile.Spawn((Vector2)transform.position + direction * 0.5f, direction, damage, Faction.Player, gameObject, color);
+            if (hidePlaceholder) projectile.GetComponent<SpriteRenderer>().enabled = false;
             attackReadyAt = Time.time + (IsFocused ? attackInterval * 0.6f : attackInterval);
+        }
+
+        public bool TryDoubleShot()
+        {
+            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < doubleShotReadyAt) return false;
+            StartCoroutine(DoubleShot());
+            return true;
+        }
+
+        public bool TryArrowRain(Vector2 target)
+        {
+            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < arrowRainReadyAt) return false;
+            Vector2 origin = transform.position;
+            target = origin + Vector2.ClampMagnitude(target - origin, Mathf.Max(0f, arrowRainRange));
+            int damage = IsFocused ? Mathf.RoundToInt(arrowRainDamage * 1.5f) : arrowRainDamage;
+            if (ArrowRainEffect.Spawn(target, damage) == null) return false;
+            arrowRainReadyAt = Time.time + arrowRainCooldown;
+            return true;
+        }
+
+        public bool TryPowerShot()
+        {
+            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < powerShotReadyAt) return false;
+            Vector2 direction = aimDirection;
+            if (PowerShotEffect.PlayCast(transform, direction) == null) return false;
+            powerShotReadyAt = Time.time + powerShotCooldown;
+            StartCoroutine(PowerShot(direction));
+            return true;
+        }
+
+        private IEnumerator PowerShot(Vector2 direction)
+        {
+            yield return new WaitForSeconds(PowerShotEffect.ReleaseDelay);
+            if (!isActiveAndEnabled || health.IsDead) yield break;
+            int damage = IsFocused ? Mathf.RoundToInt(powerShotDamage * 1.5f) : powerShotDamage;
+            Vector2 position = (Vector2)transform.position + Vector2.up * .35f + direction * .5f;
+            Projectile projectile = Projectile.Spawn(position, direction, damage, Faction.Player, gameObject, Color.magenta, 9f, 1.5f);
+            PowerShotEffect.AttachFlight(projectile);
         }
 
         private IEnumerator DoubleShot()
         {
             doubleShotReadyAt = Time.time + doubleShotCooldown;
-            FireArrow(-3f);
+            Vector2 origin = (Vector2)transform.position + Vector2.up * .35f + aimDirection * .3f;
+            SkillOneEffect effect = SkillOneEffect.Spawn(origin, aimDirection);
+            FireArrow(-3f, effect != null);
             yield return new WaitForSeconds(0.12f);
             if (!health.IsDead)
             {
-                FireArrow(3f);
+                FireArrow(3f, effect != null);
             }
         }
 

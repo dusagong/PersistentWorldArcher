@@ -65,6 +65,12 @@ namespace PersistentWorld.Editor
 
         private static void ValidatePlayerArt()
         {
+            foreach (string name in new[] { "BasicAttackBow", "BasicAttackArrow" })
+            {
+                Texture2D basic = Resources.Load<Texture2D>("Effects/" + name);
+                if (basic == null || basic.width != 1254 || basic.height != 1254)
+                    throw new InvalidOperationException(name + " requires the original 1254x1254 image.");
+            }
             Texture2D texture = Resources.Load<Texture2D>("Characters/ArcherRun");
             if (texture == null)
             {
@@ -78,6 +84,16 @@ namespace PersistentWorld.Editor
             Texture2D dash = Resources.Load<Texture2D>("Characters/ArcherDash");
             if (dash == null || dash.width != 2560 || dash.height != 1080)
                 throw new InvalidOperationException("ArcherDash must retain its 2560x1080 4x3 frame grid.");
+            Texture2D skill = Resources.Load<Texture2D>("Effects/SkillOneVolley");
+            if (skill == null || skill.width != 1026 || skill.height != 684)
+                throw new InvalidOperationException("SkillOneVolley must retain its 1026x684 3x2 grid.");
+            Texture2D rain = Resources.Load<Texture2D>("Effects/SkillTwoArrowRain");
+            if (rain == null || rain.width != 1026 || rain.height != 1026)
+                throw new InvalidOperationException("SkillTwoArrowRain must retain its 1026x1026 3x3 grid.");
+            Texture2D cast = Resources.Load<Texture2D>("Effects/SkillThreeCast");
+            Texture2D flight = Resources.Load<Texture2D>("Effects/SkillThreeFlight");
+            if (cast == null || cast.width != 1254 || cast.height != 1254 || flight == null || flight.width != 1026 || flight.height != 1026)
+                throw new InvalidOperationException("Skill 3 requires its separate original 3x3 cast and flight sheets.");
         }
 
         private static void RequireCount<T>(string sceneName, int expected) where T : UnityEngine.Object
