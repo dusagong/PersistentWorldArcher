@@ -1,4 +1,6 @@
 using PersistentWorld.Player;
+using PersistentWorld.Items;
+using PersistentWorld.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -14,6 +16,7 @@ namespace PersistentWorld.World
 
         private void OnGUI()
         {
+            if (ItemWindows.BlocksGameplay) return;
             if (player == null) player = FindFirstObjectByType<ArcherController>();
             if (player == null) return;
             SkillLoadout loadout = player.Loadout;
@@ -47,6 +50,8 @@ namespace PersistentWorld.World
             GUILayout.BeginArea(new Rect(0, 0, 720, 540), GUI.skin.box);
             GUILayout.BeginHorizontal();
             GUILayout.Label("캐릭터 메뉴", GUILayout.Height(30));
+            if (GUILayout.Button("장비 · 인벤토리", GUILayout.Width(150)))
+                ItemSession.Instance?.GetComponent<InventoryWindow>()?.Open(player.gameObject);
             if (GUILayout.Button("닫기 (ESC)", GUILayout.Width(120))) player.SetMenuOpen(false);
             GUILayout.EndHorizontal();
             tab = GUILayout.Toolbar(tab, new[] { "스킬", "직업" });

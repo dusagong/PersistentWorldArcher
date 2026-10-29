@@ -70,7 +70,7 @@ namespace PersistentWorld.World
             Health playerHealth = player.GetComponent<Health>();
             if (playerHealth != null)
             {
-                playerHealth.TryDamage(contactDamage, Faction.Enemy);
+                playerHealth.TryDamage(contactDamage, Faction.Enemy, gameObject);
                 attackReadyAt = Time.time + attackInterval;
             }
         }

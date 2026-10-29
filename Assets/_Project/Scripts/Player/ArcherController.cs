@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using PersistentWorld.Combat;
 using PersistentWorld.Core;
+using PersistentWorld.Items;
+using PersistentWorld.UI;
 using PersistentWorld.World;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -27,6 +29,8 @@ namespace PersistentWorld.Player
         private bool deathHandled;
         private bool waitForBoss;
         private bool isDashing;
+        private bool itemUiWasOpen;
+        private bool synchronizingClass;
         private Collider2D[] colliders;
         private bool[] colliderStates;
         private SpriteRenderer visual;
@@ -36,6 +40,8 @@ namespace PersistentWorld.Player
         public Health Health => health;
         public SkillLoadout Loadout => loadout;
         public PlayerSkills Skills => skills;
+        public EquipmentBonuses EquipmentBonuses => GetComponent<PlayerEquipment>()?.Bonuses ?? default;
+        public bool HasWeapon => GetComponent<PlayerEquipment>()?.Profile?.GetEquipped(EquipmentSlot.Weapon) != null;
         public Vector2 AimDirection => aimDirection;
         public bool IsDashing => isDashing;
         public bool MenuOpen { get; private set; }
@@ -63,6 +69,7 @@ namespace PersistentWorld.Player
             colliders = GetComponentsInChildren<Collider2D>();
             colliderStates = new bool[colliders.Length];
             health.Died += OnDeath;
+            loadout.Changed += SynchronizeEquipmentClass;
         }
 
         private void Start()
@@ -71,7 +78,21 @@ namespace PersistentWorld.Player
             UpdateClassVisual();
         }
 
-        private void OnDestroy() { if (health != null) health.Died -= OnDeath; }
+        private void OnDestroy()
+        {
+            if (health != null) health.Died -= OnDeath;
+            if (loadout != null) loadout.Changed -= SynchronizeEquipmentClass;
+        }
+
+        private void SynchronizeEquipmentClass()
+        {
+            if (synchronizingClass || !CompareTag("Player") || ItemSession.Instance == null) return;
+            ItemSession session = ItemSession.Instance;
+            if (session.SelectClass(ItemSession.ToItemClass(loadout.Class))) return;
+            synchronizingClass = true;
+            loadout.SelectClass(ItemSession.ToCharacterClass(session.Profile.Class));
+            synchronizingClass = false;
+        }
         private void OnDisable()
         {
             if (skills != null) skills.Cancel();
@@ -89,6 +110,12 @@ namespace PersistentWorld.Player
             }
             if (deathHandled) OnRevived();
             UpdateClassVisual();
+            if (ItemWindows.BlocksGameplay)
+            {
+                if (!itemUiWasOpen) { skills.Cancel(); StopAllCoroutines(); isDashing = false; }
+                itemUiWasOpen = true; moveInput = Vector2.zero; return;
+            }
+            itemUiWasOpen = false;
             if (!AcceptLocalInput) { moveInput = Vector2.zero; return; }
             if (Input.GetKeyDown(KeyCode.Escape)) SetMenuOpen(!MenuOpen);
             if (MenuOpen) { moveInput = Vector2.zero; return; }
@@ -115,8 +142,8 @@ namespace PersistentWorld.Player
 
         private void FixedUpdate()
         {
-            if (health.IsDead || MenuOpen || skills.MovementLocked) { body.linearVelocity = Vector2.zero; return; }
-            if (!isDashing && !GetComponent<CombatStatus>().IsDisplaced) body.linearVelocity = moveInput * moveSpeed;
+            if (health.IsDead || MenuOpen || ItemWindows.BlocksGameplay || skills.MovementLocked) { body.linearVelocity = Vector2.zero; return; }
+            if (!isDashing && !GetComponent<CombatStatus>().IsDisplaced) body.linearVelocity = moveInput * (moveSpeed + EquipmentBonuses.MoveSpeed);
         }
 
         public void SetMenuOpen(bool open)
@@ -139,7 +166,7 @@ namespace PersistentWorld.Player
 
         public bool TryBackstep()
         {
-            if (!isActiveAndEnabled || health.IsDead || MenuOpen || isDashing || skills.IsHolding || skills.MovementLocked || Time.time < backstepReadyAt) return false;
+            if (!isActiveAndEnabled || health.IsDead || MenuOpen || ItemWindows.BlocksGameplay || isDashing || skills.IsHolding || skills.MovementLocked || Time.time < backstepReadyAt) return false;
             StartCoroutine(Backstep()); return true;
         }
 
@@ -150,7 +177,7 @@ namespace PersistentWorld.Player
             BackstepStarted?.Invoke();
             Vector2 direction = moveInput.sqrMagnitude > .01f ? moveInput : -aimDirection;
             float elapsed = 0;
-            while (elapsed < backstepDuration && !health.IsDead)
+            while (elapsed < backstepDuration && !health.IsDead && !ItemWindows.BlocksGameplay)
             {
                 body.linearVelocity = direction * backstepDistance / backstepDuration;
                 elapsed += Time.fixedDeltaTime;

@@ -1,0 +1,41 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="InventoryStyles.uss" />
+    <ui:Style src="ItemIcons.uss" />
+    <ui:VisualElement name="inventory-screen" class="inventory-screen hidden">
+        <ui:VisualElement name="pause-menu" class="inventory-menu hidden">
+            <ui:Label text="메뉴" class="inventory-title" />
+            <ui:Button name="open-inventory" text="장비 · 인벤토리" />
+            <ui:Button name="resume-game" text="돌아가기 (ESC)" />
+        </ui:VisualElement>
+        <ui:VisualElement name="inventory-panel" class="inventory-panel hidden">
+            <ui:VisualElement class="inventory-header">
+                <ui:Label text="장비 · 인벤토리" class="inventory-title" />
+                <ui:Button name="close-inventory" text="닫기 (ESC)" />
+            </ui:VisualElement>
+            <ui:VisualElement class="inventory-body">
+                <ui:VisualElement class="equipment-pane">
+                    <ui:Label name="class-label" class="section-title" />
+                    <ui:VisualElement class="equipment-layout">
+                        <ui:VisualElement name="equipment-left" class="equipment-column" />
+                        <ui:Image name="character-preview" class="character-preview" picking-mode="Ignore" />
+                        <ui:VisualElement name="equipment-right" class="equipment-column" />
+                    </ui:VisualElement>
+                    <ui:Label name="set-status" class="set-status" />
+                </ui:VisualElement>
+                <ui:VisualElement class="bag-pane">
+                    <ui:VisualElement name="category-tabs" class="category-tabs" />
+                    <ui:Label name="bag-capacity" class="bag-capacity" />
+                    <ui:VisualElement name="bag-grid" class="bag-grid" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="selection-panel">
+                <ui:VisualElement class="selection-copy">
+                    <ui:Label name="selection-title" class="selection-title" />
+                    <ui:Label name="selection-description" class="selection-description" />
+                </ui:VisualElement>
+                <ui:Button name="equipment-action" text="장착" />
+            </ui:VisualElement>
+            <ui:Label name="inventory-message" class="inventory-message" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

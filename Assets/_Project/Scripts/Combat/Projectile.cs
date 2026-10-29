@@ -1,4 +1,5 @@
 using PersistentWorld.Core;
+using PersistentWorld.Items;
 using UnityEngine;
 
 namespace PersistentWorld.Combat
@@ -10,12 +11,14 @@ namespace PersistentWorld.Combat
         private float remainingLife;
         private int damage;
         private Faction sourceFaction;
+        private DamageContext damageContext;
         private GameObject owner;
         private bool initialized;
         public float HitRadius { get; set; } = .09f;
         public Faction SourceFaction => sourceFaction;
         public int Damage => damage;
         public bool InflictsVulnerability { get; set; }
+        public int UpgradeLevel { get; private set; }
 
         public void Reflect(GameObject reflector)
         {
@@ -23,6 +26,7 @@ namespace PersistentWorld.Combat
             damage = Mathf.Max(1, Mathf.RoundToInt(damage * .5f));
             sourceFaction = Faction.Player;
             owner = reflector;
+            damageContext = DamageContext.From(sourceFaction, reflector);
             InflictsVulnerability = false;
             transform.right = direction;
             remainingLife = Mathf.Max(remainingLife, 1);
@@ -45,6 +49,12 @@ namespace PersistentWorld.Combat
             visual.Configure(color, new Vector2(0.32f, 0.12f));
             Projectile projectile = projectileObject.AddComponent<Projectile>();
             projectile.Initialize(direction, damage, sourceFaction, owner, speed, lifetime);
+            PlayerEquipment equipment = owner != null ? owner.GetComponentInParent<PlayerEquipment>() : null;
+            if (sourceFaction == Faction.Player && equipment?.Profile?.GetEquipped(EquipmentSlot.Weapon) != null)
+            {
+                projectile.UpgradeLevel = equipment.Profile.WeaponUpgradeLevel;
+                WeaponUpgradeVisuals.ApplyProjectile(projectileObject, projectile.UpgradeLevel);
+            }
             return projectile;
         }
 
@@ -59,6 +69,7 @@ namespace PersistentWorld.Combat
             direction = newDirection.sqrMagnitude > 0f ? newDirection.normalized : Vector2.right;
             damage = Mathf.Max(1, newDamage);
             sourceFaction = newSourceFaction;
+            damageContext = DamageContext.From(newSourceFaction, newOwner);
             owner = newOwner;
             speed = Mathf.Max(0.1f, newSpeed);
             remainingLife = Mathf.Max(0.1f, lifetime);
@@ -85,7 +96,7 @@ namespace PersistentWorld.Combat
                 Health health = hit.collider.GetComponentInParent<Health>();
                 if (health != null && health.gameObject == owner) continue;
                 if (health != null && health.GetComponent<PersistentWorld.Player.PlayerSkills>() is PersistentWorld.Player.PlayerSkills skills && skills.TryParry(this)) return;
-                if (health != null && health.TryDamage(damage, sourceFaction))
+                if (health != null && health.TryDamage(damage, damageContext))
                 {
                     if (InflictsVulnerability && !health.IsDead)
                         (health.GetComponent<CombatStatus>() ?? health.gameObject.AddComponent<CombatStatus>()).ApplyVulnerability();

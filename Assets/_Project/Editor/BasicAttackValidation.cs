@@ -81,7 +81,7 @@ namespace PersistentWorld.Editor
             if (Time.time - startedAt < .85f) return;
             EditorApplication.update -= Tick;
             bool cleanup = UnityEngine.Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None).Length == 0 && UnityEngine.Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None).Length == 0;
-            bool passed = valid && Frames.Count == 4 && Shots.Count == 1 && target.Current == 90 && cleanup;
+            bool passed = valid && Frames.Count == 4 && Shots.Count == 1 && target.Current == 90 - player.EquipmentBonuses.Attack && cleanup;
             string result = $"frames={Frames.Count}/4, arrows={Shots.Count}, timingDirectionCooldown={valid}, enemyHP={target.Current}, cleanup={cleanup}";
             if (passed) Debug.Log("BASIC_ATTACK_VALIDATION_OK " + result);
             else Debug.LogError("BASIC_ATTACK_VALIDATION_FAILED " + result);

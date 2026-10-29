@@ -107,6 +107,8 @@ namespace PersistentWorld.Editor
             player.AcceptLocalInput = false;
             SkillLoadout loadout = player.Loadout;
             PlayerSkills skills = player.Skills;
+            InventoryMergeValidation.RunPure();
+            int attack = player.EquipmentBonuses.Attack;
             Check(loadout.Slots.Length == 3 && loadout.Slots[0] == SkillId.Repulse, "default slots");
             Check(!loadout.Equip(1, SkillId.Repulse) && !loadout.Equip(0, SkillId.Whirlwind), "duplicate and foreign class rejected");
             Check(!loadout.Equip(2, SkillId.BossBlast) && !loadout.Equip(2, SkillId.Snipe) && !loadout.UseBossSkillBook(), "boss slot and missing book restrictions");
@@ -119,7 +121,7 @@ namespace PersistentWorld.Editor
             Health boss = Target(new Vector2(2, 1), boss: true);
             boss.GetComponent<BossController>().PatternLocked = true;
             Check(skills.BeginSkill(0, Vector2.right * 2) && !skills.BeginSkill(0, Vector2.right), "repulse cooldown");
-            Check(front.Current == 80 && back.Current == 100 && boss.Current == 80, "90 degree cone damage once per enemy");
+            Check(front.Current == 80 - attack && back.Current == 100 && boss.Current == 80 - attack, "90 degree cone damage once per enemy");
             loadout.Equip(0, SkillId.None); loadout.Equip(0, SkillId.Repulse);
             Check(skills.Cooldown(SkillId.Repulse) > 0 && !skills.BeginSkill(0, Vector2.right), "equip preserves cooldown");
             yield return .3f;
@@ -134,7 +136,7 @@ namespace PersistentWorld.Editor
             Check(rainTarget.Current == 100 && skills.Cooldown(SkillId.ArrowRain) == 0, "rain waits for release");
             Check(skills.ReleaseSkill(1), "rain release");
             yield return .4f;
-            Check(rainTarget.Current == 70 && !skills.IsHolding, "rain impact");
+            Check(rainTarget.Current == 70 - attack && !skills.IsHolding, "rain impact");
             yield return .4f;
             ClearTargets(); yield return .05f;
             Check(loadout.Equip(0, SkillId.Snipe), "equip third skill");
@@ -144,7 +146,7 @@ namespace PersistentWorld.Editor
             yield return 1.95f;
             Check(!skills.IsHolding && skills.Cooldown(SkillId.Snipe) > 0, "maximum charge auto releases");
             yield return 1.2f;
-            Check(snipeTarget.Current == 20 && !skills.MovementLocked, "charged snipe damage and release cleanup");
+            Check(snipeTarget.Current == 20 - attack && !skills.MovementLocked, "charged snipe damage and release cleanup");
             ClearTargets(); yield return .05f;
             Check(skills.TrySpecial() && !skills.TrySpecial(), "archer special cooldown");
             AimRight(); Check(player.TryBasicAttack() && !player.TryBasicAttack(), "basic attack cooldown");
@@ -158,24 +160,25 @@ namespace PersistentWorld.Editor
             ClearTargets(); yield return .05f;
 
             loadout.SelectClass(CharacterClass.Warrior); AimRight();
+            attack = player.EquipmentBonuses.Attack;
             Health swordFront = Target(new Vector2(1, 0)); Health swordBack = Target(new Vector2(-1, 0));
-            Check(player.TryBasicAttack() && swordFront.Current == 88 && swordBack.Current == 100, "warrior 120 degree basic attack");
+            Check(player.TryBasicAttack() && swordFront.Current == 88 - attack && swordBack.Current == 100, "warrior 120 degree basic attack");
             Check(skills.BeginSkill(0, Vector2.zero), "whirlwind start");
             yield return .25f;
             Check(swordBack.Current == 100, "whirlwind preparation delay");
             yield return .4f;
-            Check(swordBack.Current == 70 && swordFront.Current == 58, "whirlwind circular damage");
+            Check(swordBack.Current == 70 - attack && swordFront.Current == 58 - attack * 2, "whirlwind circular damage");
             AimRight();
             Check(skills.BeginSkill(1, Vector2.right) && skills.ComboStage == 1, "combo first");
             Health far = Target(new Vector2(3, 0));
             Check(skills.BeginSkill(1, Vector2.right) && far.Current == 100, "combo second range");
-            Check(skills.BeginSkill(1, Vector2.right) && far.Current == 76 && skills.Cooldown(SkillId.ComboSlash) > 0, "combo third wider and cooldown");
+            Check(skills.BeginSkill(1, Vector2.right) && far.Current == 76 - attack && skills.Cooldown(SkillId.ComboSlash) > 0, "combo third wider and cooldown");
             ClearTargets(); yield return .05f;
             loadout.Equip(0, SkillId.Excalibur); AimRight();
             Health excaliburTarget = Target(new Vector2(4, 0));
             Check(skills.BeginSkill(0, Vector2.right) && skills.MovementLocked, "excalibur charge");
             yield return 1.95f;
-            Check(excaliburTarget.Current == 20 && !skills.MovementLocked, "excalibur full charge range and damage");
+            Check(excaliburTarget.Current == 20 - attack && !skills.MovementLocked, "excalibur full charge range and damage");
             ClearTargets(); yield return .05f;
             yield return Mathf.Max(0, skills.SpecialRemaining) + .05f;
             AimRight(); Check(skills.TrySpecial(), "parry start");
@@ -184,6 +187,7 @@ namespace PersistentWorld.Editor
             ClearTargets(); yield return .05f;
 
             loadout.SelectClass(CharacterClass.Healer);
+            attack = player.EquipmentBonuses.Attack;
             Health ally = Target(new Vector2(1, 0), Faction.Player); ally.TryDamage(70, Faction.Enemy);
             CombatStatus debuff = ally.gameObject.AddComponent<CombatStatus>(); debuff.ApplyVulnerability();
             player.GetComponent<CombatStatus>().ApplyVulnerability();
@@ -192,9 +196,9 @@ namespace PersistentWorld.Editor
             Health ordinaryEnemy = Target(new Vector2(1, -1));
             Check(skills.BeginSkill(0, Vector2.zero), "healing zone start");
             yield return 1.1f;
-            Check(ally.Current == 50 && boss.Current == 90 && ordinaryEnemy.Current == 100, "healing zone 20 percent per second and boss only damage");
+            Check(ally.Current == 50 && boss.Current == 90 - attack && ordinaryEnemy.Current == 100, "healing zone 20 percent per second and boss only damage");
             yield return 4.1f;
-            Check(ally.Current == 100 && boss.Current == 50 && UnityEngine.Object.FindObjectsByType<HealingZone>(FindObjectsSortMode.None).Length == 0, "healing zone five ticks cleanup");
+            Check(ally.Current == 100 && boss.Current == 50 - attack * 5 && UnityEngine.Object.FindObjectsByType<HealingZone>(FindObjectsSortMode.None).Length == 0, "healing zone five ticks cleanup");
             ClearTargets(); yield return .05f;
             loadout.Equip(0, SkillId.Judgment); AimRight();
             Health beamTarget = Target(new Vector2(2, .35f));
@@ -213,7 +217,7 @@ namespace PersistentWorld.Editor
             player.SetMenuOpen(false);
             Health visible = Target((Vector2)Camera.main.transform.position + Vector2.right * 2);
             Health offscreen = Target(new Vector2(100, 100));
-            Check(skills.BeginSkill(2, Vector2.zero) && visible.Current == 40 && offscreen.Current == 100, "boss skill screen target restriction");
+            Check(skills.BeginSkill(2, Vector2.zero) && visible.Current == 40 - attack && offscreen.Current == 100, "boss skill screen target restriction");
             ClearTargets(); yield return .05f;
 
             loadout.SelectClass(CharacterClass.Archer); loadout.Equip(0, SkillId.Snipe);
@@ -259,6 +263,11 @@ namespace PersistentWorld.Editor
             Check(SceneManager.GetActiveScene().name == "Field" && player.Health.IsDead, "field corpse stays before ten seconds");
             yield return .8f;
             Check(SceneManager.GetActiveScene().name == "Town" && !UnityEngine.Object.FindFirstObjectByType<ArcherController>().Health.IsDead, "field returns to town after ten seconds");
+            yield return .1f;
+            player = UnityEngine.Object.FindFirstObjectByType<ArcherController>();
+            player.AcceptLocalInput = false;
+            InventoryMergeValidation.CheckRuntime(player);
+            yield return .1f;
         }
     }
 }

@@ -15,9 +15,10 @@ namespace PersistentWorld.Combat
         private SpriteRenderer spriteRenderer;
         private float startedAt;
         private int damage;
+        private DamageContext damageContext;
         private bool impacted;
 
-        public static ArrowRainEffect Spawn(Vector2 position, int damage)
+        public static ArrowRainEffect Spawn(Vector2 position, int damage, GameObject source = null)
         {
             if (!LoadFrames()) return null;
             GameObject obj = new GameObject("Skill 2 - Arrow Rain");
@@ -29,6 +30,7 @@ namespace PersistentWorld.Combat
             effect.spriteRenderer = renderer;
             effect.startedAt = Time.time;
             effect.damage = damage;
+            effect.damageContext = DamageContext.From(Faction.Player, source);
             return effect;
         }
 
@@ -60,7 +62,7 @@ namespace PersistentWorld.Combat
                 Vector2 offset = collider.ClosestPoint(center) - center;
                 if (offset.x * offset.x / (RadiusX * RadiusX) + offset.y * offset.y / (RadiusY * RadiusY) > 1f) continue;
                 damaged.Add(health);
-                health.TryDamage(damage, Faction.Player);
+                health.TryDamage(damage, damageContext);
             }
         }
 

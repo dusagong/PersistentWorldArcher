@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using PersistentWorld.Combat;
 using PersistentWorld.Core;
+using PersistentWorld.Items;
+using PersistentWorld.UI;
 using PersistentWorld.World;
 using UnityEngine;
 
@@ -53,8 +55,8 @@ namespace PersistentWorld.Player
         private string Key(SkillId id) => loadout.Class + ":" + id;
         public float Cooldown(SkillId id) => Ready.TryGetValue(Key(id), out float ready) ? Mathf.Max(0, ready - Time.time) : 0;
         private void SetCooldown(SkillId id, float seconds) => Ready[Key(id)] = Time.time + seconds;
-        private bool CanAct => isActiveAndEnabled && controller.isActiveAndEnabled && health != null && !health.IsDead && !controller.IsDashing && !controller.MenuOpen;
-        private int Damage(float value) => Mathf.RoundToInt(value * (GetComponent<CombatStatus>()?.OutgoingMultiplier ?? 1));
+        private bool CanAct => isActiveAndEnabled && controller.isActiveAndEnabled && health != null && !health.IsDead && !controller.IsDashing && !controller.MenuOpen && !ItemWindows.BlocksGameplay;
+        private int Damage(float value) => Mathf.RoundToInt((value + controller.EquipmentBonuses.Attack) * (GetComponent<CombatStatus>()?.OutgoingMultiplier ?? 1));
         private void OnLoadoutChanged()
         {
             if (combo > 0) Ready[previousClass + ":" + SkillId.ComboSlash] = Time.time + 6;
@@ -87,6 +89,7 @@ namespace PersistentWorld.Player
             if (!CanAct || busy || IsHolding || releasing || slot < 0 || slot > 2) return false;
             SkillId id = loadout.Slots[slot];
             if (id == SkillId.None || Cooldown(id) > 0) return false;
+            if (!controller.HasWeapon && id != SkillId.HealingZone && id != SkillId.Cleanse) return false;
             Vector2 direction = controller.AimDirection;
             UpdateTarget(mouseWorld);
             switch (id)
@@ -130,7 +133,7 @@ namespace PersistentWorld.Player
                             Vector3 point = camera.WorldToViewportPoint(enemy.transform.position);
                             if (enemy.Faction == Faction.Enemy && !enemy.IsDead && point.z > 0 && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1)
                             {
-                                enemy.TryDamage(Damage(60), Faction.Player);
+                                enemy.TryDamage(Damage(60), Faction.Player, gameObject);
                                 SkillIndicator.Create(Color.magenta, .35f).Circle(enemy.transform.position, .8f, .8f);
                             }
                         }
@@ -150,7 +153,7 @@ namespace PersistentWorld.Player
             if (!CanAct) return false;
             if (id == SkillId.ArrowRain)
             {
-                SetCooldown(id, 8); ArrowRainEffect.Spawn(target, Damage(30));
+                SetCooldown(id, 8); ArrowRainEffect.Spawn(target, Damage(30), gameObject);
             }
             else if (id == SkillId.Snipe)
             {
@@ -170,7 +173,7 @@ namespace PersistentWorld.Player
         {
             yield return new WaitForSeconds(PowerShotEffect.ReleaseDelay);
             releasing = false;
-            if (health.IsDead) yield break;
+            if (health.IsDead || !controller.HasWeapon || ItemWindows.BlocksGameplay) yield break;
             float range = Mathf.Lerp(8, 15, charge);
             Projectile arrow = Projectile.Spawn((Vector2)transform.position + Vector2.up * .35f + direction * .5f, direction, Damage(Mathf.Lerp(25, 80, charge)), Faction.Player, gameObject, Color.magenta, 12, range / 12);
             arrow.HitRadius = Mathf.Lerp(.09f, .32f, charge);
@@ -204,7 +207,7 @@ namespace PersistentWorld.Player
                     foreach (Collider2D collider in Physics2D.OverlapBoxAll(origin + direction * length / 2, new Vector2(length, .4f), Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg))
                     {
                         Health enemy = collider.GetComponentInParent<Health>();
-                        if (enemy != null && enemy.Faction == Faction.Enemy && seen.Add(enemy)) enemy.TryDamage(Damage(4), Faction.Player);
+                        if (enemy != null && enemy.Faction == Faction.Enemy && seen.Add(enemy)) enemy.TryDamage(Damage(4), Faction.Player, gameObject);
                     }
                     nextTick = Time.time + .1f;
                 }
@@ -214,7 +217,7 @@ namespace PersistentWorld.Player
 
         public bool TryBasicAttack()
         {
-            if (!CanAct || busy || IsHolding || releasing || Time.time < attackReadyAt) return false;
+            if (!CanAct || !controller.HasWeapon || busy || IsHolding || releasing || Time.time < attackReadyAt) return false;
             Vector2 direction = controller.AimDirection;
             if (loadout.Class == CharacterClass.Warrior)
             {
@@ -238,11 +241,11 @@ namespace PersistentWorld.Player
         private IEnumerator BasicArrows(Vector2 direction, bool doubled)
         {
             yield return new WaitForSeconds(BasicAttackEffect.ReleaseDelay);
-            if (health.IsDead) yield break;
+            if (health.IsDead || !controller.HasWeapon || ItemWindows.BlocksGameplay) yield break;
             SpawnBasicArrow(direction);
             if (!doubled) yield break;
             yield return new WaitForSeconds(.08f);
-            if (!health.IsDead) SpawnBasicArrow(direction);
+            if (!health.IsDead && controller.HasWeapon && !ItemWindows.BlocksGameplay) SpawnBasicArrow(direction);
         }
 
         private void SpawnBasicArrow(Vector2 direction)
@@ -254,6 +257,7 @@ namespace PersistentWorld.Player
         public bool TrySpecial()
         {
             if (!SpecialSkillsEnabled || !CanAct || busy || IsHolding || releasing || SpecialRemaining > 0) return false;
+            if (loadout.Class == CharacterClass.Warrior && !controller.HasWeapon) return false;
             if (loadout.Class == CharacterClass.Healer)
             {
                 Health nearest = null;
@@ -296,7 +300,7 @@ namespace PersistentWorld.Player
                 Vector2 delta = collider.ClosestPoint(center) - center;
                 if (angle < 360 && delta.sqrMagnitude > .01f && Vector2.Angle(direction, delta) > angle / 2) continue;
                 seen.Add(enemy);
-                if (!enemy.TryDamage(damage, Faction.Player) || knockback <= 0) continue;
+                if (!enemy.TryDamage(damage, Faction.Player, gameObject) || knockback <= 0) continue;
                 CombatStatus status = enemy.GetComponent<CombatStatus>() ?? enemy.gameObject.AddComponent<CombatStatus>();
                 status.Knockback(((Vector2)enemy.transform.position - center).normalized, knockback);
             }

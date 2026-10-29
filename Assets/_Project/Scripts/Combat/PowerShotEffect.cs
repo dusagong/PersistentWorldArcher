@@ -44,6 +44,7 @@ namespace PersistentWorld.Combat
             projectile.transform.localScale = Vector3.one;
             SpriteRenderer renderer = projectile.GetComponent<SpriteRenderer>();
             renderer.color = Color.white;
+            if (projectile.UpgradeLevel > 0) renderer.color = WeaponUpgradeVisuals.ColorFor(projectile.UpgradeLevel);
             renderer.sprite = flightFrames[0];
             renderer.flipX = true;
             PowerShotEffect effect = projectile.gameObject.AddComponent<PowerShotEffect>();

@@ -1,0 +1,5 @@
+.upgrade-item-icon { position: relative; flex-grow: 1; min-height: 0; }
+.item-icon.upgrade-item-icon { flex-grow: 0; flex-shrink: 0; }
+.upgrade-icon-image { flex-grow: 1; min-height: 0; }
+.upgrade-halo { position: absolute; left: -9px; right: -9px; top: -9px; bottom: -9px; }
+.upgrade-halo-off { display: none; }

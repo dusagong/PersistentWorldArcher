@@ -59,6 +59,7 @@ namespace PersistentWorld.Combat
             obj.transform.localRotation = Quaternion.Euler(0, 0, -45f);
             SpriteRenderer renderer = obj.AddComponent<SpriteRenderer>();
             renderer.sprite = arrow;
+            if (projectile.UpgradeLevel > 0) renderer.color = WeaponUpgradeVisuals.ColorFor(projectile.UpgradeLevel);
             renderer.sortingOrder = 1100;
         }
 

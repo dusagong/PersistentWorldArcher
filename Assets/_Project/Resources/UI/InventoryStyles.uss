@@ -1,0 +1,38 @@
+.inventory-document, .inventory-screen { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+.inventory-screen { align-items: center; justify-content: center; background-color: rgba(9, 13, 20, 0.86); color: rgb(235, 239, 245); font-size: 16px; }
+.inventory-panel { width: 94%; max-width: 1160px; height: 92%; padding: 20px; background-color: rgb(24, 33, 46); }
+.inventory-menu { width: 320px; padding: 28px; background-color: rgb(24, 33, 46); }
+.inventory-menu > Button { margin-top: 18px; }
+.inventory-header { flex-direction: row; align-items: center; flex-shrink: 0; margin-bottom: 16px; }
+.inventory-title { flex-grow: 1; font-size: 24px; -unity-font-style: bold; }
+.inventory-body { flex-direction: row; flex-grow: 1; min-height: 0; }
+.equipment-pane { flex-grow: 4; flex-basis: 0; margin-right: 22px; padding: 12px; background-color: rgb(29, 40, 54); }
+.section-title { font-size: 18px; -unity-text-align: middle-center; margin-bottom: 10px; }
+.equipment-layout { flex-direction: row; flex-grow: 1; min-height: 0; align-items: stretch; }
+.equipment-column { width: 80px; justify-content: space-around; }
+.character-preview { flex-grow: 1; flex-shrink: 1; min-width: 0; margin: 8px; }
+.equipment-slot { height: 90px; margin-bottom: 6px; padding: 4px; }
+.equipment-slot > Image { flex-grow: 1; min-height: 0; }
+.equipment-slot > Label { font-size: 13px; -unity-text-align: middle-center; }
+.set-status { margin-top: 10px; font-size: 13px; white-space: normal; color: rgb(203, 208, 179); }
+.bag-pane { flex-grow: 6; flex-basis: 0; min-width: 0; }
+.category-tabs { flex-direction: row; flex-shrink: 0; }
+.category-tab { flex-grow: 1; flex-basis: 0; margin-right: 4px; padding-left: 4px; padding-right: 4px; }
+.bag-capacity { margin-top: 8px; margin-bottom: 8px; font-size: 13px; color: rgb(184, 203, 220); }
+.bag-grid { flex-grow: 1; flex-direction: row; flex-wrap: wrap; min-height: 0; }
+.bag-cell { width: 12.5%; height: 20%; padding: 3px; background-color: rgb(37, 49, 65); border-width: 2px; border-color: rgb(24, 33, 46); }
+.bag-cell > Image { flex-grow: 1; min-height: 0; }
+.stack-count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; background-color: rgba(12, 17, 24, 0.85); }
+.upgrade-level { position: absolute; right: 4px; top: 2px; font-size: 14px; color: rgb(255, 214, 126); background-color: rgba(12, 17, 24, 0.85); }
+.selection-panel { flex-direction: row; align-items: center; flex-shrink: 0; min-height: 100px; margin-top: 14px; padding: 12px; background-color: rgb(29, 40, 54); }
+.selection-copy { flex-grow: 1; flex-shrink: 1; margin-right: 16px; }
+.selection-title { font-size: 18px; margin-bottom: 6px; }
+.selection-description { white-space: normal; font-size: 14px; }
+.inventory-message { min-height: 22px; margin-top: 8px; flex-shrink: 0; white-space: normal; color: rgb(244, 207, 140); font-size: 14px; }
+.inventory-screen Button { color: rgb(245, 247, 250); background-color: rgb(47, 67, 87); -unity-text-align: middle-center; border-width: 2px; border-color: rgb(66, 85, 103); }
+.inventory-header > Button, .inventory-menu > Button, .category-tab, #equipment-action { min-height: 38px; padding: 8px; }
+.inventory-screen Button:hover { background-color: rgb(66, 94, 118); }
+.inventory-screen Button:disabled { color: rgb(150, 158, 166); background-color: rgb(42, 49, 59); }
+.inventory-screen .selected { border-color: rgb(226, 196, 122); background-color: rgb(66, 77, 83); }
+.inventory-screen .hidden { display: none; }
+.inventory-screen.hidden { display: none; }

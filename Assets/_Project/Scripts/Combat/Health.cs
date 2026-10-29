@@ -1,4 +1,5 @@
 using System;
+using PersistentWorld.Items;
 using UnityEngine;
 
 namespace PersistentWorld.Combat
@@ -33,13 +34,25 @@ namespace PersistentWorld.Combat
 
         public bool TryDamage(int amount, Faction sourceFaction)
         {
-            if (IsDead || Time.time < InvulnerableUntil || amount <= 0 || sourceFaction == faction || sourceFaction == Faction.Neutral)
+            return TryDamage(amount, new DamageContext(sourceFaction));
+        }
+
+        public bool TryDamage(int amount, Faction sourceFaction, GameObject source)
+        {
+            return TryDamage(amount, DamageContext.From(sourceFaction, source));
+        }
+
+        public bool TryDamage(int amount, DamageContext source)
+        {
+            if (IsDead || Time.time < InvulnerableUntil || amount <= 0 || source.Faction == faction || source.Faction == Faction.Neutral)
             {
                 return false;
             }
 
             CombatStatus status = GetComponent<CombatStatus>();
             if (status != null && status.Vulnerable) amount = Mathf.RoundToInt(amount * 2f);
+            PlayerEquipment equipment = GetComponent<PlayerEquipment>();
+            amount = EquipmentDamage.Resolve(amount, source, MonsterIdentity.Resolve(gameObject), equipment != null ? equipment.Bonuses : default);
             Current = Mathf.Max(0, Current - amount);
             Changed?.Invoke(Current, maxHealth);
             if (Current == 0)
