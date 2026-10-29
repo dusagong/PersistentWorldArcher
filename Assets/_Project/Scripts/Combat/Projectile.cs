@@ -9,7 +9,7 @@ namespace PersistentWorld.Combat
         private float speed;
         private float remainingLife;
         private int damage;
-        private Faction sourceFaction;
+        private DamageContext damageContext;
         private GameObject owner;
         private bool initialized;
 
@@ -42,7 +42,7 @@ namespace PersistentWorld.Combat
         {
             direction = newDirection.sqrMagnitude > 0f ? newDirection.normalized : Vector2.right;
             damage = Mathf.Max(1, newDamage);
-            sourceFaction = newSourceFaction;
+            damageContext = DamageContext.From(newSourceFaction, newOwner);
             owner = newOwner;
             speed = Mathf.Max(0.1f, newSpeed);
             remainingLife = Mathf.Max(0.1f, lifetime);
@@ -67,7 +67,7 @@ namespace PersistentWorld.Combat
                 }
 
                 Health health = hit.collider.GetComponentInParent<Health>();
-                if (health != null && health.TryDamage(damage, sourceFaction))
+                if (health != null && health.TryDamage(damage, damageContext))
                 {
                     Destroy(gameObject);
                     return;

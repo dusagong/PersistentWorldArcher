@@ -1,4 +1,5 @@
 using PersistentWorld.Player;
+using PersistentWorld.UI;
 using UnityEngine;
 
 namespace PersistentWorld.World
@@ -9,6 +10,7 @@ namespace PersistentWorld.World
 
         private void OnGUI()
         {
+            if (ItemWindows.BlocksGameplay) return;
             if (player == null)
             {
                 player = FindFirstObjectByType<ArcherController>();

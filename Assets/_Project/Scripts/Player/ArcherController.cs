@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using PersistentWorld.Combat;
 using PersistentWorld.Core;
+using PersistentWorld.Items;
+using PersistentWorld.UI;
 using UnityEngine;
 
 namespace PersistentWorld.Player
@@ -24,6 +26,7 @@ namespace PersistentWorld.Player
 
         private Rigidbody2D body;
         private Health health;
+        private PlayerEquipment equipment;
         private Vector2 moveInput;
         private Vector2 aimDirection = Vector2.right;
         private float attackReadyAt;
@@ -50,7 +53,7 @@ namespace PersistentWorld.Player
 
         private void Update()
         {
-            if (health.IsDead)
+            if (health.IsDead || ItemWindows.BlocksGameplay)
             {
                 moveInput = Vector2.zero;
                 return;
@@ -92,7 +95,7 @@ namespace PersistentWorld.Player
         {
             if (!isDashing && !health.IsDead)
             {
-                body.linearVelocity = moveInput * moveSpeed;
+                body.linearVelocity = ItemWindows.BlocksGameplay ? Vector2.zero : moveInput * (moveSpeed + EquipmentBonuses.MoveSpeed);
             }
         }
 
@@ -115,7 +118,8 @@ namespace PersistentWorld.Player
         private void FireArrow(float angleOffset = 0f)
         {
             Vector2 direction = Quaternion.Euler(0f, 0f, angleOffset) * aimDirection;
-            int damage = IsFocused ? Mathf.RoundToInt(attackDamage * 1.5f) : attackDamage;
+            int equippedDamage = attackDamage + EquipmentBonuses.Attack;
+            int damage = IsFocused ? Mathf.RoundToInt(equippedDamage * 1.5f) : equippedDamage;
             Color color = IsFocused ? new Color(1f, 0.8f, 0.15f) : new Color(0.9f, 1f, 0.3f);
             Projectile.Spawn((Vector2)transform.position + direction * 0.5f, direction, damage, Faction.Player, gameObject, color);
             attackReadyAt = Time.time + (IsFocused ? attackInterval * 0.6f : attackInterval);
@@ -126,7 +130,7 @@ namespace PersistentWorld.Player
             doubleShotReadyAt = Time.time + doubleShotCooldown;
             FireArrow(-3f);
             yield return new WaitForSeconds(0.12f);
-            if (!health.IsDead)
+            if (!health.IsDead && !ItemWindows.BlocksGameplay)
             {
                 FireArrow(3f);
             }
@@ -134,7 +138,7 @@ namespace PersistentWorld.Player
 
         public bool TryBackstep()
         {
-            if (!isActiveAndEnabled || health.IsDead || isDashing || Time.time < backstepReadyAt) return false;
+            if (!isActiveAndEnabled || health.IsDead || isDashing || ItemWindows.BlocksGameplay || Time.time < backstepReadyAt) return false;
             StartCoroutine(Backstep());
             return true;
         }
@@ -148,7 +152,7 @@ namespace PersistentWorld.Player
             float speed = backstepDistance / backstepDuration;
             float elapsed = 0f;
 
-            while (elapsed < backstepDuration && !health.IsDead)
+            while (elapsed < backstepDuration && !health.IsDead && !ItemWindows.BlocksGameplay)
             {
                 body.linearVelocity = dashDirection * speed;
                 elapsed += Time.fixedDeltaTime;
@@ -204,10 +208,16 @@ namespace PersistentWorld.Player
             return nearest;
         }
 
-        private static bool IsPointerOverUi()
+        private EquipmentBonuses EquipmentBonuses
         {
-            return false;
+            get
+            {
+                if (equipment == null) equipment = GetComponent<PlayerEquipment>();
+                return equipment != null ? equipment.Bonuses : default;
+            }
         }
+
+        private static bool IsPointerOverUi() => ItemWindows.BlocksGameplay;
     }
 }
 

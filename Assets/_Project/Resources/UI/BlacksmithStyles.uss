@@ -1,0 +1,37 @@
+.blacksmith-screen {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(9, 13, 20, 0.8);
+    color: rgb(235, 239, 245);
+    font-size: 16px;
+}
+.blacksmith-panel {
+    width: 88%;
+    max-width: 960px;
+    height: 94%;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    background-color: rgb(24, 33, 46);
+}
+.header { flex-direction: row; align-items: center; min-height: 40px; flex-shrink: 0; margin-bottom: 8px; }
+.title { flex-grow: 1; font-size: 24px; -unity-font-style: bold; }
+.materials { min-height: 24px; flex-shrink: 0; margin-bottom: 8px; color: rgb(186, 216, 233); }
+.recipe-list { flex-grow: 1; flex-shrink: 1; min-height: 0; overflow: hidden; }
+.recipe-list .unity-scroll-view__content-viewport { flex-shrink: 1; min-height: 0; overflow: hidden; }
+.recipe-list .unity-scroll-view__content-container { flex-shrink: 0; }
+.recipe-row { flex-direction: row; align-items: center; min-height: 68px; flex-shrink: 0; margin-bottom: 8px; padding-top: 6px; padding-bottom: 6px; background-color: rgb(35, 46, 62); }
+.item-icon { width: 56px; height: 56px; margin-left: 12px; margin-right: 12px; }
+.recipe-description { flex-grow: 1; flex-shrink: 1; }
+.recipe-description > Label { min-height: 18px; flex-shrink: 0; margin-bottom: 2px; font-size: 14px; white-space: normal; }
+.recipe-description > .item-name { font-size: 16px; }
+Button { min-width: 72px; min-height: 40px; flex-shrink: 0; padding-left: 14px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; margin-right: 10px; color: rgb(245, 247, 250); background-color: rgb(53, 91, 119); -unity-text-align: middle-center; }
+Button:hover { background-color: rgb(69, 116, 150); }
+Button:disabled { color: rgb(141, 150, 163); background-color: rgb(47, 54, 65); }
+.message { min-height: 24px; flex-shrink: 0; margin-top: 8px; white-space: normal; color: rgb(244, 207, 140); }
