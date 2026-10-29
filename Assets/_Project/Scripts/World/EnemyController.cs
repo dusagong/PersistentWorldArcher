@@ -25,6 +25,7 @@ namespace PersistentWorld.World
 
         private void FixedUpdate()
         {
+            if (GetComponent<CombatStatus>() is CombatStatus status && status.IsDisplaced) return;
             if (health.IsDead)
             {
                 body.linearVelocity = Vector2.zero;

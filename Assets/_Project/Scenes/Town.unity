@@ -17414,7 +17414,7 @@ MonoBehaviour:
   npcName: Village Guide
   lines:
   - Welcome. The field gate is to the east.
-  - Q fires twice, E steps back, and right click empowers arrows.
+  - Right click attacks. Q/E use equipped skills, Space dodges. ESC opens skills and classes.
 --- !u!58 &745573423
 CircleCollider2D:
   m_ObjectHideFlags: 0

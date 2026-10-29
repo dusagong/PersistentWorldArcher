@@ -16,6 +16,7 @@ namespace PersistentWorld.Combat
         private Transform caster;
         private Vector2 offset;
         public bool IsFlight { get; private set; }
+        public Transform Caster => caster;
 
         public static PowerShotEffect PlayCast(Transform owner, Vector2 direction)
         {

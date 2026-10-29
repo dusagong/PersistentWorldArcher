@@ -9,7 +9,7 @@ namespace PersistentWorld.World
         [SerializeField] private string[] lines =
         {
             "The field gate is to the east.",
-            "Use Q for Double Shot and E for Backstep."
+            "Use Q/E for equipped skills, Space to dodge and ESC to change skills."
         };
 
         private int lineIndex;

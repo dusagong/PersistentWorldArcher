@@ -1,50 +1,14 @@
-# Skill 1: Q double shot
+# 궁수 이펙트
 
-`SkillOneVolley.png` is the supplied transparent 1026x684 sheet. Read the 3x2 grid
-left-to-right, top-to-bottom, including the final empty cell. The reference GIF
-contains six 80 ms frames: the effect plays once for 0.48 seconds, then cleans up.
+원본 투명 PNG를 런타임에 프레임 분할한다. 조작·판정의 최신 기준은 `Scripts/Player/CLASS_SKILLS.md`와 루트 README다.
 
-The source art faces left. Its fixed emission anchor is rotated toward the aim
-direction at cast time. This is a visual fan effect; the existing two projectiles,
-their 0.12-second firing interval, damage and 4-second cooldown remain unchanged.
-Only Q's placeholder rectangles are hidden when the effect loads successfully.
-E backstep and right-click focus keep their existing behavior.
+- `BasicAttackBow.png`: 1254×1254, 2×2. 우클릭 평타마다 60ms 간격 4프레임, 0.18초에 화살 발사, 0.24초에 활 정리.
+- `BasicAttackArrow.png`: 1254×1254, 단일 NE 방향 화살. 조준 방향으로 회전·이동하며 실제 충돌 위치에 끝을 고정한다.
+- `SkillOneVolley.png`: 1026×684, 3×2. 오지마의 분홍 화살 연출은 80ms 간격 6프레임이다. 실제 효과는 전방 90도 범위 피해·넉백이며 보스 패턴 중 넉백은 제외한다.
+- `SkillTwoArrowRain.png`: 1026×1026, 3×3. Q/E에 화살 비를 장착하고 키를 누르면 범위가 보이며, 놓으면 80ms 간격 9프레임을 재생한다. 첫 착탄인 프레임3(0.24초)에 타원 안의 적을 한 번 공격한다.
+- `SkillThreeCast.png`: 1254×1254, 3×3. 저격 차징 완료/키 해제 후 80ms 간격 9프레임 활 연출. 프레임7(0.56초)에 차징 피해·사거리를 적용한 화살 발사.
+- `SkillThreeFlight.png`: 1026×1026, 3×3. 저격 화살의 9프레임 비행 반복, 충돌·사거리 종료 시 정리.
 
-# Skill 2: R arrow rain
+왼쪽 방향 및 대각선 원본은 조준 방향으로 회전·반전한다. 저격 시트의 초록 가이드는 각 셀 가장자리 2픽셀 제외로 제거한다. 집중 상태의 피해 1.5배 보너스는 이전 프로토타입에서 제거했고, 기획서의 일석이조(공속 증가+평타 2연사)로 교체했다.
 
-`SkillTwoArrowRain.png` is the supplied transparent 1026x1026, 3x3 sheet.
-All nine cells play once at 80 ms per frame (0.72 seconds), matching the GIF.
-The last cell clears the effect. The target is the center of the ground ring;
-the arrows always fall down without rotating toward the mouse.
-
-Press R to cast at the mouse position, clamped to 6 units from the player.
-The first impact (frame 3, 0.24 seconds) damages enemies inside the ring once,
-even if they have multiple colliders. Players and neutral NPCs are not damaged.
-Prototype values: 30 damage, 8-second cooldown, ellipse radii 1.3 x 0.45 units.
-Right-click focus boosts this damage by the same 1.5 multiplier as arrows.
-Values are adjustable on ArcherController; E backstep remains unchanged.
-
-# Skill 3: T power shot
-
-Separate user-provided 3x3 sheets: `SkillThreeCast.png` (1254x1254) and
-`SkillThreeFlight.png` (1026x1026). Both use nine 80 ms frames, matching the GIFs.
-The bow follows the caster for 0.72 seconds. On its frame-7 release flash (0.56s),
-one real projectile spawns. The flight animation loops until impact or its 1.5s
-lifetime expires. The cast-time aim direction is retained throughout.
-
-The flight sprite's tip is anchored at the projectile's collision position.
-A two-pixel cell inset excludes the source sheets' green guides. Placeholder
-scaling is removed so the arrow is not stretched. Existing projectile collision
-handles enemy damage and obstacles, and destroys its attached visual on impact.
-Prototype values: damage 50, cooldown 10s, speed 9 units/s; focus boosts damage 1.5x.
-
-# Basic attack: left mouse button
-
-`BasicAttackBow.png` is the original transparent 1254x1254 2x2 sheet.
-Its four poses play once in row order at 60 ms per frame. On the final pose
-(0.18s), one projectile using `BasicAttackArrow.png` launches toward the aim
-direction captured at attack start. The bow follows the player's upper body
-and clears at 0.24s. Both source images point northeast and rotate to aim.
-The arrow tip follows the existing collision position; impact or lifetime
-expiry removes its visual. Holding left mouse repeats at the existing 0.45s
-interval (0.27s while focused). Damage remains 10, boosted to 15 by focus.
+전사·힐러 에셋은 아직 없어 임시 도형·범위선으로 동작한다. 에셋 도착 시 판정·장착 로직을 유지하고 연출을 교체한다.

@@ -12,9 +12,14 @@ namespace PersistentWorld.World
         private Health health;
         private float attackReadyAt;
         private bool phaseTwo;
+        private float patternEndsAt;
+        // Teammates can hold this true throughout a boss pattern/phase transition.
+        public bool PatternLocked { get; set; }
+        public bool IsPerformingPattern => PatternLocked || Time.time < patternEndsAt;
 
         private void Awake()
         {
+            BossEncounter.Begin();
             health = GetComponent<Health>();
         }
 
@@ -40,6 +45,7 @@ namespace PersistentWorld.World
 
         private void FireRing(int projectileCount)
         {
+            patternEndsAt = Time.time + .6f;
             for (int index = 0; index < projectileCount; index++)
             {
                 float angle = 360f * index / projectileCount;

@@ -154,7 +154,7 @@ namespace PersistentWorld.Editor
             collider.radius = 0.45f;
             collider.isTrigger = true;
             NpcDialogue dialogue = npc.AddComponent<NpcDialogue>();
-            dialogue.Configure("Village Guide", "Welcome. The field gate is to the east.", "Q fires twice, E steps back, and right click empowers arrows.");
+            dialogue.Configure("Village Guide", "Welcome. The field gate is to the east.", "Right click attacks. Q/E use equipped skills, Space dodges. ESC opens skills and classes.");
         }
 
         private static void CreatePortal(Vector2 position, string destination, string prompt)

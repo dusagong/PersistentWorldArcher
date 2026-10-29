@@ -12,6 +12,22 @@ namespace PersistentWorld.Combat
         private Faction sourceFaction;
         private GameObject owner;
         private bool initialized;
+        public float HitRadius { get; set; } = .09f;
+        public Faction SourceFaction => sourceFaction;
+        public int Damage => damage;
+        public bool InflictsVulnerability { get; set; }
+
+        public void Reflect(GameObject reflector)
+        {
+            direction = -direction;
+            damage = Mathf.Max(1, Mathf.RoundToInt(damage * .5f));
+            sourceFaction = Faction.Player;
+            owner = reflector;
+            InflictsVulnerability = false;
+            transform.right = direction;
+            remainingLife = Mathf.Max(remainingLife, 1);
+            GetComponent<SpriteRenderer>().color = Color.cyan;
+        }
 
         public static Projectile Spawn(
             Vector2 position,
@@ -58,7 +74,7 @@ namespace PersistentWorld.Combat
             }
 
             float distance = speed * Time.fixedDeltaTime;
-            RaycastHit2D[] hits = Physics2D.CircleCastAll(transform.position, 0.09f, direction, distance);
+            RaycastHit2D[] hits = Physics2D.CircleCastAll(transform.position, HitRadius, direction, distance);
             foreach (RaycastHit2D hit in hits)
             {
                 if (hit.collider == null || hit.collider.gameObject == owner)
@@ -67,8 +83,12 @@ namespace PersistentWorld.Combat
                 }
 
                 Health health = hit.collider.GetComponentInParent<Health>();
+                if (health != null && health.gameObject == owner) continue;
+                if (health != null && health.GetComponent<PersistentWorld.Player.PlayerSkills>() is PersistentWorld.Player.PlayerSkills skills && skills.TryParry(this)) return;
                 if (health != null && health.TryDamage(damage, sourceFaction))
                 {
+                    if (InflictsVulnerability && !health.IsDead)
+                        (health.GetComponent<CombatStatus>() ?? health.gameObject.AddComponent<CombatStatus>()).ApplyVulnerability();
                     Destroy(gameObject);
                     return;
                 }

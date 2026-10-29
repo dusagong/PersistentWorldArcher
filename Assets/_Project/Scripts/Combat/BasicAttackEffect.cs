@@ -13,6 +13,7 @@ namespace PersistentWorld.Combat
         private SpriteRenderer visual;
         private Vector2 direction;
         private float startedAt;
+        public Transform Owner => owner;
 
         public static bool LoadArt()
         {
