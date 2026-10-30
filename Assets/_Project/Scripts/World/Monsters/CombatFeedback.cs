@@ -6,6 +6,8 @@ namespace PersistentWorld.World
 {
     // 피격 피드백: 흰색 번쩍임, 데미지 숫자, 머리 위 HP 바, 사망 시 터지는 효과.
     // 씬에 배치된 모든 적(Enemy 진영)과 플레이어에는 실행 시 자동으로 붙는다.
+    // Health.Awake(현재 HP 초기화)보다 늦게 준비되도록 실행 순서를 뒤로 둔다
+    [DefaultExecutionOrder(100)]
     [RequireComponent(typeof(Health))]
     public sealed class CombatFeedback : MonoBehaviour
     {
@@ -26,7 +28,7 @@ namespace PersistentWorld.World
         private Transform barFill;
         private SpriteRenderer barBack;
         private SpriteRenderer barFront;
-        private int lastHealth;
+        private int lastHealth = -1;
         private float flashEndsAt;
 
         public void Configure(bool flashOnHit, bool healthBar, bool deathBurst, Color numberColor)
@@ -45,7 +47,8 @@ namespace PersistentWorld.World
 
         private void OnEnable()
         {
-            lastHealth = health.Current;
+            // Health가 아직 초기화 전(0)이면 기억하지 않고 Start나 첫 변화 때 정한다
+            lastHealth = health.Current > 0 ? health.Current : -1;
             health.Changed += OnHealthChanged;
             health.Died += OnDied;
         }
@@ -58,6 +61,7 @@ namespace PersistentWorld.World
 
         private void Start()
         {
+            if (lastHealth < 0 && health.Current > 0) lastHealth = health.Current;
             if (showFlash && body != null) CreateFlash();
             if (showHealthBar) CreateHealthBar();
         }
@@ -69,6 +73,7 @@ namespace PersistentWorld.World
 
         private void OnHealthChanged(int current, int maximum)
         {
+            if (lastHealth < 0) lastHealth = maximum; // 첫 변화 전 HP는 항상 최대치에서 시작
             int delta = lastHealth - current;
             lastHealth = current;
             if (delta == 0) return;
