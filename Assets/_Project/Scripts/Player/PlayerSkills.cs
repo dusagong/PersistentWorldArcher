@@ -70,6 +70,7 @@ namespace PersistentWorld.Player
             if (combo > 0 && Time.time >= comboEndsAt) { combo = 0; SetCooldown(SkillId.ComboSlash, 6); }
             if (held == SkillId.Snipe || held == SkillId.Excalibur)
             {
+                if (held == SkillId.Snipe) heldAim = controller.AimDirection;
                 float range = Mathf.Lerp(held == SkillId.Snipe ? 8 : 2, held == SkillId.Snipe ? 15 : 5, Charge);
                 if (held == SkillId.Excalibur) preview.Sector(transform.position, heldAim, range, 100);
                 else preview.Beam((Vector2)transform.position + Vector2.up * .35f, (Vector2)transform.position + Vector2.up * .35f + heldAim * range, Mathf.Lerp(.06f, .2f, Charge));
@@ -97,7 +98,7 @@ namespace PersistentWorld.Player
                 case SkillId.Repulse:
                     SetCooldown(id, 4);
                     SkillOneEffect.Spawn((Vector2)transform.position + Vector2.up * .35f + direction * .3f, direction);
-                    SectorDamage(transform.position, direction, 3, 90, Damage(20), 2);
+                    SectorDamage(transform.position, direction, 3, 90, Damage(20), 2, false);
                     break;
                 case SkillId.ArrowRain:
                 case SkillId.Snipe:
@@ -148,7 +149,7 @@ namespace PersistentWorld.Player
             if (!IsHolding || heldSlot != slot) return false;
             SkillId id = held;
             float charge = Charge;
-            Vector2 direction = heldAim;
+            Vector2 direction = id == SkillId.Snipe ? controller.AimDirection : heldAim;
             ClearHold();
             if (!CanAct) return false;
             if (id == SkillId.ArrowRain)
@@ -232,7 +233,8 @@ namespace PersistentWorld.Player
             else
             {
                 attackReadyAt = Time.time + (SpecialActive ? .27f : .45f);
-                BasicAttackEffect.PlayCast(transform, direction);
+                if (!SpecialActive) BasicAttackEffect.PlayCast(transform, direction);
+                else BasicAttackEffect.PlayBuff(transform, direction);
                 StartCoroutine(BasicArrows(direction, SpecialActive));
             }
             return true;
@@ -276,6 +278,7 @@ namespace PersistentWorld.Player
                 Ready[loadout.Class + ":Special"] = Time.time + (loadout.Class == CharacterClass.Warrior ? 4 : 10);
                 specialEndsAt = Time.time + (loadout.Class == CharacterClass.Warrior ? .7f : 5);
                 if (loadout.Class == CharacterClass.Warrior) SkillIndicator.Create(Color.cyan, .7f).Sector(transform.position, controller.AimDirection, 1.7f, 140);
+                else BasicAttackEffect.PlayBuff(transform, controller.AimDirection);
             }
             return true;
         }
@@ -289,9 +292,9 @@ namespace PersistentWorld.Player
             return true;
         }
 
-        private void SectorDamage(Vector2 center, Vector2 direction, float radius, float angle, int damage, float knockback = 0)
+        private void SectorDamage(Vector2 center, Vector2 direction, float radius, float angle, int damage, float knockback = 0, bool showRange = true)
         {
-            SkillIndicator.Create(loadout.Class == CharacterClass.Warrior ? Color.yellow : Color.magenta, .22f).Sector(center, direction, radius, angle);
+            if (showRange) SkillIndicator.Create(loadout.Class == CharacterClass.Warrior ? Color.yellow : Color.magenta, .22f).Sector(center, direction, radius, angle);
             HashSet<Health> seen = new HashSet<Health>();
             foreach (Collider2D collider in Physics2D.OverlapCircleAll(center, radius))
             {
@@ -317,7 +320,7 @@ namespace PersistentWorld.Player
         {
             ClearHold(); StopAllCoroutines(); busy = releasing = false;
             foreach (BasicAttackEffect effect in UnityEngine.Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None))
-                if (effect.Owner == transform) Destroy(effect.gameObject);
+                if (effect.Owner == transform && !effect.IsBuff) Destroy(effect.gameObject);
             foreach (PowerShotEffect effect in UnityEngine.Object.FindObjectsByType<PowerShotEffect>(FindObjectsSortMode.None))
                 if (!effect.IsFlight && effect.Caster == transform) Destroy(effect.gameObject);
         }

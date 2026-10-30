@@ -1,4 +1,5 @@
 using UnityEngine;
+using PersistentWorld.Player;
 
 namespace PersistentWorld.Combat
 {
@@ -14,6 +15,30 @@ namespace PersistentWorld.Combat
         private Vector2 direction;
         private float startedAt;
         public Transform Owner => owner;
+        public bool IsBuff { get; private set; }
+
+        public static BasicAttackEffect PlayBuff(Transform caster, Vector2 aim)
+        {
+            foreach (BasicAttackEffect existing in Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None))
+            {
+                if (existing.Owner != caster) continue;
+                if (existing.IsBuff)
+                {
+                    // Sync an actual shot to the shared bow without extending the buff lifetime.
+                    existing.startedAt = Time.time;
+                    return existing;
+                }
+                existing.gameObject.SetActive(false);
+                Destroy(existing.gameObject);
+            }
+            BasicAttackEffect effect = PlayCast(caster, aim);
+            if (effect != null)
+            {
+                effect.IsBuff = true;
+                effect.name = "Archer Special - Bow Loop";
+            }
+            return effect;
+        }
 
         public static bool LoadArt()
         {
@@ -66,10 +91,23 @@ namespace PersistentWorld.Combat
         private void Update()
         {
             int frame = Mathf.FloorToInt((Time.time - startedAt) / FrameDuration);
-            if (owner == null || health == null || health.IsDead || !owner.gameObject.activeInHierarchy || frame >= 4)
+            if (owner == null || health == null || health.IsDead || !owner.gameObject.activeInHierarchy || (!IsBuff && frame >= 4))
             {
                 Destroy(gameObject);
                 return;
+            }
+            if (IsBuff)
+            {
+                ArcherController controller = owner.GetComponent<ArcherController>();
+                PlayerSkills skills = owner.GetComponent<PlayerSkills>();
+                if (controller == null || !controller.isActiveAndEnabled || skills == null || !skills.isActiveAndEnabled || !skills.SpecialActive || controller.Loadout.Class != CharacterClass.Archer)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+                direction = controller.AimDirection;
+                transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 45f);
+                frame %= 4;
             }
             transform.position = owner.position + Vector3.up * .35f + (Vector3)direction * .3f;
             visual.sprite = frames[frame];
