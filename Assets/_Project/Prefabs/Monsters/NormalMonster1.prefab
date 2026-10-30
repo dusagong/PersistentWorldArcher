@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 8046103461032307102}
   - component: {fileID: 2109906412993322918}
   - component: {fileID: 7013613367222723754}
+  - component: {fileID: 3093059659300458529}
   m_Layer: 0
   m_Name: NormalMonster1
   m_TagString: Untagged
@@ -247,6 +248,7 @@ MonoBehaviour:
   detectionRange: 8
   moveSpeed: 1.8
   jumpTriggerRange: 5
+  stopDistance: 1.6
   windupTime: 0.6
   maxJumpDistance: 5.5
   jumpDuration: 0.5
@@ -257,3 +259,26 @@ MonoBehaviour:
   jumpCooldown: 2
   windupTint: {r: 1, g: 0.35, b: 0.3, a: 1}
   warningColor: {r: 1, g: 0.12, b: 0.1, a: 1}
+--- !u!114 &3093059659300458529
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1130909746213680288}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4c64bcb9506ba9449be0208277c407a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  drops:
+  - itemId: material_1
+    quantity: 1
+    chance: 0.5
+  - itemId: health_potion
+    quantity: 1
+    chance: 0.35
+  - itemId: mana_potion
+    quantity: 1
+    chance: 0.35
+  scatterRadius: 0.7

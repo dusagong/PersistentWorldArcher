@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 1543960628998824534}
   - component: {fileID: 5994699619896553645}
   - component: {fileID: 8973498766832874240}
+  - component: {fileID: 7451660957452071914}
   m_Layer: 0
   m_Name: DashMonster
   m_TagString: Untagged
@@ -257,3 +258,26 @@ MonoBehaviour:
   windupTint: {r: 1, g: 0.2, b: 0.2, a: 1}
   warningLineColor: {r: 1, g: 0.15, b: 0.15, a: 0.55}
   warningLineWidth: 0.3
+--- !u!114 &7451660957452071914
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8041184623125599256}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4c64bcb9506ba9449be0208277c407a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  drops:
+  - itemId: material_1
+    quantity: 1
+    chance: 0.5
+  - itemId: health_potion
+    quantity: 1
+    chance: 0.35
+  - itemId: mana_potion
+    quantity: 1
+    chance: 0.35
+  scatterRadius: 0.7
