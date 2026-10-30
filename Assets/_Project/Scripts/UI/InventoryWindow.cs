@@ -137,8 +137,7 @@ namespace PersistentWorld.UI
             menu.AddToClassList("hidden");
             panel.RemoveFromClassList("hidden");
             screen.Q<Label>("class-label").text = ClassName(session.Profile.Class) + " · 장착 장비";
-            var renderer = actor.GetComponentInChildren<SpriteRenderer>();
-            preview.sprite = renderer != null ? renderer.sprite : null;
+            preview.sprite = Resources.Load<Sprite>("Characters/ArcherInventoryIdle");
             message.text = "아이템을 선택하면 아래에서 정보를 확인할 수 있습니다.";
             Refresh();
         }
