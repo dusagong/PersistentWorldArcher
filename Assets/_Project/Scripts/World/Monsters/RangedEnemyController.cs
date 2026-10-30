@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace PersistentWorld.World
 {
-    // 원거리형 일반 몬스터: 사거리를 유지하며 짧게 조준한 뒤 플레이어에게 탄을 쏜다.
+    // 일반 몬스터2 (원거리형): 일반 몬스터1보다 먼 거리를 유지하며 짧게 조준한 뒤 투척물을 던진다.
     [RequireComponent(typeof(Rigidbody2D), typeof(Health))]
     public sealed class RangedEnemyController : MonoBehaviour
     {
         [Header("이동")]
-        [SerializeField] private float detectionRange = 7f;
-        [SerializeField] private float preferredRange = 4f;
-        [SerializeField] private float retreatRange = 2.5f;
+        [SerializeField] private float detectionRange = 9f;
+        [SerializeField] private float preferredRange = 6.5f;
+        [SerializeField] private float retreatRange = 4.5f;
         [SerializeField] private float moveSpeed = 2f;
 
         [Header("사격")]
