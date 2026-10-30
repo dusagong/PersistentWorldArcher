@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 1367095573232869514}
   - component: {fileID: 7941330534665128065}
   - component: {fileID: 9123537857761924305}
+  - component: {fileID: 2124025867874078890}
   m_Layer: 0
   m_Name: NormalMonster2
   m_TagString: Untagged
@@ -255,3 +256,26 @@ MonoBehaviour:
   healthBarWidth: 0.9
   healthBarHeight: 0.1
   healthBarGap: 0.2
+--- !u!114 &2124025867874078890
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3456696383843372104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4c64bcb9506ba9449be0208277c407a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  drops:
+  - itemId: material_2
+    quantity: 2
+    chance: 0.5
+  - itemId: health_potion
+    quantity: 1
+    chance: 0.35
+  - itemId: mana_potion
+    quantity: 1
+    chance: 0.35
+  scatterRadius: 0.7
