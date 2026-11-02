@@ -219,7 +219,11 @@ namespace PersistentWorld.Player
             if (visual == null || visualClass == loadout.Class) return;
             visualClass = loadout.Class;
             ArcherSpriteAnimator animator = GetComponent<ArcherSpriteAnimator>();
-            if (animator != null) animator.enabled = visualClass == CharacterClass.Archer;
+            if (animator != null)
+            {
+                animator.enabled = true;
+                if (animator.RefreshClass()) { transform.localScale = Vector3.one; return; }
+            }
             transform.localScale = Vector3.one;
             if (visualClass == CharacterClass.Archer)
             {
