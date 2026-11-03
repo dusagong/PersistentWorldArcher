@@ -56,7 +56,6 @@ namespace PersistentWorld.World
         private IMonsterAnimationSource source;
         private Frames frames;
         private float loopTimer;
-        private float footOffset;
 
         public bool Ready => frames != null;
 
@@ -85,7 +84,6 @@ namespace PersistentWorld.World
             Vector3 scale = transform.localScale;
             float uniform = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y));
             transform.localScale = new Vector3(uniform, uniform, scale.z);
-            footOffset = height * uniform * .5f;
             visual.color = tint;
             visual.sprite = frames.Move[0];
         }
@@ -114,13 +112,6 @@ namespace PersistentWorld.World
 
             Vector2 facing = source != null ? source.Facing : body != null ? body.linearVelocity : Vector2.zero;
             if (Mathf.Abs(facing.x) > .05f) visual.flipX = sourceFacesRight ? facing.x < 0f : facing.x > 0f;
-        }
-
-        // 발 위치 기준으로 다른 캐릭터·배경과 앞뒤를 정한다 (WorldDepthSort와 같은 기준)
-        private void LateUpdate()
-        {
-            if (frames == null) return;
-            visual.sortingOrder = 1000 - Mathf.RoundToInt((transform.position.y - footOffset) * 100f);
         }
 
         private static Frames Load(MonsterArt id, float bodyHeight)
