@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace PersistentWorld.Combat
 {
-    // Visual only: the existing two projectiles remain responsible for damage.
+    // Visual only: PlayerSkills applies the cone damage and knockback independently.
     public sealed class SkillOneEffect : MonoBehaviour
     {
         public const float FrameDuration = .08f;

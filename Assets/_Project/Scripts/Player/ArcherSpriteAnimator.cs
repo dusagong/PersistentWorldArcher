@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PersistentWorld.Player
@@ -6,42 +7,38 @@ namespace PersistentWorld.Player
     [RequireComponent(typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(ArcherController))]
     public sealed class ArcherSpriteAnimator : MonoBehaviour
     {
-        private const string ResourcePath = "Characters/ArcherRun";
-        private const int Columns = 4;
-        private const int Rows = 2;
-        private const int FrameCount = Columns * Rows;
-        private const int AlphaThreshold = 8;
-        private const int Padding = 8;
-        private const float PixelsPerUnit = 300f;
-        private const int DashRows = 3;
-        private const float DashDuration = 0.6f;
-
-        [SerializeField] private float framesPerSecond = 10f;
-
-        private static Texture2D cachedTexture;
-        private static Sprite[] cachedFrames;
-        private static Texture2D cachedDashTexture;
-        private static Sprite[] cachedDashFrames;
-
-        private SpriteRenderer spriteRenderer;
+        [SerializeField] private float framesPerSecond = 12.5f;
+        private static readonly Dictionary<CharacterClass, Sprite[]> Runs = new Dictionary<CharacterClass, Sprite[]>();
+        private static readonly Dictionary<CharacterClass, Sprite[]> Dashes = new Dictionary<CharacterClass, Sprite[]>();
+        private SpriteRenderer visual;
         private Rigidbody2D body;
         private ArcherController controller;
+        private Sprite[] runFrames, dashFrames;
+        private CharacterClass loadedClass = (CharacterClass)(-1);
+        private float frameTimer, dashStartedAt;
         private int frameIndex;
-        private float frameTimer;
-        private float dashStartedAt;
         private bool playingDash;
+        private const float DashDuration = .6f;
 
         private void Awake()
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-            body = GetComponent<Rigidbody2D>();
+            visual = GetComponent<SpriteRenderer>(); body = GetComponent<Rigidbody2D>();
             controller = GetComponent<ArcherController>();
-            cachedFrames = GetOrCreateFrames();
-            cachedDashFrames = GetOrCreateDashFrames();
+            RefreshClass();
+        }
 
-            spriteRenderer.color = Color.white;
-            spriteRenderer.sortingOrder = 10;
-            SetFrame(0);
+        public bool RefreshClass()
+        {
+            if (controller == null) controller = GetComponent<ArcherController>();
+            if (visual == null) visual = GetComponent<SpriteRenderer>();
+            // Unity may awaken the animator before the controller creates its runtime loadout.
+            if (controller == null || controller.Loadout == null) return false;
+            CharacterClass type = controller.Loadout.Class;
+            runFrames = RunFrames(type); dashFrames = DashFrames(type);
+            if (runFrames == null || dashFrames == null) return false;
+            loadedClass = type; playingDash = false; frameIndex = 0; frameTimer = 0;
+            visual.color = Color.white; visual.sprite = runFrames[0];
+            return true;
         }
 
         private void OnEnable()
@@ -49,198 +46,95 @@ namespace PersistentWorld.Player
             controller = GetComponent<ArcherController>();
             controller.BackstepStarted += PlayDash;
         }
-
-        private void OnDisable()
-        {
-            controller.BackstepStarted -= PlayDash;
-            playingDash = false;
-        }
-
+        private void OnDisable() { controller.BackstepStarted -= PlayDash; playingDash = false; }
         private void PlayDash()
         {
-            if (cachedDashFrames == null || cachedDashFrames.Length == 0) return;
-            dashStartedAt = Time.time;
-            playingDash = true;
-            // Lock facing for the roll; mouse movement must not flip it halfway through.
-            spriteRenderer.flipX = controller.AimDirection.x < 0f;
-            spriteRenderer.sprite = cachedDashFrames[0];
+            if (dashFrames == null) return;
+            dashStartedAt = Time.time; playingDash = true;
+            visual.flipX = controller.AimDirection.x < 0;
+            visual.sprite = dashFrames[0];
         }
-
         private void Update()
         {
+            if (loadedClass != controller.Loadout.Class && !RefreshClass()) return;
             if (playingDash)
             {
                 float progress = (Time.time - dashStartedAt) / DashDuration;
-                if (progress < 1f)
+                if (progress < 1)
                 {
-                    int dashFrame = Mathf.Min((int)(progress * cachedDashFrames.Length), cachedDashFrames.Length - 1);
-                    spriteRenderer.sprite = cachedDashFrames[dashFrame];
+                    visual.sprite = dashFrames[Mathf.Min((int)(progress * dashFrames.Length), dashFrames.Length - 1)];
                     return;
                 }
                 playingDash = false;
-                frameTimer = 0f;
-                frameIndex = 0;
-                SetFrame(0);
             }
-            if (cachedFrames == null || cachedFrames.Length == 0)
-            {
-                return;
-            }
-
-            if (Mathf.Abs(controller.AimDirection.x) > 0.01f)
-            {
-                spriteRenderer.flipX = controller.AimDirection.x < 0f;
-            }
-
-            if (body.linearVelocity.sqrMagnitude < 0.01f)
-            {
-                frameTimer = 0f;
-                frameIndex = 0;
-                SetFrame(frameIndex);
-                return;
-            }
-
+            if (Mathf.Abs(controller.AimDirection.x) > .01f) visual.flipX = controller.AimDirection.x < 0;
+            if (body.linearVelocity.sqrMagnitude < .01f)
+            { frameTimer = 0; frameIndex = 0; visual.sprite = runFrames[0]; return; }
             frameTimer += Time.deltaTime;
-            float frameDuration = 1f / Mathf.Max(1f, framesPerSecond);
-            if (frameTimer < frameDuration)
-            {
-                return;
-            }
-
-            frameTimer %= frameDuration;
-            frameIndex = (frameIndex + 1) % cachedFrames.Length;
-            SetFrame(frameIndex);
+            float interval = 1 / Mathf.Max(1, framesPerSecond);
+            if (frameTimer >= interval)
+            { frameIndex = (frameIndex + Mathf.FloorToInt(frameTimer / interval)) % runFrames.Length; frameTimer %= interval; }
+            visual.sprite = runFrames[frameIndex];
         }
 
-        private void SetFrame(int index)
+        public static Sprite[] RunFrames(CharacterClass type)
         {
-            if (cachedFrames != null && index >= 0 && index < cachedFrames.Length)
-            {
-                spriteRenderer.sprite = cachedFrames[index];
-            }
-        }
-
-        private static Sprite[] GetOrCreateFrames()
-        {
-            Texture2D texture = Resources.Load<Texture2D>(ResourcePath);
-            if (texture == null)
-            {
-                Debug.LogError($"Missing player sprite sheet at Resources/{ResourcePath}.");
-                return null;
-            }
-
-            if (cachedTexture == texture && cachedFrames != null && cachedFrames.Length == FrameCount)
-            {
-                return cachedFrames;
-            }
-
-            Color32[] pixels;
-            try
-            {
-                pixels = texture.GetPixels32();
-            }
-            catch (UnityException exception)
-            {
-                Debug.LogError("The player sprite sheet must have Read/Write enabled. " + exception.Message);
-                return null;
-            }
-
-            int cellWidth = texture.width / Columns;
-            int cellHeight = texture.height / Rows;
-            Sprite[] frames = new Sprite[FrameCount];
-
-            for (int index = 0; index < FrameCount; index++)
-            {
-                int column = index % Columns;
-                int rowFromTop = index / Columns;
-                int cellX = column * cellWidth;
-                int cellY = (Rows - 1 - rowFromTop) * cellHeight;
-                Rect rect = FindVisibleRect(pixels, texture.width, cellX, cellY, cellWidth, cellHeight);
-
-                Sprite frame = Sprite.Create(
-                    texture,
-                    rect,
-                    new Vector2(0.5f, 0.03f),
-                    PixelsPerUnit,
-                    0,
-                    SpriteMeshType.FullRect);
-                frame.name = $"ArcherRun_{index:00}";
-                frames[index] = frame;
-            }
-
-            cachedTexture = texture;
-            cachedFrames = frames;
-            return cachedFrames;
-        }
-
-        private static Sprite[] GetOrCreateDashFrames()
-        {
-            Texture2D texture = Resources.Load<Texture2D>("Characters/ArcherDash");
-            if (texture == null)
-            {
-                Debug.LogError("Missing Resources/Characters/ArcherDash sprite sheet.");
-                return null;
-            }
-            if (cachedDashTexture == texture && cachedDashFrames != null) return cachedDashFrames;
-
-            int width = texture.width / Columns;
-            int height = texture.height / DashRows;
-            Sprite[] frames = new Sprite[Columns * DashRows];
-            // Match the run sheet even if Unity resized the older run texture on import.
-            float pixelsPerUnit = cachedTexture == null ? PixelsPerUnit : PixelsPerUnit * texture.width / cachedTexture.width;
+            if (Runs.TryGetValue(type, out Sprite[] frames)) return frames;
+            int columns = type == CharacterClass.Warrior ? 11 : 4;
+            int rows = type == CharacterClass.Warrior ? 1 : type == CharacterClass.Healer ? 3 : 2;
+            Texture2D texture = Resources.Load<Texture2D>("Characters/" + type + "Run");
+            if (texture == null || !texture.isReadable) return null;
+            int width = texture.width / columns, height = texture.height / rows;
+            Color32[] pixels = texture.GetPixels32();
+            frames = new Sprite[columns * rows];
+            float ppu = PixelsPerUnit(texture, columns);
             for (int i = 0; i < frames.Length; i++)
             {
-                Rect rect = new Rect(i % Columns * width, (DashRows - 1 - i / Columns) * height, width, height);
-                // Keep the full cell and a shared anchor: trimming rotating poses separately causes jitter.
-                frames[i] = Sprite.Create(texture, rect, new Vector2(.5f, .06f), pixelsPerUnit, 0, SpriteMeshType.FullRect);
-                frames[i].name = $"ArcherDash_{i:00}";
+                int x = i % columns * width, y = (rows - 1 - i / columns) * height;
+                int minX = x + width, minY = y + height, maxX = x - 1, maxY = y - 1;
+                for (int py = y; py < y + height; py++)
+                    for (int px = x; px < x + width; px++)
+                        if (pixels[py * texture.width + px].a > 8)
+                        { minX = Mathf.Min(minX, px); minY = Mathf.Min(minY, py); maxX = Mathf.Max(maxX, px); maxY = Mathf.Max(maxY, py); }
+                Rect rect;
+                if (maxX < minX) rect = new Rect(x, y, width, height);
+                else
+                {
+                    minX = Mathf.Max(x, minX - 8); minY = Mathf.Max(y, minY - 8);
+                    maxX = Mathf.Min(x + width - 1, maxX + 8); maxY = Mathf.Min(y + height - 1, maxY + 8);
+                    rect = new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+                }
+                frames[i] = Sprite.Create(texture, rect, new Vector2(.5f, .03f), ppu, 0, SpriteMeshType.FullRect);
+                frames[i].name = type + "Run_" + i.ToString("00");
             }
-            cachedDashTexture = texture;
-            cachedDashFrames = frames;
+            Runs[type] = frames;
             return frames;
         }
 
-        private static Rect FindVisibleRect(
-            Color32[] pixels,
-            int textureWidth,
-            int cellX,
-            int cellY,
-            int cellWidth,
-            int cellHeight)
+        public static Sprite[] DashFrames(CharacterClass type)
         {
-            int minX = cellWidth;
-            int minY = cellHeight;
-            int maxX = -1;
-            int maxY = -1;
-
-            for (int y = 0; y < cellHeight; y++)
+            if (Dashes.TryGetValue(type, out Sprite[] frames)) return frames;
+            int columns = type == CharacterClass.Healer ? 6 : 4;
+            int rows = type == CharacterClass.Healer ? 4 : 3;
+            Texture2D texture = Resources.Load<Texture2D>("Characters/" + type + "Dash");
+            if (texture == null) return null;
+            int width = texture.width / columns, height = texture.height / rows;
+            float ppu = PixelsPerUnit(texture, columns);
+            frames = new Sprite[columns * rows];
+            for (int i = 0; i < frames.Length; i++)
             {
-                int sourceY = cellY + y;
-                for (int x = 0; x < cellWidth; x++)
-                {
-                    Color32 pixel = pixels[sourceY * textureWidth + cellX + x];
-                    if (pixel.a <= AlphaThreshold)
-                    {
-                        continue;
-                    }
-
-                    minX = Mathf.Min(minX, x);
-                    minY = Mathf.Min(minY, y);
-                    maxX = Mathf.Max(maxX, x);
-                    maxY = Mathf.Max(maxY, y);
-                }
+                frames[i] = Sprite.Create(texture, new Rect(i % columns * width, (rows - 1 - i / columns) * height, width, height), new Vector2(.5f, .06f), ppu, 0, SpriteMeshType.FullRect);
+                frames[i].name = type + "Dash_" + i.ToString("00");
             }
+            Dashes[type] = frames;
+            return frames;
+        }
 
-            if (maxX < minX || maxY < minY)
-            {
-                return new Rect(cellX, cellY, cellWidth, cellHeight);
-            }
-
-            int left = Mathf.Max(cellX, cellX + minX - Padding);
-            int bottom = Mathf.Max(cellY, cellY + minY - Padding);
-            int right = Mathf.Min(cellX + cellWidth, cellX + maxX + Padding + 1);
-            int top = Mathf.Min(cellY + cellHeight, cellY + maxY + Padding + 1);
-            return new Rect(left, bottom, right - left, top - bottom);
+        private static float PixelsPerUnit(Texture2D texture, int columns)
+        {
+            Texture2D archer = Resources.Load<Texture2D>("Characters/ArcherRun");
+            // Preserve the original archer's world size, including its existing import downscale.
+            return 300f * texture.width / (columns * 640f) * 2560f / archer.width;
         }
     }
 }

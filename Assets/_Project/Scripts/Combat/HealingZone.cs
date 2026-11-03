@@ -17,8 +17,8 @@ namespace PersistentWorld.Combat
             zone.caster = source;
             zone.endsAt = Time.time + seconds;
             zone.nextTick = Time.time + 1;
-            SkillIndicator indicator = SkillIndicator.Create(Color.green, seconds);
-            indicator.Circle(position, 2, 2);
+            if (ClassSheetEffect.Play(ClassArtEffect.HealerHealingZone, position, seconds, true, obj.transform) == null)
+                SkillIndicator.Create(Color.green, seconds).Circle(position, 2, 2);
             return zone;
         }
 
