@@ -34,8 +34,9 @@ namespace PersistentWorld.World
             public readonly Sheet Move, Attack;
             public readonly Sheet? Idle;
             public readonly int WindupEnd, AttackEnd; // 공격 시트에서 준비 [0, WindupEnd), 공격 [WindupEnd, AttackEnd), 회복 [AttackEnd, 끝)
-            public Definition(Sheet move, Sheet attack, int windupEnd, int attackEnd, Sheet? idle = null)
-            { Move = move; Attack = attack; WindupEnd = windupEnd; AttackEnd = attackEnd; Idle = idle; }
+            public readonly bool AttackMirrored; // 공격 시트가 이동 시트와 반대쪽을 보고 그려졌는지
+            public Definition(Sheet move, Sheet attack, int windupEnd, int attackEnd, Sheet? idle = null, bool attackMirrored = false)
+            { Move = move; Attack = attack; WindupEnd = windupEnd; AttackEnd = attackEnd; Idle = idle; AttackMirrored = attackMirrored; }
         }
 
         private sealed class Frames
@@ -61,8 +62,8 @@ namespace PersistentWorld.World
 
         private static Definition Define(MonsterArt id) => id switch
         {
-            // 초록 슬라임: 납작하게 움츠림 → 잔상을 남기며 돌진 → 원래 모양으로 복귀
-            MonsterArt.Monster01 => new Definition(new Sheet("Move", 6, 6), new Sheet("Attack", 6, 6), 18, 24),
+            // 초록 슬라임: 납작하게 움츠림 → 잔상을 남기며 돌진 → 원래 모양으로 복귀. 이동은 왼쪽, 돌진은 오른쪽을 보고 그려져 있다.
+            MonsterArt.Monster01 => new Definition(new Sheet("Move", 6, 6), new Sheet("Attack", 6, 6), 18, 24, attackMirrored: true),
             // 가방 멘 초록 몬스터: 팔을 뒤로 빼며 조준 → 던진 뒤 자세 복귀
             MonsterArt.Monster02 => new Definition(new Sheet("Move", 4, 3), new Sheet("Attack", 6, 6), 18, 36, new Sheet("Idle", 4, 3)),
             // 흰 고양이: 웅크림 → 몸을 펴며 뛰어오름 → 다시 웅크렸다 일어남
@@ -111,7 +112,8 @@ namespace PersistentWorld.World
             }
 
             Vector2 facing = source != null ? source.Facing : body != null ? body.linearVelocity : Vector2.zero;
-            if (Mathf.Abs(facing.x) > .05f) visual.flipX = sourceFacesRight ? facing.x < 0f : facing.x > 0f;
+            bool facesRight = sourceFacesRight ^ (phase != MonsterAnimPhase.Move && Define(art).AttackMirrored);
+            if (Mathf.Abs(facing.x) > .05f) visual.flipX = facesRight ? facing.x < 0f : facing.x > 0f;
         }
 
         private static Frames Load(MonsterArt id, float bodyHeight)
