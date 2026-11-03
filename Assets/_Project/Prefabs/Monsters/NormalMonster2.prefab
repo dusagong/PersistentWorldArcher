@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3378410480214071952}
   - component: {fileID: 5203893116651313845}
-  - component: {fileID: 7057464210434042298}
   - component: {fileID: 6502577165362113850}
   - component: {fileID: 4130401319253407092}
   - component: {fileID: 123038278658679768}
@@ -37,7 +36,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.9, y: 0.9, z: 1}
+  m_LocalScale: {x: 1.5, y: 1.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -97,20 +96,6 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &7057464210434042298
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3456696383843372104}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fd01c6cdc2774b942bcae06a2c3b9cf8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  color: {r: 0.95, g: 0.75, b: 0.15, a: 1}
-  size: {x: 0.6, y: 0.9}
 --- !u!50 &6502577165362113850
 Rigidbody2D:
   serializedVersion: 5
