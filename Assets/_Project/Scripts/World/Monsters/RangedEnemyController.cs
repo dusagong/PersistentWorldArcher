@@ -5,8 +5,10 @@ namespace PersistentWorld.World
 {
     // 일반 몬스터2 (원거리형): 일반 몬스터1보다 먼 거리를 유지하며 짧게 조준한 뒤 투척물을 던진다.
     [RequireComponent(typeof(Rigidbody2D), typeof(Health))]
-    public sealed class RangedEnemyController : MonoBehaviour
+    public sealed class RangedEnemyController : MonoBehaviour, IMonsterAnimationSource
     {
+        private const float ThrowAnimationTime = .5f; // 던진 뒤 자세를 되돌리는 연출 시간 (이동은 막지 않는다)
+
         [Header("이동")]
         [SerializeField] private float detectionRange = 9f;
         [SerializeField] private float preferredRange = 6.5f;
@@ -30,8 +32,16 @@ namespace PersistentWorld.World
         private Transform player;
         private float fireReadyAt;
         private float aimEndsAt = -1f;
+        private float firedAt = float.NegativeInfinity;
 
         public bool IsAiming => aimEndsAt >= 0f;
+
+        public MonsterAnimPhase Phase => IsAiming ? MonsterAnimPhase.Windup
+            : Time.time < firedAt + ThrowAnimationTime ? MonsterAnimPhase.Attack : MonsterAnimPhase.Move;
+
+        public float PhaseProgress => IsAiming ? 1f - (aimEndsAt - Time.time) / Mathf.Max(.01f, aimTime) : (Time.time - firedAt) / ThrowAnimationTime;
+
+        public Vector2 Facing => player != null ? (Vector2)(player.position - transform.position) : body.linearVelocity;
 
         private void Awake()
         {
@@ -105,6 +115,7 @@ namespace PersistentWorld.World
         private void Fire(Vector2 delta)
         {
             CancelAim();
+            firedAt = Time.time;
             fireReadyAt = Time.time + fireInterval;
             Vector2 direction = delta.sqrMagnitude > 0f ? delta.normalized : Vector2.right;
             Projectile.Spawn(transform.position, direction, projectileDamage, Faction.Enemy, gameObject,

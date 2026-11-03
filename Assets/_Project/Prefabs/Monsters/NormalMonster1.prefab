@@ -19,6 +19,7 @@ GameObject:
   - component: {fileID: 2109906412993322918}
   - component: {fileID: 7013613367222723754}
   - component: {fileID: 3093059659300458529}
+  - component: {fileID: 4569598416440117596}
   m_Layer: 0
   m_Name: NormalMonster1
   m_TagString: Untagged
@@ -282,3 +283,19 @@ MonoBehaviour:
     quantity: 1
     chance: 0.35
   scatterRadius: 0.7
+--- !u!114 &4569598416440117596
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1130909746213680288}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 114db80b810f3ab4aa539b83ee50410e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  art: 2
+  height: 0.75
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  sourceFacesRight: 1

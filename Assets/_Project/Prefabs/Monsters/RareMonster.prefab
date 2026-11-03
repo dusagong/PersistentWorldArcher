@@ -60,6 +60,14 @@ PrefabInstance:
       propertyPath: hitRadius
       value: 1.2
       objectReference: {fileID: 0}
+    - target: {fileID: 4569598416440117596, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
+      propertyPath: tint.b
+      value: 0.45
+      objectReference: {fileID: 0}
+    - target: {fileID: 4569598416440117596, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
+      propertyPath: tint.g
+      value: 0.82
+      objectReference: {fileID: 0}
     - target: {fileID: 5241046945487513885, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
       propertyPath: maxHealth
       value: 100

@@ -19,6 +19,7 @@ GameObject:
   - component: {fileID: 5994699619896553645}
   - component: {fileID: 8973498766832874240}
   - component: {fileID: 7451660957452071914}
+  - component: {fileID: 2266191001753902148}
   m_Layer: 0
   m_Name: DashMonster
   m_TagString: Untagged
@@ -281,3 +282,19 @@ MonoBehaviour:
     quantity: 1
     chance: 0.35
   scatterRadius: 0.7
+--- !u!114 &2266191001753902148
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8041184623125599256}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 114db80b810f3ab4aa539b83ee50410e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  art: 0
+  height: 0.75
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  sourceFacesRight: 1
