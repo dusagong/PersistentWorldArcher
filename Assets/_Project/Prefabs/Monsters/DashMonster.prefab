@@ -297,4 +297,4 @@ MonoBehaviour:
   art: 0
   height: 0.75
   tint: {r: 1, g: 1, b: 1, a: 1}
-  sourceFacesRight: 1
+  sourceFacesRight: 0
