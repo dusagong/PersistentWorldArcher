@@ -13,7 +13,7 @@ namespace PersistentWorld.UI
         private PanelSettings settings;
         private UIDocument document;
         private Font font;
-        private VisualElement screen, panel, hpFill, mpFill;
+        private VisualElement screen, panel, vitals, skillRow, hpFill, mpFill;
         private Label hpText, mpText, skillTooltip;
         private readonly SkillView[] slots = new SkillView[5];
         private IManaSource manaSource;
@@ -62,15 +62,16 @@ namespace PersistentWorld.UI
             root.style.unityFont = font;
             screen = root.Q("combat-screen");
             panel = root.Q("combat-panel");
+            vitals = root.Q("combat-vitals");
+            skillRow = root.Q("combat-skills");
             hpFill = root.Q("hp-fill"); mpFill = root.Q("mp-fill");
             hpText = root.Q<Label>("hp-text"); mpText = root.Q<Label>("mp-text");
             skillTooltip = root.Q<Label>("combat-tooltip");
-            var row = root.Q("combat-skills");
             string[] keys = { "Space", "Q", "E", "좌클릭", "Shift" };
             for (int i = 0; i < slots.Length; i++)
             {
                 slots[i] = new SkillView(keys[i], i);
-                row.Add(slots[i].Root);
+                skillRow.Add(slots[i].Root);
             }
             root.Query<VisualElement>().ForEach(element =>
             { element.pickingMode = PickingMode.Ignore; element.focusable = false; });
@@ -89,7 +90,19 @@ namespace PersistentWorld.UI
             screen.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
             if (!visible) { skillTooltip.style.display = DisplayStyle.None; return; }
             float preferredScale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 1, 1.5f);
-            settings.scale = Mathf.Max(.1f, Mathf.Min(preferredScale, (width - 32) / 328f, (height - 24) / 144f));
+            settings.scale = Mathf.Max(.1f, Mathf.Min(preferredScale, width / 688f, (height - 24) / 154f));
+            float viewportWidth = width / settings.scale;
+            int columns = viewportWidth >= 960 ? 5 : 3;
+            float rowHeight = columns == 5 ? 74 : 154;
+            panel.style.height = rowHeight;
+            vitals.style.left = (viewportWidth - 240) / 2;
+            skillRow.style.width = columns == 5 ? 328 : 192;
+            skillRow.style.height = rowHeight;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                slots[i].Root.style.left = i % columns * 68;
+                slots[i].Root.style.top = i / columns * 80;
+            }
             hpText.text = $"{player.Health.Current}/{player.Health.Maximum}";
             SetFill(hpFill, player.Health.Current, player.Health.Maximum);
             if (manaSource is Object owner && owner == null) manaSource = null;
@@ -178,6 +191,7 @@ namespace PersistentWorld.UI
             if (settings != null) Destroy(settings);
             if (font != null) Destroy(font);
             document = null; settings = null; font = null; screen = null; panel = null;
+            vitals = null; skillRow = null;
             skillTooltip = null;
             player = null; manaSource = null;
         }

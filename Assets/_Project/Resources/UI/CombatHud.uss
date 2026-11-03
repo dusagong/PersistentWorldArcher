@@ -1,6 +1,7 @@
 .combat-document, .combat-screen { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
-.combat-screen { align-items: center; justify-content: flex-end; padding-bottom: 16px; color: rgb(237, 235, 220); }
-.combat-panel { width: 328px; align-items: center; }
+.combat-screen { color: rgb(237, 235, 220); }
+.combat-panel { position: absolute; left: 0; right: 0; bottom: 16px; height: 74px; }
+.combat-vitals { position: absolute; bottom: 0; width: 240px; }
 .combat-vital { width: 240px; margin-bottom: 5px; }
 .combat-vital-heading { flex-direction: row; justify-content: space-between; align-items: center; height: 16px; margin-bottom: 2px; }
 .combat-vital-name { font-size: 11px; padding-left: 0; }
@@ -10,8 +11,8 @@
 .combat-hp { background-color: rgb(205, 55, 64); }
 .combat-mp { background-color: rgb(46, 112, 219); }
 .combat-value { flex-shrink: 0; font-size: 11px; padding-right: 0; -unity-text-align: middle-right; }
-.combat-skills { width: 328px; flex-direction: row; justify-content: space-between; margin-top: 5px; }
-.combat-slot { position: relative; width: 56px; height: 74px; flex-shrink: 0; }
+.combat-skills { position: absolute; right: 16px; bottom: -12.5px; width: 328px; height: 74px; }
+.combat-slot { position: absolute; width: 56px; height: 74px; flex-shrink: 0; }
 .combat-skill-icon { width: 56px; height: 56px; }
 .combat-skill-art { position: absolute; left: 3px; right: 3px; top: 3px; bottom: 3px; }
 .combat-key { position: absolute; left: 2px; top: 2px; height: 16px; padding-left: 3px; padding-right: 3px; font-size: 9px; color: rgb(237, 235, 220); background-color: rgba(10, 16, 22, .9); -unity-text-align: middle-center; }

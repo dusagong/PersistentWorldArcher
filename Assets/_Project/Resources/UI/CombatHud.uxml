@@ -2,22 +2,24 @@
     <ui:Style src="CombatHud.uss" />
     <ui:VisualElement name="combat-screen" class="combat-screen" picking-mode="Ignore">
         <ui:VisualElement name="combat-panel" class="combat-panel" picking-mode="Ignore">
-            <ui:VisualElement class="combat-vital">
-                <ui:VisualElement class="combat-vital-heading">
-                    <ui:Label text="HP" class="combat-vital-name" />
-                    <ui:Label name="hp-text" class="combat-value" />
+            <ui:VisualElement name="combat-vitals" class="combat-vitals" picking-mode="Ignore">
+                <ui:VisualElement class="combat-vital">
+                    <ui:VisualElement class="combat-vital-heading">
+                        <ui:Label text="HP" class="combat-vital-name" />
+                        <ui:Label name="hp-text" class="combat-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="hp-track" class="combat-bar">
+                        <ui:VisualElement name="hp-fill" class="combat-fill combat-hp" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:VisualElement name="hp-track" class="combat-bar">
-                    <ui:VisualElement name="hp-fill" class="combat-fill combat-hp" />
-                </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement class="combat-vital">
-                <ui:VisualElement class="combat-vital-heading">
-                    <ui:Label text="MP" class="combat-vital-name" />
-                    <ui:Label name="mp-text" class="combat-value" />
-                </ui:VisualElement>
-                <ui:VisualElement name="mp-track" class="combat-bar combat-mp-track">
-                    <ui:VisualElement name="mp-fill" class="combat-fill combat-mp" />
+                <ui:VisualElement class="combat-vital">
+                    <ui:VisualElement class="combat-vital-heading">
+                        <ui:Label text="MP" class="combat-vital-name" />
+                        <ui:Label name="mp-text" class="combat-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="mp-track" class="combat-bar combat-mp-track">
+                        <ui:VisualElement name="mp-fill" class="combat-fill combat-mp" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement name="combat-skills" class="combat-skills" />
