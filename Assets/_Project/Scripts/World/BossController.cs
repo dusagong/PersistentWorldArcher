@@ -81,6 +81,8 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("지진 때 슬라임처럼 뛰어오르는 높이")] private float quakeJumpHeight = 1.6f;
         [SerializeField] private float quakeWarnTime = 1.5f;
         [SerializeField] private int quakeDamage = 18;
+        [SerializeField, Tooltip("내려찍을 때 흙과 함께 튀는 돌 조각 그림 (비우면 흙덩이만)")] private Sprite[] quakeDebrisSprites;
+        [SerializeField, Tooltip("내려찍을 때 화면 흔들림 세기 (0이면 끔)")] private float quakeShake = .45f;
 
         [Header("디버프 구체 (탄막보다 크기 5배, 속도 1.5배 느림)")]
         [SerializeField] private int debuffDamage = 8;
@@ -102,6 +104,12 @@ namespace PersistentWorld.World
         [SerializeField] private Vector2 statueGlowOffset = new Vector2(.02f, .19f);
         [SerializeField] private Color statueGlowColor = new Color(0f, .875f, 1f);
         [SerializeField, Tooltip("기둥이 땅에서 솟아오르는 시간")] private float statueRiseTime = .7f;
+        [SerializeField, Tooltip("페이즈 전환 동안 불러내는 잡몹 프리팹 (비우면 소환 안 함). 전환이 끝나면 사라진다")] private GameObject[] minionPrefabs;
+        [SerializeField] private float minionFirstDelay = 2f;
+        [SerializeField] private float minionInterval = 5f;
+        [SerializeField] private int minionsPerWave = 2;
+        [SerializeField, Tooltip("동시에 살아 있을 수 있는 잡몹 수")] private int maxMinions = 5;
+        [SerializeField, Tooltip("잡몹이 나타나기 전 바닥 경고 시간")] private float minionWarnTime = .8f;
 
         [Header("표시")]
         [SerializeField] private Color telegraphColor = new Color(1f, .12f, .1f);
@@ -121,6 +129,7 @@ namespace PersistentWorld.World
         private bool hasLastPattern;
         private Pattern lastPattern;
         private bool inQuakeJump;
+        private int summoning;
         private Vector3 quakeBaseScale;
         private Vector2 quakeGround;
 
@@ -189,6 +198,7 @@ namespace PersistentWorld.World
             foreach (GameObject obj in transitionObjects)
                 if (obj != null) Destroy(obj);
             transitionObjects.Clear();
+            summoning = 0;
             performing = false;
             inTransition = false;
             if (health != null) health.Invulnerable = false;
@@ -450,6 +460,7 @@ namespace PersistentWorld.World
             Fire(area);
             BossTelegraph.Shockwave(center, quakeRadius, telegraphColor);
             HitPlayers(p => Vector2.Distance(p, center) <= quakeRadius + PlayerRadius, quakeDamage);
+            SlamImpact(center);
 
             start = Time.time;
             while (Time.time < start + .25f)
@@ -472,9 +483,17 @@ namespace PersistentWorld.World
             Fire(area);
             BossTelegraph.Shockwave(center, quakeRadius, telegraphColor);
             HitPlayers(p => Vector2.Distance(p, center) <= quakeRadius + PlayerRadius, quakeDamage);
+            SlamImpact(center);
             art.Play(BossClip.QuakeSlam, .35f);
             yield return new WaitForSeconds(.35f);
             art.Play(BossClip.QuakeRecover, .6f);
+        }
+
+        // 내려찍은 자리: 흙·돌 조각이 튀고 흙먼지가 퍼지며 화면이 흔들린다 (연출 전용)
+        private void SlamImpact(Vector2 center)
+        {
+            GroundBurst.Spawn(center, quakeRadius, quakeDebrisSprites);
+            if (quakeShake > 0f) CameraFollow.Shake(quakeShake, .4f);
         }
 
         // amount > 1: 납작하게(가로로 넓게), < 1: 길쭉하게
@@ -534,9 +553,20 @@ namespace PersistentWorld.World
             Vector2 safeCenter = Vector2.zero;
             BossTelegraph finalWarning = null;
             float endsAt = Time.time + transitionDuration;
+            float nextWaveAt = Time.time + minionFirstDelay;
+            var minions = new List<GameObject>();
             while (Time.time < endsAt)
             {
                 if (health.IsDead) yield break;
+
+                // 기둥을 부수는 동안 잡몹이 계속 나와 방해한다. 즉사기 3초 전부터는 더 부르지 않는다.
+                minions.RemoveAll(m => m == null);
+                if (minionPrefabs != null && minionPrefabs.Length > 0 && Time.time >= nextWaveAt && endsAt - Time.time > 3f + minionWarnTime)
+                {
+                    nextWaveAt = Time.time + minionInterval;
+                    for (int i = 0; i < minionsPerWave && minions.Count + summoning < maxMinions; i++)
+                        StartCoroutine(SummonMinion(minionPrefabs[Random.Range(0, minionPrefabs.Length)], MinionSpot(), minions));
+                }
                 int broken = 0;
                 foreach (Health statue in statues)
                     if (statue == null || statue.IsDead) broken++;
@@ -636,6 +666,42 @@ namespace PersistentWorld.World
             if (statue.GetComponent<CombatFeedback>() is CombatFeedback feedback) feedback.ShowHealthAlways(1.2f, .18f, true);
             transitionObjects.Add(statue);
             return statueHealthComponent;
+        }
+
+        // 플레이어와 너무 가깝지 않은 아레나 안 임의 지점
+        private Vector2 MinionSpot()
+        {
+            Vector2 half = arenaHalfSize - Vector2.one;
+            Vector2 spot = arenaCenter;
+            for (int i = 0; i < 12; i++)
+            {
+                spot = arenaCenter + new Vector2(Random.Range(-half.x, half.x), Random.Range(-half.y, half.y));
+                Transform nearest = null;
+                float best = float.MaxValue;
+                foreach (Transform p in AlivePlayers())
+                {
+                    float d = Vector2.Distance(p.position, spot);
+                    if (d < best) { best = d; nearest = p; }
+                }
+                if (nearest == null || best >= 3f) break;
+            }
+            return spot;
+        }
+
+        // 바닥 경고 뒤에 잡몹이 흙먼지와 함께 튀어나온다. 전환이 끝나면 transitionObjects와 함께 사라진다.
+        private IEnumerator SummonMinion(GameObject prefab, Vector2 spot, List<GameObject> minions)
+        {
+            summoning++; // 경고 중인 것도 세어 최대치를 넘지 않게 한다
+            BossTelegraph warning = Circle(spot, .8f, minionWarnTime);
+            yield return new WaitForSeconds(minionWarnTime);
+            summoning--;
+            Fire(warning);
+            if (!inTransition) yield break;
+            GameObject minion = Instantiate(prefab, spot, Quaternion.identity);
+            minions.Add(minion);
+            transitionObjects.Add(minion);
+            if (minion.GetComponent<Health>() is Health minionHealth) CombatFeedback.Attach(minionHealth);
+            GroundBurst.Spawn(spot, 1.2f, quakeDebrisSprites, 18, 8);
         }
 
         // 납작한 상태에서 흔들리며 길어져 살짝 넘쳤다가 제 크기로 선다. 발밑에 먼지 고리를 퍼뜨린다.
