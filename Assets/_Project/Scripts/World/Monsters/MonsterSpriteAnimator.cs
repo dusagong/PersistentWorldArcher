@@ -123,7 +123,7 @@ namespace PersistentWorld.World
             Texture2D move = Texture(id, definition.Move);
             if (move == null) return null;
             // 이동 시트 첫 프레임(기본 자세)의 키로 크기를 정한다. 세 시트 모두 같은 배율로 그려져 있어 같은 PPU를 쓴다.
-            RectInt first = Bounds(move.GetPixels32(), move, definition.Move, 0, 1);
+            RectInt first = SpriteSheetSlicer.FirstFrameBounds(move, definition.Move.Columns, definition.Move.Rows);
             float ppu = first.height / Mathf.Max(.01f, bodyHeight);
             var result = new Frames
             {
@@ -136,48 +136,10 @@ namespace PersistentWorld.World
             return result;
         }
 
-        private static Texture2D Texture(MonsterArt id, Sheet sheet)
-        {
-            Texture2D texture = Resources.Load<Texture2D>("Monsters/" + id + sheet.Suffix);
-            if (texture == null || !texture.isReadable || texture.width % sheet.Columns != 0 || texture.height % sheet.Rows != 0) return null;
-            return texture;
-        }
+        private static Texture2D Texture(MonsterArt id, Sheet sheet) =>
+            SpriteSheetSlicer.Load("Monsters/" + id + sheet.Suffix, sheet.Columns, sheet.Rows);
 
-        // 모든 프레임을 같은 영역(전체 프레임 알파 경계의 합집합)으로 잘라 위치가 흔들리지 않게 한다.
-        // 피벗은 첫 프레임의 가로 중심, 발에서 몸 높이 절반 위로 맞춰 시트가 바뀌어도 기본 자세가 같은 자리에 온다.
-        private static Sprite[] Slice(MonsterArt id, Texture2D texture, Sheet sheet, float ppu, int bodyHeight)
-        {
-            if (texture == null) return null;
-            int count = sheet.Columns * sheet.Rows;
-            Color32[] pixels = texture.GetPixels32();
-            RectInt union = Bounds(pixels, texture, sheet, 0, count);
-            RectInt first = Bounds(pixels, texture, sheet, 0, 1);
-            var pivot = new Vector2((first.center.x - union.x) / union.width, (first.y + bodyHeight * .5f - union.y) / union.height);
-            int width = texture.width / sheet.Columns, cellHeight = texture.height / sheet.Rows;
-            var sprites = new Sprite[count];
-            for (int i = 0; i < count; i++)
-            {
-                int x = i % sheet.Columns * width, y = (sheet.Rows - 1 - i / sheet.Columns) * cellHeight;
-                sprites[i] = Sprite.Create(texture, new Rect(x + union.x, y + union.y, union.width, union.height), pivot, ppu, 0, SpriteMeshType.FullRect);
-                sprites[i].name = id + sheet.Suffix + "_" + i.ToString("00");
-            }
-            return sprites;
-        }
-
-        // 셀 안 좌표로 [from, to) 프레임의 알파 경계 합집합
-        private static RectInt Bounds(Color32[] pixels, Texture2D texture, Sheet sheet, int from, int to)
-        {
-            int width = texture.width / sheet.Columns, height = texture.height / sheet.Rows;
-            int minX = width, minY = height, maxX = -1, maxY = -1;
-            for (int i = from; i < to; i++)
-            {
-                int ox = i % sheet.Columns * width, oy = (sheet.Rows - 1 - i / sheet.Columns) * height;
-                for (int py = 0; py < height; py++)
-                    for (int px = 0; px < width; px++)
-                        if (pixels[(oy + py) * texture.width + ox + px].a > 8)
-                        { minX = Mathf.Min(minX, px); minY = Mathf.Min(minY, py); maxX = Mathf.Max(maxX, px); maxY = Mathf.Max(maxY, py); }
-            }
-            return maxX < minX ? new RectInt(0, 0, width, height) : new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
-        }
+        private static Sprite[] Slice(MonsterArt id, Texture2D texture, Sheet sheet, float ppu, int bodyHeight) =>
+            SpriteSheetSlicer.Slice(texture, sheet.Columns, sheet.Rows, ppu, bodyHeight, id + sheet.Suffix);
     }
 }
