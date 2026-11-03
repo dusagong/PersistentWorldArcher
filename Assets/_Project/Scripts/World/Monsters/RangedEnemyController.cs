@@ -23,6 +23,9 @@ namespace PersistentWorld.World
         [SerializeField] private float aimTime = .35f;
         [SerializeField] private Color projectileColor = new Color(1f, .55f, .1f);
         [SerializeField] private Color aimTint = new Color(1f, 1f, .4f);
+        [SerializeField, Tooltip("비워 두면 projectileColor 막대 도형을 던진다")] private Sprite projectileSprite;
+        [SerializeField] private float projectileSpriteScale = 1f;
+        [SerializeField, Tooltip("던진 그림이 날아가며 도는 속도(도/초)")] private float projectileSpin = 540f;
 
         private Rigidbody2D body;
         private Health health;
@@ -118,8 +121,21 @@ namespace PersistentWorld.World
             firedAt = Time.time;
             fireReadyAt = Time.time + fireInterval;
             Vector2 direction = delta.sqrMagnitude > 0f ? delta.normalized : Vector2.right;
-            Projectile.Spawn(transform.position, direction, projectileDamage, Faction.Enemy, gameObject,
+            Projectile projectile = Projectile.Spawn(transform.position, direction, projectileDamage, Faction.Enemy, gameObject,
                 projectileColor, projectileSpeed, projectileLifetime);
+            if (projectileSprite != null) UseProjectileSprite(projectile);
+        }
+
+        // 판정은 그대로 두고 그림만 바꾼다. 막대 도형 대신 그림을 똑바로 세운 채 돌리며 날린다.
+        private void UseProjectileSprite(Projectile projectile)
+        {
+            SpriteRenderer renderer = projectile.GetComponent<SpriteRenderer>();
+            renderer.sprite = projectileSprite;
+            renderer.color = Color.white;
+            renderer.sortingOrder = 1500;
+            projectile.transform.localScale = Vector3.one * projectileSpriteScale;
+            projectile.transform.rotation = Quaternion.identity;
+            if (projectileSpin != 0f) projectile.gameObject.AddComponent<SpinVisual>().DegreesPerSecond = projectileSpin;
         }
 
         private void CancelAim()

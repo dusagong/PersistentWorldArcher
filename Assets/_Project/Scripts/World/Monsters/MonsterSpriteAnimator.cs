@@ -66,8 +66,8 @@ namespace PersistentWorld.World
             MonsterArt.Monster01 => new Definition(new Sheet("Move", 6, 6), new Sheet("Attack", 6, 6), 18, 24, attackMirrored: true),
             // 가방 멘 초록 몬스터: 팔을 뒤로 빼며 조준 → 던진 뒤 자세 복귀
             MonsterArt.Monster02 => new Definition(new Sheet("Move", 4, 3), new Sheet("Attack", 6, 6), 18, 36, new Sheet("Idle", 4, 3)),
-            // 흰 고양이: 웅크림 → 몸을 펴며 뛰어오름 → 다시 웅크렸다 일어남
-            _ => new Definition(new Sheet("Move", 6, 6), new Sheet("Attack", 6, 6), 8, 24)
+            // 흰 고양이: 웅크림 → 몸을 펴며 뛰어오름 → 다시 웅크렸다 일어남. 공격 시트가 이동 시트와 반대쪽을 보고 그려져 있다.
+            _ => new Definition(new Sheet("Move", 6, 6), new Sheet("Attack", 6, 6), 8, 24, attackMirrored: true)
         };
 
         private void Awake()
