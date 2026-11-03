@@ -74,15 +74,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6042399948831962770, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
       propertyPath: m_Color.b
-      value: 0.85
+      value: 0.45
       objectReference: {fileID: 0}
     - target: {fileID: 6042399948831962770, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
       propertyPath: m_Color.g
-      value: 0.2
+      value: 0.82
       objectReference: {fileID: 0}
     - target: {fileID: 6042399948831962770, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
       propertyPath: m_Color.r
-      value: 0.6
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7013613367222723754, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
       propertyPath: jumpHeight

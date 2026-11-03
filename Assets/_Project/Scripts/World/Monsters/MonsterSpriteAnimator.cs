@@ -18,9 +18,7 @@ namespace PersistentWorld.World
     // 공격 시트는 준비·공격·회복 구간으로 나눠 각 단계 진행도에 맞춰 넘긴다.
     // 크기는 이동 시트 첫 프레임 키가 height × 스케일(월드 단위)이 되도록 맞춘다.
     // 비균등 스케일은 큰 축으로 균등하게 바꾼다. 원형 콜라이더는 큰 축을 따르므로 판정 크기는 그대로다.
-    // 에디터에서는 그림이 실행 중에만 붙으므로, 씬에 배치할 때 보이도록 저장되지 않는 미리보기를 띄운다.
     [DefaultExecutionOrder(-100)]
-    [SelectionBase]
     [RequireComponent(typeof(SpriteRenderer))]
     public sealed class MonsterSpriteAnimator : MonoBehaviour
     {
@@ -80,9 +78,6 @@ namespace PersistentWorld.World
         // 실행 순서를 앞당겨 다른 컴포넌트가 Start에서 스케일·색을 기록하기 전에 바꾼다
         private void Start()
         {
-#if UNITY_EDITOR
-            ClearPreview();
-#endif
             source = GetComponent<IMonsterAnimationSource>();
             frames = Load(art, height);
             if (frames == null) return;
@@ -118,44 +113,6 @@ namespace PersistentWorld.World
             Vector2 facing = source != null ? source.Facing : body != null ? body.linearVelocity : Vector2.zero;
             if (Mathf.Abs(facing.x) > .05f) visual.flipX = sourceFacesRight ? facing.x < 0f : facing.x > 0f;
         }
-
-#if UNITY_EDITOR
-        private const string PreviewName = "Monster Preview (editor only)";
-
-        // 씬에 놓이거나 값이 바뀔 때마다 미리보기를 다시 만든다. 프리팹 파일 자체에는 만들지 않는다.
-        private void OnValidate()
-        {
-            if (Application.isPlaying) return;
-            UnityEditor.EditorApplication.delayCall += RefreshPreview;
-        }
-
-        private void RefreshPreview()
-        {
-            if (this == null || Application.isPlaying || UnityEditor.EditorUtility.IsPersistent(gameObject)) return;
-            ClearPreview();
-            Frames preview = Load(art, height);
-            if (preview == null) return;
-            var obj = new GameObject(PreviewName) { hideFlags = HideFlags.HideAndDontSave };
-            obj.transform.SetParent(transform, false);
-            // 실행 시 균등하게 바뀌는 스케일을 미리 반영한다
-            Vector3 scale = transform.localScale;
-            float uniform = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y));
-            obj.transform.localScale = new Vector3(uniform / Mathf.Max(.0001f, Mathf.Abs(scale.x)), uniform / Mathf.Max(.0001f, Mathf.Abs(scale.y)), 1f);
-            var renderer = obj.AddComponent<SpriteRenderer>();
-            renderer.sprite = preview.Move[0];
-            renderer.color = tint;
-            renderer.sortingOrder = 1000 - Mathf.RoundToInt(transform.position.y * 100f);
-        }
-
-        private void ClearPreview()
-        {
-            for (int i = transform.childCount - 1; i >= 0; i--)
-            {
-                Transform child = transform.GetChild(i);
-                if (child.name == PreviewName && (child.hideFlags & HideFlags.DontSave) != 0) DestroyImmediate(child.gameObject);
-            }
-        }
-#endif
 
         private static Frames Load(MonsterArt id, float bodyHeight)
         {
