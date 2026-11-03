@@ -96,6 +96,12 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("십자가 중심에서 팔 끝까지 길이")] private float safeZoneArmLength = 1.6f;
         [SerializeField] private float safeZoneArmWidth = 1f;
         [SerializeField] private int instantDeathDamage = 9999999;
+        [SerializeField, Tooltip("기둥 그림 (비우면 네모 도형). 발 위치가 피벗인 스프라이트")] private Sprite statueSprite;
+        [SerializeField, Tooltip("부서진 기둥 그림 (비우면 부서질 때 사라진다)")] private Sprite statueBrokenSprite;
+        [SerializeField, Tooltip("기둥 룬 빛 그림 (선택)")] private Sprite statueGlowSprite;
+        [SerializeField] private Vector2 statueGlowOffset = new Vector2(.02f, .19f);
+        [SerializeField] private Color statueGlowColor = new Color(0f, .875f, 1f);
+        [SerializeField, Tooltip("기둥이 땅에서 솟아오르는 시간")] private float statueRiseTime = .7f;
 
         [Header("표시")]
         [SerializeField] private Color telegraphColor = new Color(1f, .12f, .1f);
@@ -185,6 +191,7 @@ namespace PersistentWorld.World
             transitionObjects.Clear();
             performing = false;
             inTransition = false;
+            if (health != null) health.Invulnerable = false;
             CurrentPattern = string.Empty;
             if (bodyCollider != null) bodyCollider.isTrigger = false;
         }
@@ -213,9 +220,11 @@ namespace PersistentWorld.World
                     continue;
                 }
 
-                if (Time.time < nextPatternAt || AlivePlayers().Count == 0)
+                // 패턴 뒤 원래 자세로 돌아오는 동작이 끝날 때까지는 제자리에 서 있고 다음 패턴도 미룬다
+                bool returning = Animated && art.IsReturning;
+                if (returning || Time.time < nextPatternAt || AlivePlayers().Count == 0)
                 {
-                    Drift();
+                    if (!returning) Drift();
                     yield return null;
                     continue;
                 }
@@ -505,6 +514,7 @@ namespace PersistentWorld.World
             phaseTwo = true;
             inTransition = true;
             performing = true;
+            health.Invulnerable = true; // 페이즈 전환 동안 보스는 피해를 받지 않는다
             CurrentPattern = "PhaseTransition";
             ClearTelegraphs();
             TintPhaseTwo();
@@ -568,6 +578,7 @@ namespace PersistentWorld.World
             transitionObjects.Clear();
             inTransition = false;
             performing = false;
+            health.Invulnerable = false;
             CurrentPattern = string.Empty;
             if (Animated) art.PlayMove();
             yield return new WaitForSeconds(1f);
@@ -575,18 +586,74 @@ namespace PersistentWorld.World
 
         // ---------- 페이즈 전환 오브젝트 ----------
 
+        // position은 기둥 몸통 가운데. 그림이 있으면 땅에서 솟아오르고, 부서지면 부서진 기둥으로 남는다.
         private Health CreateStatue(Vector2 position)
         {
             GameObject statue = new GameObject("Boss Statue");
-            statue.transform.position = position;
-            statue.AddComponent<PlaceholderVisual>().Configure(statueColor, new Vector2(.9f, 1.4f));
-            statue.AddComponent<BoxCollider2D>().size = Vector2.one;
-            statue.AddComponent<WorldDepthSort>();
-            Health statueHealthComponent = statue.AddComponent<Health>();
-            statueHealthComponent.Configure(Faction.Enemy, statueHealth);
+            Health statueHealthComponent;
+            if (statueSprite == null)
+            {
+                statue.transform.position = position;
+                statue.AddComponent<PlaceholderVisual>().Configure(statueColor, new Vector2(.9f, 1.4f));
+                statue.AddComponent<BoxCollider2D>().size = Vector2.one;
+                statue.AddComponent<WorldDepthSort>();
+                statueHealthComponent = statue.AddComponent<Health>();
+                statueHealthComponent.Configure(Faction.Enemy, statueHealth);
+            }
+            else
+            {
+                Vector2 size = statueSprite.bounds.size;
+                statue.transform.position = position - Vector2.up * size.y * .5f;
+                SpriteRenderer body = statue.AddComponent<SpriteRenderer>();
+                body.sprite = statueSprite;
+                SpriteRenderer glow = null;
+                if (statueGlowSprite != null)
+                {
+                    var glowObject = new GameObject("Glow");
+                    glowObject.transform.SetParent(statue.transform, false);
+                    glowObject.transform.localPosition = new Vector3(statueGlowOffset.x, statueGlowOffset.y, -.5f);
+                    glow = glowObject.AddComponent<SpriteRenderer>();
+                    glow.sprite = statueGlowSprite;
+                    glow.color = statueGlowColor;
+                }
+                var box = statue.AddComponent<BoxCollider2D>();
+                box.size = new Vector2(size.x * .9f, size.y * .9f);
+                box.offset = Vector2.up * size.y * .5f;
+                statue.AddComponent<WorldDepthSort>();
+                statueHealthComponent = statue.AddComponent<Health>();
+                statueHealthComponent.Configure(Faction.Enemy, statueHealth, false);
+                statueHealthComponent.Died += _ =>
+                {
+                    box.enabled = false;
+                    if (glow != null) glow.enabled = false;
+                    if (statueBrokenSprite != null) body.sprite = statueBrokenSprite;
+                    else body.enabled = false;
+                };
+                StartCoroutine(RiseStatue(statue.transform));
+            }
             CombatFeedback.Attach(statueHealthComponent);
+            if (statue.GetComponent<CombatFeedback>() is CombatFeedback feedback) feedback.ShowHealthAlways(1.2f, .18f, true);
             transitionObjects.Add(statue);
             return statueHealthComponent;
+        }
+
+        // 납작한 상태에서 흔들리며 길어져 살짝 넘쳤다가 제 크기로 선다. 발밑에 먼지 고리를 퍼뜨린다.
+        private IEnumerator RiseStatue(Transform statue)
+        {
+            Vector3 basePosition = statue.position;
+            BossTelegraph.Shockwave(basePosition, 1.1f, statueColor);
+            float start = Time.time;
+            while (statue != null && Time.time < start + statueRiseTime)
+            {
+                float t = (Time.time - start) / statueRiseTime;
+                float height = t < .8f ? Mathf.Lerp(0f, 1.08f, t / .8f) : Mathf.Lerp(1.08f, 1f, (t - .8f) / .2f);
+                statue.localScale = new Vector3(1f, Mathf.Max(.01f, height), 1f);
+                statue.position = basePosition + Vector3.right * Mathf.Sin(Time.time * 70f) * .04f * (1f - t);
+                yield return null;
+            }
+            if (statue == null) yield break;
+            statue.localScale = Vector3.one;
+            statue.position = basePosition;
         }
 
         private GameObject CreateSafeZone(Vector2 center)

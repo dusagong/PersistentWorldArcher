@@ -42,6 +42,8 @@ namespace PersistentWorld.World
         private bool lookingRight;
 
         public bool Ready { get; private set; }
+        // 패턴 뒤 원래 자세로 돌아오는 동작(돌진 마무리·대포 복귀·지진 복귀)을 재생 중이면 true
+        public bool IsReturning => Ready && playingClip && current.ReturnsToMove;
         public Sprite BarrageBall { get; private set; }
         public Sprite HomingBall { get; private set; } // 원래 유도탄 크기(스케일)에서 그대로 보이도록 1유닛 크기
         public Sprite[] DebuffRock { get; private set; }
