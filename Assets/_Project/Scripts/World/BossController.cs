@@ -631,6 +631,7 @@ namespace PersistentWorld.World
                 };
                 StartCoroutine(RiseStatue(statue.transform));
             }
+            statue.AddComponent<CombatStatus>().Immovable = true; // 넉백 스킬에 밀리지 않게
             CombatFeedback.Attach(statueHealthComponent);
             if (statue.GetComponent<CombatFeedback>() is CombatFeedback feedback) feedback.ShowHealthAlways(1.2f, .18f, true);
             transitionObjects.Add(statue);
