@@ -8,8 +8,9 @@ namespace PersistentWorld.World
 {
     // 보스 (기획서 기준)
     // - 일반 패턴 5종(돌진, 탄막, 유도탄, 지진, 디버프 구체)을 patternInterval(3초)마다 랜덤으로 재생한다.
+    //   돌진은 chargeMinDistance보다 멀리 있는 플레이어가 있을 때(chargePriority 확률로 우선), 지진은 quakeTriggerDistance 안으로 붙었을 때만 고른다.
     // - 패턴 사이에는 가까운 플레이어와 거리를 두며 천천히 움직인다.
-    // - HP가 phaseTwoHealthRatio 이하가 되면 페이즈 전환 패턴(30초, 조각상 4개, 십자가 안전지대, 즉사기) 후 2페이즈로 들어간다.
+    // - HP가 phaseTwoHealthRatio 이하가 되면 페이즈 전환 패턴(20초, 조각상 4개, 십자가 안전지대, 즉사기) 후 2페이즈로 들어간다.
     // - 피해가 들어가는 범위는 BossTelegraph로 먼저 빨갛게 보여 준다.
     [RequireComponent(typeof(Health))]
     public sealed class BossController : MonoBehaviour
@@ -40,6 +41,10 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("2페이즈 경고 시간 배율 (돌진 경로 제외)")] private float phaseTwoWarnMultiplier = .7f;
 
         [Header("돌진")]
+        [SerializeField, Tooltip("이 거리보다 멀리 있는 플레이어가 있을 때만 돌진하고, 그중 한 명을 노린다")]
+        private float chargeMinDistance = 5.5f;
+        [SerializeField, Range(0f, 1f), Tooltip("멀리 있는 플레이어가 있을 때 다른 패턴보다 돌진을 먼저 고를 확률 (직전 패턴이 돌진이면 적용 안 함)")]
+        private float chargePriority = .7f;
         [SerializeField] private float chargeWarnTime = .5f;
         [SerializeField, Range(0f, 1f)] private float chargePathAlpha = .4f;
         [SerializeField] private float chargeSpeed = 28f;
@@ -70,6 +75,8 @@ namespace PersistentWorld.World
 
         [Header("지진")]
         [SerializeField] private float quakeRadius = 4.5f;
+        [SerializeField, Tooltip("플레이어가 이 거리 안으로 붙었을 때만 지진을 쓴다. 평소 유지 거리(preferredDistance)보다 작게 둘 것")]
+        private float quakeTriggerDistance = 3f;
         [SerializeField, Tooltip("지진 때 슬라임처럼 뛰어오르는 높이")] private float quakeJumpHeight = 1.6f;
         [SerializeField] private float quakeWarnTime = 1.5f;
         [SerializeField] private int quakeDamage = 18;
@@ -79,7 +86,7 @@ namespace PersistentWorld.World
         [SerializeField] private float debuffWarnTime = .6f;
 
         [Header("페이즈 전환")]
-        [SerializeField] private float transitionDuration = 30f;
+        [SerializeField] private float transitionDuration = 20f;
         [SerializeField] private int statueHealth = 60;
         [SerializeField] private Vector2[] statueOffsets =
         {
@@ -210,12 +217,30 @@ namespace PersistentWorld.World
             }
         }
 
+        // 멀리 떨어진 플레이어가 있으면 chargePriority 확률로 돌진을 먼저 고른다 (연속 돌진은 제외).
+        // 그 외에는 거리 조건을 만족하는 패턴 중에서 직전 패턴을 빼고 고른다. 탄막·유도탄·디버프는 항상 후보라 비지 않는다.
         private Pattern ChoosePattern()
         {
-            Pattern next;
-            do next = (Pattern)Random.Range(0, 5);
-            while (hasLastPattern && next == lastPattern);
-            return next;
+            bool chargedLast = hasLastPattern && lastPattern == Pattern.Charge;
+            if (!chargedLast && CanUse(Pattern.Charge) && Random.value < chargePriority) return Pattern.Charge;
+
+            var options = new List<Pattern>();
+            for (int i = 0; i < 5; i++)
+                if (CanUse((Pattern)i)) options.Add((Pattern)i);
+            if (hasLastPattern && options.Count > 1) options.Remove(lastPattern);
+            return options[Random.Range(0, options.Count)];
+        }
+
+        private bool CanUse(Pattern pattern)
+        {
+            switch (pattern)
+            {
+                case Pattern.Charge: return PlayersFartherThan(chargeMinDistance).Count > 0;
+                case Pattern.Earthquake:
+                    Transform nearest = NearestPlayer();
+                    return nearest != null && Vector2.Distance(nearest.position, Position) <= quakeTriggerDistance;
+                default: return true;
+            }
         }
 
         private IEnumerator Run(Pattern pattern)
@@ -245,11 +270,13 @@ namespace PersistentWorld.World
 
         // ---------- 패턴 ----------
 
-        // 돌진: 1페이즈 1회 / 2페이즈 3회(벽에 튕겨 나감). 돌진 전(chargeWarnTime)에 모든 경로를 투명도 40% 빨간색으로 보여 준다.
+        // 돌진: 멀리 있는 플레이어 중 한 명에게 1페이즈 1회 / 2페이즈 3회(벽에 튕겨 나감).
+        // 돌진 전(chargeWarnTime)에 모든 경로를 투명도 40% 빨간색으로 보여 준다.
         private IEnumerator Charge()
         {
-            Transform target = RandomPlayer();
-            if (target == null) yield break;
+            List<Transform> far = PlayersFartherThan(chargeMinDistance);
+            if (far.Count == 0) yield break;
+            Transform target = far[Random.Range(0, far.Count)];
             int count = phaseTwo ? phaseTwoChargeCount : 1;
             var points = new List<Vector2> { Position };
             Vector2 dir = (Vector2)target.position - Position;
@@ -327,7 +354,7 @@ namespace PersistentWorld.World
             yield return new WaitForSeconds(.5f);
         }
 
-        // 지진: 보스 주변 일정 범위 안의 캐릭터에게 피해 (1·2페이즈 동일)
+        // 지진: 보스 주변 일정 범위 안의 캐릭터에게 피해 (1·2페이즈 동일). 플레이어가 quakeTriggerDistance 안으로 붙었을 때만 고른다.
         // 경고 앞부분은 납작하게 움츠리고, 뒷부분은 슬라임처럼 뛰어올라 경고가 끝나는 순간 내려찍는다.
         private IEnumerator Earthquake()
         {
@@ -394,8 +421,8 @@ namespace PersistentWorld.World
             yield return new WaitForSeconds(.3f);
         }
 
-        // 페이즈 전환: 30초 동안 보스 정지. 조각상 4개를 모두 부수면 그중 1곳에 십자가 안전지대가 생긴다.
-        // 30초 뒤 즉사기 발동, 십자가 위에 있는 플레이어만 살아남는다.
+        // 페이즈 전환: 20초 동안 보스 정지. 조각상 4개를 모두 부수면 그중 1곳에 십자가 안전지대가 생긴다.
+        // 20초 뒤 즉사기 발동, 십자가 위에 있는 플레이어만 살아남는다.
         private IEnumerator PhaseTransition()
         {
             phaseTwo = true;
@@ -546,6 +573,13 @@ namespace PersistentWorld.World
         {
             List<Transform> players = AlivePlayers();
             return players.Count == 0 ? null : players[Random.Range(0, players.Count)];
+        }
+
+        private List<Transform> PlayersFartherThan(float distance)
+        {
+            List<Transform> players = AlivePlayers();
+            players.RemoveAll(p => Vector2.Distance(p.position, Position) <= distance);
+            return players;
         }
 
         private Transform NearestPlayer()

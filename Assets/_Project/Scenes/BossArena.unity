@@ -13893,8 +13893,61 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb951e7fd40dc6c499a0b08829ff8ddc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackInterval: 2.5
-  projectileDamage: 12
+  testStartPhase: 0
+  arenaCenter: {x: 0, y: 0}
+  arenaHalfSize: {x: 8.6, y: 4.6}
+  patternInterval: 3
+  moveSpeed: 2.2
+  preferredDistance: 4.5
+  phaseTwoHealthRatio: 0.5
+  phaseTwoColor: {r: 0.95, g: 0.1, b: 0.4, a: 1}
+  phaseTwoPatternInterval: 2.2
+  phaseTwoSpeedMultiplier: 1.4
+  phaseTwoWarnMultiplier: 0.7
+  chargeMinDistance: 5.5
+  chargePriority: 0.7
+  chargeWarnTime: 0.5
+  chargePathAlpha: 0.4
+  chargeSpeed: 28
+  chargeWidth: 1.8
+  chargeDamage: 22
+  phaseTwoChargeCount: 3
+  minBounceAngle: 25
+  bounceSearchAngle: 70
+  barrageDamage: 10
+  barrageSpeed: 7.5
+  barrageWarnTime: 0.4
+  barrageVolleyInterval: 0.45
+  phaseOneVolleys: 3
+  phaseOneSpread: 20
+  phaseTwoVolleys: 4
+  phaseTwoSpread: 30
+  homingDamage: 15
+  homingSpeed: 4
+  homingLifetime: 5
+  homingExplosionRadius: 1
+  quakeRadius: 4.5
+  quakeTriggerDistance: 3
+  quakeJumpHeight: 1.6
+  quakeWarnTime: 1.5
+  quakeDamage: 18
+  debuffDamage: 8
+  debuffWarnTime: 0.6
+  transitionDuration: 20
+  statueHealth: 60
+  statueOffsets:
+  - {x: -5.5, y: 3.2}
+  - {x: 5.5, y: 3.2}
+  - {x: -5.5, y: -3.2}
+  - {x: 5.5, y: -3.2}
+  safeZoneArmLength: 1.6
+  safeZoneArmWidth: 1
+  instantDeathDamage: 9999999
+  telegraphColor: {r: 1, g: 0.12, b: 0.1, a: 1}
+  projectileColor: {r: 1, g: 0.25, b: 0.2, a: 1}
+  debuffColor: {r: 0.65, g: 0.2, b: 1, a: 1}
+  statueColor: {r: 0.55, g: 0.6, b: 0.7, a: 1}
+  safeZoneColor: {r: 0.3, g: 0.95, b: 1, a: 1}
 --- !u!114 &183068811
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -18593,11 +18646,6 @@ MonoBehaviour:
   backstepDistance: 2
   backstepDuration: 0.16
   backstepCooldown: 2
-  attackDamage: 10
-  attackInterval: 0.45
-  doubleShotCooldown: 4
-  focusDuration: 5
-  focusCooldown: 10
 --- !u!114 &1147441080
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -20663,7 +20711,7 @@ Sprite:
         format: 0
         dimension: 0
       m_DataSize: 80
-      _typelessdata: 000000bf0000003f000000000000003f0000003f00000000000000bf000000bf000000000000003f000000bf000000000000000000000000000000000000000000000000000000000000000000000000
+      _typelessdata: 000000bf0000003f000000000000003f0000003f00000000000000bf000000bf000000000000003f000000bf00000000000000000000803f0000803f0000803f00000000000000000000803f00000000
     m_Bindpose: []
     textureRect:
       serializedVersion: 2
@@ -20754,7 +20802,7 @@ Sprite:
         format: 0
         dimension: 0
       m_DataSize: 80
-      _typelessdata: 000000bf0000003f000000000000003f0000003f00000000000000bf000000bf000000000000003f000000bf000000000000000000000000000000000000000000000000000000000000000000000000
+      _typelessdata: 000000bf0000003f000000000000003f0000003f00000000000000bf000000bf000000000000003f000000bf00000000000000000000803f0000803f0000803f00000000000000000000803f00000000
     m_Bindpose: []
     textureRect:
       serializedVersion: 2
