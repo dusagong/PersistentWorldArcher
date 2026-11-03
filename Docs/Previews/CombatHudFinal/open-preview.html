@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>2026-11-02 HUD 확인</title>
+<style>
+body{margin:24px;background:#151b21;color:#eee;font:16px/1.6 "Malgun Gothic",sans-serif;max-width:1200px}a{color:#a9cdf2}h1{font-size:23px}h2{font-size:18px;margin-top:28px}img.full{display:block;width:100%;height:auto;border:1px solid #44515d}.detail{width:620px;max-width:100%;height:300px;background:#101b16;overflow:hidden;position:relative;border:1px solid #44515d}.detail img{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:1920px;height:1080px;max-width:none}.note{color:#bdc8d2;font-size:14px}button{background:#253344;color:#eee;border:1px solid #677786;padding:8px 12px;margin:4px;cursor:pointer}.sample{margin-bottom:14px}.effect-detail{height:280px}.effect-detail img{width:1280px;height:720px}
+</style>
+<h1>하단 중앙 고정 HUD — 최신 수정본</h1>
+<p>실제 Unity UI를 별도 검증 배경에 렌더한 화면입니다. 전체 화면을 클릭하면 원본 크기로 열립니다.</p>
+<p class="note">아이콘 기준 56×56px·간격 12px, 실제 그림 영역 약 89%. HP·MP는 기준 240×8px 유지. 이 1920×1080 화면의 배율은 1.5이며 아이콘은 실제 84px입니다. MP는 즉시 초당 2 회복합니다.</p>
+<h2>직업 변경 직후 — 스킬 사용 전</h2>
+<div class="sample"><button onclick="showClass('Archer')">궁수</button><button onclick="showClass('Warrior')">전사</button><button onclick="showClass('Healer')">힐러</button></div>
+<div class="detail"><img id="class-view" src="class-Archer-1920x1080.png" alt="직업 변경 직후 아이콘"></div>
+<h2>효과와 쿨타임 구분</h2>
+<p>중앙 숫자는 재사용 쿨타임입니다. 아이콘 아래 <b>효과</b>·청록색 막대는 실제 효과가 지속되는 동안만 나타납니다.</p>
+<button onclick="document.getElementById('effect-view').src='archer-buff-tooltip.png'">효과 활성 + 쿨타임</button><button onclick="document.getElementById('effect-view').src='effect-ended-cooldown-continues.png'">효과 종료 + 쿨타임만</button>
+<div class="detail effect-detail"><img id="effect-view" src="archer-buff-tooltip.png" alt="효과 지속과 쿨타임 비교"></div>
+<h2>전체 화면</h2>
+<a href="hud-1920x1080.png"><img class="full" src="hud-1920x1080.png" alt="1920×1080 실제 Unity 렌더"></a>
+<h2>저해상도 확인</h2>
+<a href="hud-800x600.png"><img class="full" src="hud-800x600.png" alt="800×600 실제 Unity 렌더"></a>
+<h2>차징·F·대화 안내가 동시에 있을 때</h2>
+<p class="note">아래 영문 상자는 실제 게임 문구가 아니라, 게임이 사용하는 동일한 안내 좌표에 그린 검증용 영역입니다. HUD와 툴팁을 포함한 겹침 검사용 화면입니다.</p>
+<a href="guides-all-1280x480.png"><img class="full" src="guides-all-1280x480.png" alt="안내 3개와 툴팁의 동시 배치 검증"></a>
+<p><a href="README.md">파일 설명</a> · <a href="../../UI_HUD_PLAN_2026-11-02.md">오늘 작업 현황</a></p>
+<script>function showClass(name){document.getElementById('class-view').src='class-'+name+'-1920x1080.png'}</script>
+</html>

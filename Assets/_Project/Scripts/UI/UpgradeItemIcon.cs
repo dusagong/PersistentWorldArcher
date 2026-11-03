@@ -21,7 +21,7 @@ namespace PersistentWorld.UI
 
         public void SetItem(Sprite sprite, int level)
         {
-            image.sprite = sprite;
+            image.sprite = ItemIconPresentation.GetDisplaySprite(sprite);
             UpgradeLevel = sprite != null ? Mathf.Clamp(level, 0, 3) : 0;
             halo.SetLevel(UpgradeLevel);
         }

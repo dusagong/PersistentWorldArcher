@@ -13,18 +13,15 @@ namespace PersistentWorld.World
         private Vector2 scroll;
         private string message = "";
         private static readonly string[] Keys = { "Q", "E", "Shift" };
+        private CombatHud combatHud;
+
+        private void Awake() => combatHud = GetComponent<CombatHud>() ?? gameObject.AddComponent<CombatHud>();
 
         private void OnGUI()
         {
             if (ItemWindows.BlocksGameplay) return;
             if (player == null) player = FindFirstObjectByType<ArcherController>();
             if (player == null) return;
-            SkillLoadout loadout = player.Loadout;
-            GUI.Box(new Rect(16, 16, 320, 165), SkillCatalog.ClassName(loadout.Class));
-            GUI.Label(new Rect(30, 45, 290, 22), $"HP {player.Health.Current} / {player.Health.Maximum}");
-            for (int i = 0; i < 3; i++)
-                GUI.Label(new Rect(30, 67 + i * 22, 290, 22), $"{Keys[i]} {SkillCatalog.Name(loadout.Slots[i])}  {Cooldown(player.Skills.Cooldown(loadout.Slots[i]))}");
-            GUI.Label(new Rect(30, 133, 290, 22), $"Space 회피 {Cooldown(player.BackstepRemaining)} | 좌클릭 {Cooldown(player.Skills.SpecialRemaining)}");
             GUI.Label(new Rect(Screen.width - 370, 18, 360, 90), "WASD 이동 | 우클릭 평타 | 좌클릭 직업 특수\nQ/E 장착 스킬 | Space 회피 | Shift 보스 스킬\nESC 메뉴 | F 상호작용");
             if (player.Health.IsDead)
             {
@@ -33,13 +30,14 @@ namespace PersistentWorld.World
                 GUI.Label(new Rect(Screen.width / 2f - 220, Screen.height / 2f - 10, 450, 60), status);
                 return;
             }
+            combatHud.GetGuideRects(new Vector2(Screen.width, Screen.height), out Rect chargeGuide, out Rect interactionGuide, out Rect dialogueGuide);
             if (player.Skills.IsHolding)
-                GUI.Box(new Rect(Screen.width / 2f - 180, Screen.height - 110, 360, 36), $"{SkillCatalog.Name(player.Skills.HoldingSkill)} · 키를 놓으면 발동  {player.Skills.Charge:P0}");
+                GUI.Box(chargeGuide, $"{SkillCatalog.Name(player.Skills.HoldingSkill)} · 키를 놓으면 발동  {player.Skills.Charge:P0}");
             if (player.MenuOpen) { DrawMenu(); return; }
             if (!string.IsNullOrEmpty(player.NearbyPrompt))
-                GUI.Box(new Rect(Screen.width / 2f - 170, Screen.height - 65, 340, 36), player.NearbyPrompt);
+                GUI.Box(interactionGuide, player.NearbyPrompt);
             if (!string.IsNullOrEmpty(DialogueState.Line))
-                GUI.Box(new Rect(Screen.width / 2f - 270, Screen.height - 160, 540, 80), DialogueState.Speaker + "\n" + DialogueState.Line);
+                GUI.Box(dialogueGuide, DialogueState.Speaker + "\n" + DialogueState.Line);
         }
 
         private void DrawMenu()
@@ -82,7 +80,8 @@ namespace PersistentWorld.World
             foreach (SkillId id in SkillCatalog.ForClass(loadout.Class))
             {
                 GUILayout.BeginVertical(GUI.skin.box);
-                GUILayout.Label(SkillCatalog.Name(id) + " · " + Cooldown(player.Skills.Cooldown(id)));
+                GUILayout.Label(SkillCatalog.Name(id) + " · MP " + PrototypeManaBalance.Cost(id) +
+                    (id == SkillId.ComboSlash ? "/타" : "") + " · " + Cooldown(player.Skills.Cooldown(id)));
                 GUILayout.Label(SkillCatalog.Description(id));
                 GUILayout.BeginHorizontal();
                 for (int slot = 0; slot < 2; slot++)
@@ -91,15 +90,16 @@ namespace PersistentWorld.World
                 GUILayout.EndVertical();
             }
             GUILayout.BeginHorizontal(GUI.skin.box);
-            GUILayout.Label(loadout.BossLearned ? "보스 스킬 습득 완료" : $"보스 스킬 북: {loadout.BossSkillBooks}개");
+            GUILayout.Label((loadout.BossLearned ? "보스 스킬 습득 완료" : $"보스 스킬 북: {loadout.BossSkillBooks}개") + " · MP " + PrototypeManaBalance.Cost(SkillId.BossBlast));
             GUI.enabled = !loadout.BossLearned && loadout.BossSkillBooks > 0;
             if (GUILayout.Button("스킬 북 사용")) loadout.UseBossSkillBook();
             GUI.enabled = loadout.BossLearned;
             if (GUILayout.Button("Shift 장착")) loadout.Equip(2, SkillId.BossBlast);
             GUI.enabled = true;
             GUILayout.EndHorizontal();
-            string special = loadout.Class switch { CharacterClass.Warrior => "패링: 전방 탄막 반사 (원래 피해의 50%)", CharacterClass.Healer => "부활: 근처 아군 HP 70%로 부활 · 3초 무적", _ => "일석이조: 5초간 공속 증가 · 평타 2연사" };
-            GUILayout.Label("좌클릭 " + special);
+            string special = loadout.Class switch { CharacterClass.Warrior => "패링: 전방 탄막 반사 (원래 피해의 50%)", CharacterClass.Healer => "부활: 근처 아군 HP 70%로 부활 · 3초 무적", _ => "일석이조: 5초간 버프 · 지속 중 우클릭 평타 2연사/공속 증가" };
+            GUILayout.Label("좌클릭 " + special + " · MP " + PrototypeManaBalance.SpecialCost(loadout.Class));
+            GUILayout.Label("Space 회피 MP " + PrototypeManaBalance.DodgeCost + " · 평타 무료 · MP 즉시 초당 " + PrototypeManaBalance.RecoveryPerSecond + " 회복 (임시)");
         }
 
         private void DrawClasses()

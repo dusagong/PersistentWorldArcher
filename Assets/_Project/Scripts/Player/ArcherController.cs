@@ -40,6 +40,7 @@ namespace PersistentWorld.Player
         public Health Health => health;
         public SkillLoadout Loadout => loadout;
         public PlayerSkills Skills => skills;
+        public PlayerMana Mana { get; private set; }
         public EquipmentBonuses EquipmentBonuses => GetComponent<PlayerEquipment>()?.Bonuses ?? default;
         public bool HasWeapon => GetComponent<PlayerEquipment>()?.Profile?.GetEquipped(EquipmentSlot.Weapon) != null;
         public Vector2 AimDirection => aimDirection;
@@ -49,6 +50,7 @@ namespace PersistentWorld.Player
         public void SetAim(Vector2 direction) { if (direction.sqrMagnitude > .001f) aimDirection = direction.normalized; }
         public string NearbyPrompt { get; private set; }
         public float BackstepRemaining => Mathf.Max(0, backstepReadyAt - Time.time);
+        public float BackstepCooldown => backstepCooldown;
         public float DoubleShotRemaining => skills.Cooldown(SkillId.Repulse);
         public float ArrowRainRemaining => skills.Cooldown(SkillId.ArrowRain);
         public float PowerShotRemaining => skills.Cooldown(SkillId.Snipe);
@@ -62,6 +64,7 @@ namespace PersistentWorld.Player
         {
             body = GetComponent<Rigidbody2D>(); health = GetComponent<Health>();
             health.KeepOnDeath();
+            Mana = GetComponent<PlayerMana>() ?? gameObject.AddComponent<PlayerMana>();
             loadout = GetComponent<SkillLoadout>() ?? gameObject.AddComponent<SkillLoadout>();
             if (GetComponent<CombatStatus>() == null) gameObject.AddComponent<CombatStatus>();
             skills = GetComponent<PlayerSkills>() ?? gameObject.AddComponent<PlayerSkills>();
@@ -167,6 +170,7 @@ namespace PersistentWorld.Player
         public bool TryBackstep()
         {
             if (!isActiveAndEnabled || health.IsDead || MenuOpen || ItemWindows.BlocksGameplay || isDashing || skills.IsHolding || skills.MovementLocked || Time.time < backstepReadyAt) return false;
+            if (!Mana.TrySpend(PrototypeManaBalance.DodgeCost)) return false;
             StartCoroutine(Backstep()); return true;
         }
 

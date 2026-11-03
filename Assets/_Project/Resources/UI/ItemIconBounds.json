@@ -1,0 +1,102 @@
+{
+  "items": [
+    {
+      "path": "Items/Consumables/Health",
+      "x": 0.2109375,
+      "y": 0.0859375,
+      "width": 0.578125,
+      "height": 0.796875
+    },
+    {
+      "path": "Items/Consumables/Mana",
+      "x": 0.1484375,
+      "y": 0.0546875,
+      "width": 0.734375,
+      "height": 0.890625
+    },
+    {
+      "path": "Items/Equipment/01_Archer",
+      "x": 0.1484375,
+      "y": 0.1484375,
+      "width": 0.703125,
+      "height": 0.671875
+    },
+    {
+      "path": "Items/Equipment/01_heal",
+      "x": 0.0546875,
+      "y": 0.1796875,
+      "width": 0.828125,
+      "height": 0.640625
+    },
+    {
+      "path": "Items/Equipment/01_Warrior",
+      "x": 0.1484375,
+      "y": 0.1484375,
+      "width": 0.703125,
+      "height": 0.671875
+    },
+    {
+      "path": "Items/Equipment/02",
+      "x": 0.1171875,
+      "y": 0.0859375,
+      "width": 0.765625,
+      "height": 0.796875
+    },
+    {
+      "path": "Items/Equipment/03",
+      "x": 0.2109375,
+      "y": 0.1171875,
+      "width": 0.609375,
+      "height": 0.765625
+    },
+    {
+      "path": "Items/Equipment/04",
+      "x": 0.1171875,
+      "y": 0.0859375,
+      "width": 0.765625,
+      "height": 0.796875
+    },
+    {
+      "path": "Items/Equipment/05",
+      "x": 0.1796875,
+      "y": 0.0859375,
+      "width": 0.671875,
+      "height": 0.828125
+    },
+    {
+      "path": "Items/Equipment/06_warrior",
+      "x": 0.0234375,
+      "y": 0.0546875,
+      "width": 0.921875,
+      "height": 0.890625
+    },
+    {
+      "path": "Items/Equipment/07_Archer",
+      "x": 0.0546875,
+      "y": 0.0546875,
+      "width": 0.796875,
+      "height": 0.828125
+    },
+    {
+      "path": "Items/Equipment/07_Heal",
+      "x": 0.1484375,
+      "y": 0.1171875,
+      "width": 0.703125,
+      "height": 0.765625
+    },
+    {
+      "path": "Items/Materials/material1",
+      "x": 0.2109375,
+      "y": 0.1484375,
+      "width": 0.546875,
+      "height": 0.703125
+    },
+    {
+      "path": "Items/Materials/material12png",
+      "x": 0.0546875,
+      "y": 0.1484375,
+      "width": 0.890625,
+      "height": 0.671875
+    }
+  ]
+}
