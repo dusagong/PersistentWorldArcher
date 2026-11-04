@@ -103,3 +103,13 @@ Assets/_Project/
 
 우클릭마다 캐릭터 앞에 활 4프레임을 한 번 재생하고, 0.18초에 조준 방향으로 화살 한 발을 발사한다. 누르고 있으면 0.45초마다 반복하며, 일석이조 상태에서는 0.27초 간격·화살 2연사가 적용된다. 기본 피해량은 발당 10이다.
 
+## 멀티플레이 인프라 테스트
+
+별도 `Assets/_Project/Networking/NetworkSandbox.unity`에서 WebSocket 접속과 서버 판정 이동을 테스트한다.
+Unity 메뉴 `Tools > Persistent World > Multiplayer`에서 테스트 씬/Windows 클라이언트/Linux 서버를 빌드한다.
+Railway용 Docker·프록시·health check·배포 스크립트는 [배포 안내](Deploy/Railway/README.md)에 있다.
+기존 Town/Field/BossArena의 전투·스킬·사망은 아직 네트워크에 연결하지 않았다.
+2026-11-05 Railway에 배포했다. 테스트 주소는 `wss://pwa-game-server-production.up.railway.app`이며 참가 코드는 `Deploy/.local/join-code.txt`에 별도 보관한다.
+실제 WSS 접속·두 클라이언트 위치 복제·잘못된 코드 거부를 확인했다. 다음 배포는 `./Deploy/Railway/Publish.ps1`로 실행한다.
+검증 기록: [2026-11-05 인프라 검증](Docs/NETWORK_INFRA_2026-11-05.md).
+

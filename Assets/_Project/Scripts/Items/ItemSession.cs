@@ -29,6 +29,9 @@ namespace PersistentWorld.Items
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Boot()
         {
+            // The standalone infrastructure scene has no character inventory or local profile.
+            if (SceneManager.GetActiveScene().name == "NetworkSandbox" ||
+                (SceneManager.sceneCountInBuildSettings == 1 && SceneUtility.GetScenePathByBuildIndex(0).EndsWith("/NetworkSandbox.unity", StringComparison.Ordinal))) return;
             if (Instance == null) new GameObject("Player Item Session").AddComponent<ItemSession>();
         }
 
@@ -59,14 +62,12 @@ namespace PersistentWorld.Items
         private void LoadProfile()
         {
             SavePath = Path.Combine(Application.persistentDataPath, "inventory-v1.json");
-#if UNITY_EDITOR
             // Batch validation must never read or overwrite the developer's actual profile.
             if (Application.isBatchMode)
             {
                 string testPath = System.Environment.GetEnvironmentVariable("PWA_INVENTORY_TEST_SAVE");
                 SavePath = !string.IsNullOrEmpty(testPath) ? testPath : Path.GetFullPath(Path.Combine(Application.dataPath, "../Library/Validation/inventory-" + Guid.NewGuid().ToString("N") + ".json"));
             }
-#endif
             InventoryLoadResult result = InventorySaveStore.Load(SavePath, out var restored, out string error);
             Profile = restored ?? PlayerInventoryProfile.CreateNew();
             CanSave = result != InventoryLoadResult.Failed;
