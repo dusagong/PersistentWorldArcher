@@ -43,7 +43,7 @@ Railway CLI 로그인을 완료했지만 프로젝트 생성 요청이 다음 �
 > Your trial has expired. Please select a plan to continue using Railway.
 
 당시 에이전트가 플랜을 선택하거나 결제를 실행하지 않았다. 이후 사용자가 플랜을 활성화하고 배포를 요청해 아래처럼 완료했다.
-GitHub에는 이번 인프라 변경을 아직 푸시하지 않았다.
+GitHub 공유 대상은 인프라 소스·설정·검증 기록이며, 참가 코드와 빌드 실행 파일은 제외한다.
 
 ## 실제 Railway 배포 완료
 
