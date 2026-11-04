@@ -17,6 +17,7 @@ namespace PersistentWorld.Player
         [SerializeField] private float reviveRange = 3f;
         public static bool SpecialSkillsEnabled { get; set; } = true;
         private static readonly Dictionary<string, float> Ready = new Dictionary<string, float>();
+        private static readonly Dictionary<string, float> HudCooldownDurations = new Dictionary<string, float>();
         private ArcherController controller;
         private Health health;
         private SkillLoadout loadout;
@@ -41,6 +42,13 @@ namespace PersistentWorld.Player
         public bool SpecialActive => Time.time < specialEndsAt;
         public float SpecialRemaining => Ready.TryGetValue(loadout.Class + ":Special", out float ready) ? Mathf.Max(0, ready - Time.time) : 0;
         public int ComboStage => combo;
+        public float SpecialCooldownDuration => HudCooldownDurations.TryGetValue(loadout.Class + ":Special", out float seconds) ? seconds : 0;
+        public float CooldownDuration(SkillId id) => HudCooldownDurations.TryGetValue(Key(id), out float seconds) ? seconds : 0;
+        public float SpecialActiveRemaining => Mathf.Max(0, specialEndsAt - Time.time);
+        public float SpecialActiveDuration { get; private set; }
+        public bool IsUsingSkill(SkillId id) => id != SkillId.None &&
+            (held == id || (busy && id == SkillId.Whirlwind) ||
+             (releasing && id == SkillId.Snipe) || (combo > 0 && id == SkillId.ComboSlash));
 
         private void Awake()
         {
@@ -55,13 +63,22 @@ namespace PersistentWorld.Player
         private void OnDisable() => Cancel();
         private string Key(SkillId id) => loadout.Class + ":" + id;
         public float Cooldown(SkillId id) => Ready.TryGetValue(Key(id), out float ready) ? Mathf.Max(0, ready - Time.time) : 0;
-        private void SetCooldown(SkillId id, float seconds) => Ready[Key(id)] = Time.time + seconds;
+        private void SetCooldown(SkillId id, float seconds)
+        {
+            Ready[Key(id)] = Time.time + seconds;
+            HudCooldownDurations[Key(id)] = seconds;
+        }
         private bool CanAct => isActiveAndEnabled && controller.isActiveAndEnabled && health != null && !health.IsDead && !controller.IsDashing && !controller.MenuOpen && !ItemWindows.BlocksGameplay;
         private int Damage(float value) => Mathf.RoundToInt((value + controller.EquipmentBonuses.Attack) * (GetComponent<CombatStatus>()?.OutgoingMultiplier ?? 1));
         private void OnLoadoutChanged()
         {
-            if (combo > 0) Ready[previousClass + ":" + SkillId.ComboSlash] = Time.time + 6;
-            Cancel(); combo = 0; specialEndsAt = 0;
+            if (combo > 0)
+            {
+                string key = previousClass + ":" + SkillId.ComboSlash;
+                Ready[key] = Time.time + 6;
+                HudCooldownDurations[key] = Ready[key] - Time.time;
+            }
+            Cancel(); combo = 0; specialEndsAt = 0; SpecialActiveDuration = 0;
             previousClass = loadout.Class;
         }
 
@@ -71,10 +88,10 @@ namespace PersistentWorld.Player
             if (combo > 0 && Time.time >= comboEndsAt) { combo = 0; SetCooldown(SkillId.ComboSlash, 6); }
             if (held == SkillId.Snipe || held == SkillId.Excalibur)
             {
-                if (held == SkillId.Snipe) heldAim = controller.AimDirection;
+                heldAim = controller.AimDirection;
                 float range = Mathf.Lerp(held == SkillId.Snipe ? 8 : 2, held == SkillId.Snipe ? 15 : 5, Charge);
-                if (held == SkillId.Excalibur) preview.Sector(transform.position, heldAim, range, 100);
-                else preview.Beam((Vector2)transform.position + Vector2.up * .35f, (Vector2)transform.position + Vector2.up * .35f + heldAim * range, Mathf.Lerp(.06f, .2f, Charge));
+                if (held == SkillId.Snipe) preview.Beam((Vector2)transform.position + Vector2.up * .35f, (Vector2)transform.position + Vector2.up * .35f + heldAim * range, Mathf.Lerp(.06f, .2f, Charge));
+                else if (heldArt != null) heldArt.SetAimPose((Vector2)transform.position + Vector2.up * .35f + heldAim * .4f, heldAim);
                 if (Time.time - heldAt >= maximumCharge) ReleaseSkill(heldSlot);
             }
             else if (held == SkillId.ArrowRain && preview != null) preview.Circle(target, 1.3f, .45f);
@@ -92,11 +109,14 @@ namespace PersistentWorld.Player
             SkillId id = loadout.Slots[slot];
             if (id == SkillId.None || Cooldown(id) > 0) return false;
             if (!controller.HasWeapon && id != SkillId.HealingZone && id != SkillId.Cleanse) return false;
+            float manaCost = PrototypeManaBalance.Cost(id);
+            if (!controller.Mana.CanAfford(manaCost)) return false;
             Vector2 direction = controller.AimDirection;
             UpdateTarget(mouseWorld);
             switch (id)
             {
                 case SkillId.Repulse:
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
                     SetCooldown(id, 4);
                     SkillOneEffect.Spawn((Vector2)transform.position + Vector2.up * .35f + direction * .3f, direction);
                     SectorDamage(transform.position, direction, 3, 90, Damage(20), 2, false);
@@ -105,19 +125,22 @@ namespace PersistentWorld.Player
                 case SkillId.Snipe:
                 case SkillId.Excalibur:
                 case SkillId.Judgment:
+                    if (id == SkillId.Judgment && !controller.Mana.TrySpend(manaCost)) return false;
                     held = id; heldSlot = slot; heldAt = Time.time; heldAim = direction;
-                    preview = SkillIndicator.Create(id == SkillId.ArrowRain ? Color.yellow : Color.cyan);
+                    if (id != SkillId.Excalibur) preview = SkillIndicator.Create(id == SkillId.ArrowRain ? Color.yellow : Color.cyan);
                     if (id == SkillId.Excalibur)
                         heldArt = ClassSheetEffect.Play(ClassArtEffect.WarriorCharge, (Vector2)transform.position + Vector2.up * .35f + direction * .4f, repeat: true, owner: transform, aim: direction);
                     if (id == SkillId.Judgment)
                     {
                         heldArt = ClassSheetEffect.Play(ClassArtEffect.HealerJudgment, (Vector2)transform.position + Vector2.up * .35f, repeat: true);
-                        SetCooldown(id, 10); StartCoroutine(Judgment());
+                        StartCoroutine(Judgment());
                     }
                     break;
                 case SkillId.Whirlwind:
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
                     SetCooldown(id, 5); busy = true; StartCoroutine(Whirlwind()); break;
                 case SkillId.ComboSlash:
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
                     if (combo == 0) comboEndsAt = Time.time + 4;
                     combo++;
                     ClassSheetEffect slash = ClassSheetEffect.Play(ClassArtEffect.WarriorCombo, (Vector2)transform.position + Vector2.up * .35f + direction * (.8f + combo * .2f), owner: transform, aim: direction, scale: 1 + combo * .25f);
@@ -125,9 +148,11 @@ namespace PersistentWorld.Player
                     if (combo >= 3) { combo = 0; SetCooldown(id, 6); }
                     break;
                 case SkillId.HealingZone:
-                    SetCooldown(id, 8); HealingZone.Spawn(target, health, 5); break;
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
+                    SetCooldown(id, 15); HealingZone.Spawn(target, health, 5); break;
                 case SkillId.Cleanse:
-                    SetCooldown(id, 8);
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
+                    SetCooldown(id, 10);
                     foreach (Health ally in UnityEngine.Object.FindObjectsByType<Health>(FindObjectsSortMode.None))
                         if (ally.Faction == Faction.Player && !ally.IsDead && Vector2.Distance(transform.position, ally.transform.position) <= 3) ally.GetComponent<CombatStatus>()?.Cleanse();
                     if (ClassSheetEffect.Play(ClassArtEffect.HealerCleanse, transform.position, owner: transform) == null)
@@ -135,6 +160,7 @@ namespace PersistentWorld.Player
                     break;
                 case SkillId.BossBlast:
                     if (!loadout.BossLearned) return false;
+                    if (!controller.Mana.TrySpend(manaCost)) return false;
                     SetCooldown(id, 20);
                     Camera camera = Camera.main;
                     if (camera != null)
@@ -158,9 +184,11 @@ namespace PersistentWorld.Player
             if (!IsHolding || heldSlot != slot) return false;
             SkillId id = held;
             float charge = Charge;
-            Vector2 direction = id == SkillId.Snipe ? controller.AimDirection : heldAim;
+            Vector2 direction = id == SkillId.Snipe || id == SkillId.Excalibur ? controller.AimDirection : heldAim;
             ClearHold();
             if (!CanAct) return false;
+            if ((id == SkillId.ArrowRain || id == SkillId.Snipe || id == SkillId.Excalibur) &&
+                !controller.Mana.TrySpend(PrototypeManaBalance.Cost(id))) return false;
             if (id == SkillId.ArrowRain)
             {
                 SetCooldown(id, 8); ArrowRainEffect.Spawn(target, Damage(30), gameObject);
@@ -174,8 +202,8 @@ namespace PersistentWorld.Player
             else if (id == SkillId.Excalibur)
             {
                 SetCooldown(id, 10);
-                ClassSheetEffect slash = ClassSheetEffect.Play(ClassArtEffect.WarriorRelease, (Vector2)transform.position + Vector2.up * .35f + direction * Mathf.Lerp(.8f, 1.5f, charge), owner: transform, aim: direction, scale: Mathf.Lerp(.6f, 1.4f, charge));
-                SectorDamage(transform.position, direction, Mathf.Lerp(2, 5, charge), 100, Damage(Mathf.Lerp(25, 80, charge)), showRange: slash == null);
+                ClassSheetEffect.Play(ClassArtEffect.WarriorRelease, (Vector2)transform.position + Vector2.up * .35f + direction * Mathf.Lerp(.8f, 1.5f, charge), owner: transform, aim: direction, scale: Mathf.Lerp(.6f, 1.4f, charge));
+                SectorDamage(transform.position, direction, Mathf.Lerp(2, 5, charge), 100, Damage(Mathf.Lerp(25, 80, charge)), showRange: false);
             }
             return true;
         }
@@ -194,14 +222,13 @@ namespace PersistentWorld.Player
 
         private IEnumerator Whirlwind()
         {
-            SkillIndicator windup = SkillIndicator.Create(Color.yellow, .5f);
-            windup.Circle(transform.position, 2.5f, 2.5f);
             yield return new WaitForSeconds(.5f);
             busy = false;
             if (!health.IsDead)
             {
-                ClassSheetEffect ring = ClassSheetEffect.Play(ClassArtEffect.WarriorWhirlwind, transform.position, owner: transform);
-                SectorDamage(transform.position, Vector2.right, 2.5f, 360, Damage(30), showRange: ring == null);
+                Vector2 center = GetComponent<SpriteRenderer>().bounds.center;
+                ClassSheetEffect.Play(ClassArtEffect.WarriorWhirlwind, center, owner: transform);
+                SectorDamage(center, Vector2.right, 2.5f, 360, Damage(30), showRange: false);
             }
         }
 
@@ -237,9 +264,9 @@ namespace PersistentWorld.Player
             Vector2 direction = controller.AimDirection;
             if (loadout.Class == CharacterClass.Warrior)
             {
-                attackReadyAt = Time.time + .55f;
+                attackReadyAt = Time.time + .55f / 1.5f;
                 SwordSwingEffect.Play(controller, direction);
-                SectorDamage(transform.position, direction, 1.8f, 120, Damage(12));
+                SectorDamage(transform.position, direction, 2.7f, 120, Damage(12), showRange: false);
             }
             else if (loadout.Class == CharacterClass.Healer)
             {
@@ -276,6 +303,8 @@ namespace PersistentWorld.Player
         {
             if (!SpecialSkillsEnabled || !CanAct || busy || IsHolding || releasing || SpecialRemaining > 0) return false;
             if (loadout.Class == CharacterClass.Warrior && !controller.HasWeapon) return false;
+            float manaCost = PrototypeManaBalance.SpecialCost(loadout.Class);
+            if (!controller.Mana.CanAfford(manaCost)) return false;
             if (loadout.Class == CharacterClass.Healer)
             {
                 Health nearest = null;
@@ -286,21 +315,25 @@ namespace PersistentWorld.Player
                     if (ally != health && ally.Faction == Faction.Player && ally.IsDead && candidate <= distance) { nearest = ally; distance = candidate; }
                 }
                 if (nearest == null || !nearest.Revive(.7f, 3)) return false;
-                Ready[loadout.Class + ":Special"] = Time.time + 15;
+                controller.Mana.TrySpend(manaCost);
+                Ready[loadout.Class + ":Special"] = Time.time + 180;
                 if (ClassSheetEffect.Play(ClassArtEffect.HealerRevive, nearest.transform.position, owner: nearest.transform) == null)
                     SkillIndicator.Create(Color.green, .6f).Circle(nearest.transform.position, 1, 1);
             }
             else
             {
+                if (!controller.Mana.TrySpend(manaCost)) return false;
                 Ready[loadout.Class + ":Special"] = Time.time + (loadout.Class == CharacterClass.Warrior ? 4 : 10);
                 specialEndsAt = Time.time + (loadout.Class == CharacterClass.Warrior ? .7f : 5);
+                SpecialActiveDuration = specialEndsAt - Time.time;
                 if (loadout.Class == CharacterClass.Warrior)
                 {
-                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, .7f, true, transform, controller.AimDirection, true) == null)
+                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, .7f, true, transform, controller.AimDirection, true, scale: 1.5f) == null)
                         SkillIndicator.Create(Color.cyan, .7f).Sector(transform.position, controller.AimDirection, 1.7f, 140);
                 }
                 else ClassSheetEffect.Play(ClassArtEffect.ArcherSpecial, transform.position, 5, true, transform);
             }
+            HudCooldownDurations[loadout.Class + ":Special"] = SpecialRemaining;
             return true;
         }
 
@@ -332,6 +365,13 @@ namespace PersistentWorld.Player
 
         private void ClearHold()
         {
+            // Ending or interrupting the channel starts its full cooldown, even on class changes.
+            if (held == SkillId.Judgment)
+            {
+                string key = previousClass + ":" + SkillId.Judgment;
+                Ready[key] = Time.time + 10;
+                HudCooldownDurations[key] = 10;
+            }
             held = SkillId.None; heldSlot = -1;
             if (heldArt != null) { heldArt.gameObject.SetActive(false); Destroy(heldArt.gameObject); heldArt = null; }
             if (preview != null) Destroy(preview.gameObject);
@@ -354,10 +394,10 @@ namespace PersistentWorld.Player
         public void OnDeath()
         {
             if (combo > 0) SetCooldown(SkillId.ComboSlash, 6);
-            Cancel(); specialEndsAt = 0; combo = 0;
+            Cancel(); specialEndsAt = 0; SpecialActiveDuration = 0; combo = 0;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetSession() { Ready.Clear(); SpecialSkillsEnabled = true; }
+        private static void ResetSession() { Ready.Clear(); HudCooldownDurations.Clear(); SpecialSkillsEnabled = true; }
     }
 }

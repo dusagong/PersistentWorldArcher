@@ -13,7 +13,7 @@
                 <ui:Button name="close-inventory" text="닫기 (ESC)" />
             </ui:VisualElement>
             <ui:VisualElement class="inventory-body">
-                <ui:VisualElement class="equipment-pane">
+                <ui:ScrollView name="equipment-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden" class="equipment-pane equipment-scroll">
                     <ui:Label name="class-label" class="section-title" />
                     <ui:VisualElement class="equipment-layout">
                         <ui:VisualElement name="equipment-left" class="equipment-column" />
@@ -21,14 +21,20 @@
                         <ui:VisualElement name="equipment-right" class="equipment-column" />
                     </ui:VisualElement>
                     <ui:Label name="set-status" class="set-status" />
-                </ui:VisualElement>
+                </ui:ScrollView>
                 <ui:VisualElement class="bag-pane">
                     <ui:VisualElement name="category-tabs" class="category-tabs" />
                     <ui:Label name="bag-capacity" class="bag-capacity" />
-                    <ui:VisualElement name="bag-grid" class="bag-grid" />
+                    <ui:ScrollView name="bag-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden" class="bag-scroll">
+                        <ui:VisualElement name="bag-grid" class="bag-grid" />
+                    </ui:ScrollView>
+                    <ui:VisualElement name="quest-list" class="quest-list hidden">
+                        <ui:Label text="퀘스트 목록" class="quest-title" />
+                        <ui:Label text="진행 중인 퀘스트가 없습니다." class="quest-empty" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
-            <ui:VisualElement class="selection-panel">
+            <ui:VisualElement name="selection-panel" class="selection-panel">
                 <ui:VisualElement class="selection-copy">
                     <ui:Label name="selection-title" class="selection-title" />
                     <ui:Label name="selection-description" class="selection-description" />

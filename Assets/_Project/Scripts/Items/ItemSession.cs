@@ -13,6 +13,7 @@ namespace PersistentWorld.Items
     {
         public static ItemSession Instance { get; private set; }
         public PlayerInventoryProfile Profile { get; private set; }
+        internal PlayerManaState ManaState { get; } = new PlayerManaState();
         public string SavePath { get; private set; }
         public string SaveError { get; private set; }
         public bool CanSave { get; private set; }
@@ -117,6 +118,7 @@ namespace PersistentWorld.Items
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (scene.name == "Town" && ManaState.RefillOnTownReturn) ManaState.Refill();
             BindPlayers();
             if (scene.name == "Town" && FindFirstObjectByType<BlacksmithNpc>() == null)
             {

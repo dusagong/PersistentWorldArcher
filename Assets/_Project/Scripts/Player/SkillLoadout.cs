@@ -33,10 +33,10 @@ namespace PersistentWorld.Player
             SkillId.Snipe => "누르고 차징, 놓으면 저격. 최대 차징 시 자동 발사.",
             SkillId.Whirlwind => "0.5초 준비 후 주변을 크게 벰.",
             SkillId.ComboSlash => "4초 안에 최대 3회 사용. 사용할수록 범위 증가.",
-            SkillId.Excalibur => "차징할수록 범위·피해 증가. 차징 중 이동 불가.",
-            SkillId.HealingZone => "5초간 초당 아군 최대 HP 20% 회복. 보스에게 피해.",
-            SkillId.Cleanse => "자신과 주변 아군의 디버프 해제.",
-            SkillId.Judgment => "누르는 동안 최대 5초 레이저. 시전 중 이동 불가.",
+            SkillId.Excalibur => "차징할수록 범위·피해 증가. 차징 중 조준 가능, 이동 불가.",
+            SkillId.HealingZone => "5초간 초당 아군 최대 HP 20% 회복. 보스에게 피해. 쿨타임 15초.",
+            SkillId.Cleanse => "자신과 주변 아군의 디버프 해제. 쿨타임 10초.",
+            SkillId.Judgment => "누르는 동안 최대 5초 레이저. 시전 중 이동 불가. 종료 후 쿨타임 10초.",
             SkillId.BossBlast => "화면에 보이는 모든 적에게 피해. 스킬 북으로 습득.",
             _ => ""
         };

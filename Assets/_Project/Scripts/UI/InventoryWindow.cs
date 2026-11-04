@@ -22,7 +22,8 @@ namespace PersistentWorld.UI
         private PanelSettings settings;
         private UIDocument document;
         private Font font;
-        private VisualElement screen, menu, panel, grid;
+        private VisualElement screen, menu, panel, grid, questList, selectionPanel;
+        private ScrollView bagScroll;
         private Label capacity, title, description, message, setStatus;
         private Image preview;
         private Button action;
@@ -54,6 +55,7 @@ namespace PersistentWorld.UI
             var template = Resources.Load<PanelSettings>("UI/BlacksmithPanel");
             if (tree == null || template == null) { Debug.LogError("Inventory UI assets are missing."); return; }
             settings = Instantiate(template);
+            settings.screenMatchMode = PanelScreenMatchMode.Expand;
             settings.sortingOrder = 101;
             var ui = new GameObject("Inventory UI");
             ui.transform.SetParent(transform, false);
@@ -69,6 +71,13 @@ namespace PersistentWorld.UI
             menu = screen.Q("pause-menu");
             panel = screen.Q("inventory-panel");
             grid = screen.Q("bag-grid");
+            grid.RegisterCallback<GeometryChangedEvent>(evt =>
+            {
+                if (!Mathf.Approximately(evt.oldRect.width, evt.newRect.width)) ResizeBagCells();
+            });
+            bagScroll = screen.Q<ScrollView>("bag-scroll");
+            questList = screen.Q("quest-list");
+            selectionPanel = screen.Q("selection-panel");
             capacity = screen.Q<Label>("bag-capacity");
             title = screen.Q<Label>("selection-title");
             description = screen.Q<Label>("selection-description");
@@ -139,6 +148,7 @@ namespace PersistentWorld.UI
             selectedId = null;
             selectedSlot = EquipmentSlot.None;
             category = ItemCategory.Equipment;
+            bagScroll.scrollOffset = Vector2.zero;
             screen.RemoveFromClassList("hidden");
             menu.AddToClassList("hidden");
             panel.RemoveFromClassList("hidden");
@@ -162,6 +172,7 @@ namespace PersistentWorld.UI
             category = value;
             selectedId = null;
             selectedSlot = EquipmentSlot.None;
+            bagScroll.scrollOffset = Vector2.zero;
             Refresh();
         }
 
@@ -184,6 +195,12 @@ namespace PersistentWorld.UI
             dirty = false;
             var profile = session.Profile;
             var inventory = profile.Inventory;
+            bool showingQuests = category == ItemCategory.Quest;
+            bagScroll.EnableInClassList("hidden", showingQuests);
+            capacity.EnableInClassList("hidden", showingQuests);
+            questList.EnableInClassList("hidden", !showingQuests);
+            selectionPanel.EnableInClassList("hidden", showingQuests && selectedSlot == EquipmentSlot.None);
+            message.EnableInClassList("hidden", showingQuests && string.IsNullOrEmpty(session.SaveError));
             if (selectedSlot != EquipmentSlot.None) selectedId = profile.GetEquipped(selectedSlot);
             else if (selectedId != null && inventory.GetCount(selectedId) == 0) selectedId = null;
             capacity.text = $"전체 가방 {inventory.UsedSlots} / {inventory.Capacity}칸 · 장착 장비 제외";
@@ -202,6 +219,9 @@ namespace PersistentWorld.UI
                 $"5부위: 보스 피격 피해 -20% {(pieces >= 5 ? "[적용]" : "")}\n" +
                 $"6부위: 보스에게 주는 피해 +30% {(pieces >= 6 ? "[적용]" : "")}";
             grid.Clear();
+            RefreshSelection();
+            if (!string.IsNullOrEmpty(session.SaveError)) message.text = "저장할 수 없습니다. 저장 위치를 확인해주세요.";
+            if (showingQuests) return;
             int cells = 0;
             foreach (ItemDefinition item in ItemCatalog.All)
             {
@@ -241,8 +261,21 @@ namespace PersistentWorld.UI
                 empty.AddToClassList("bag-cell");
                 grid.Add(empty);
             }
-            RefreshSelection();
-            if (!string.IsNullOrEmpty(session.SaveError)) message.text = "저장할 수 없습니다. 저장 위치를 확인해주세요.";
+            ResizeBagCells();
+        }
+
+        private void ResizeBagCells()
+        {
+            if (grid == null) return;
+            float width = grid.contentRect.width;
+            if (!(width > 0f)) return;
+            int columns = Mathf.Clamp(Mathf.FloorToInt(width / 98f), 1, 8);
+            float size = Mathf.Max(1f, Mathf.Floor(width / columns) - 2f);
+            foreach (VisualElement cell in grid.Children())
+            {
+                cell.style.width = size;
+                cell.style.height = size;
+            }
         }
 
         private void RefreshSelection()
@@ -319,6 +352,9 @@ namespace PersistentWorld.UI
             menu = null;
             panel = null;
             grid = null;
+            bagScroll = null;
+            questList = null;
+            selectionPanel = null;
             equipmentButtons.Clear();
             tabs.Clear();
             icons.Clear();
