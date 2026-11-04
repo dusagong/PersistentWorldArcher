@@ -18,6 +18,7 @@ namespace PersistentWorld.Combat
         public int Maximum => maxHealth;
         public bool IsDead => Current <= 0;
         public float InvulnerableUntil { get; private set; }
+        public bool DestroysOnDeath => destroyOnDeath;
         // 켜 둔 동안 피해를 받지 않는다 (보스 페이즈 전환 등). 끄는 쪽이 책임진다.
         public bool Invulnerable { get; set; }
 

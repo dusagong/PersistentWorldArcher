@@ -109,8 +109,7 @@ namespace PersistentWorld.World
             if (barRoot != null) barRoot.gameObject.SetActive(false);
             if (flash != null) flash.enabled = false;
             if (showDeathBurst && body != null)
-                DeathBurst.Spawn(transform.position, body.color, body.bounds.size, body.sortingOrder + 2,
-                    GetComponent<PersistentWorld.Core.PlaceholderVisual>() == null ? body : null);
+                DeathBurst.Spawn(body, health.DestroysOnDeath);
         }
 
         private void LateUpdate()
@@ -198,7 +197,7 @@ namespace PersistentWorld.World
             return renderer;
         }
 
-        private static Material SilhouetteMaterial
+        internal static Material SilhouetteMaterial
         {
             get
             {

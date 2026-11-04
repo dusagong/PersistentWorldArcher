@@ -34,16 +34,30 @@ namespace PersistentWorld.World
         private float startedAt;
 
         // debris가 있으면 조각 일부를 그 그림(흙빛으로 물들인 돌)으로 쓴다
-        public static void Spawn(Vector2 center, float radius, Sprite[] debris = null, int chunkCount = 56, int puffCount = 18)
+        public static void Spawn(Vector2 center, float radius, Sprite[] debris = null, int chunkCount = 56, int puffCount = 18) =>
+            Build(center, radius, debris, chunkCount, puffCount, Dirt, true, 1f, 1f);
+
+        // 몸이 부서지는 연출: 흙 대신 palette 색 조각이 튀고 바닥 자국은 남기지 않는다. 몸집(radius)에 맞춰 조각 수·힘을 정한다.
+        public static void Shatter(Vector2 center, float radius, Color[] palette)
+        {
+            int chunks = Mathf.Clamp(Mathf.RoundToInt(radius * 44f), 18, 90);
+            int puffs = Mathf.Clamp(Mathf.RoundToInt(radius * 12f), 6, 22);
+            Build(center, radius, null, chunks, puffs, palette, false, Mathf.Clamp(radius / 1.6f, .5f, 1.1f), Mathf.Clamp(radius, .8f, 1.7f));
+        }
+
+        private static void Build(Vector2 center, float radius, Sprite[] debris, int chunkCount, int puffCount, Color[] colors, bool withCrater, float power, float chunkScale)
         {
             var root = new GameObject("Ground Burst").AddComponent<GroundBurst>();
             root.transform.position = center;
             root.startedAt = Time.time;
 
-            root.crater = root.Create("Crater", Circle, center, 3000);
-            root.crater.transform.localScale = new Vector3(radius * .9f, radius * .45f, 1f);
-            root.crater.color = new Color(.22f, .15f, .09f, .55f);
-            root.crater.sortingOrder = -8000;
+            if (withCrater)
+            {
+                root.crater = root.Create("Crater", Circle, center, 3000);
+                root.crater.transform.localScale = new Vector3(radius * .9f, radius * .45f, 1f);
+                root.crater.color = new Color(.22f, .15f, .09f, .55f);
+                root.crater.sortingOrder = -8000;
+            }
 
             for (int i = 0; i < chunkCount; i++)
             {
@@ -53,14 +67,14 @@ namespace PersistentWorld.World
                 outward = outward.sqrMagnitude > .001f ? outward.normalized : Random.insideUnitCircle.normalized;
                 bool useDebris = debris != null && debris.Length > 0 && Random.value < .45f;
                 SpriteRenderer r = root.Create("Chunk", useDebris ? debris[Random.Range(0, debris.Length)] : Square, from, 0);
-                float size = useDebris ? Random.Range(.55f, 1f) : Random.Range(.09f, .22f);
+                float size = (useDebris ? Random.Range(.55f, 1f) : Random.Range(.09f, .22f)) * chunkScale;
                 r.transform.localScale = Vector3.one * size;
-                r.color = useDebris ? Color.Lerp(Color.white, Dirt[0], .45f) : Dirt[Random.Range(0, Dirt.Length)];
+                r.color = useDebris ? Color.Lerp(Color.white, Dirt[0], .45f) : colors[Random.Range(0, colors.Length)];
                 root.chunks.Add(new Chunk
                 {
                     Body = r.transform, Renderer = r, Ground = from,
-                    Velocity = outward * Random.Range(2f, 6.5f) + Random.insideUnitCircle * .8f,
-                    Rise = Random.Range(5f, 11f), Spin = Random.Range(-720f, 720f)
+                    Velocity = (outward * Random.Range(2f, 6.5f) + Random.insideUnitCircle * .8f) * power,
+                    Rise = Random.Range(5f, 11f) * power, Spin = Random.Range(-720f, 720f)
                 });
             }
 
@@ -70,8 +84,9 @@ namespace PersistentWorld.World
                 var dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * .55f);
                 Vector2 at = center + dir * radius * Random.Range(.35f, .95f);
                 SpriteRenderer r = root.Create("Dust", Circle, at, 0);
-                r.color = new Color(.62f, .52f, .4f, 0f);
-                root.puffs.Add(new Puff { Body = r.transform, Renderer = r, Drift = dir * Random.Range(.6f, 1.6f) + Vector2.up * .5f, Delay = Random.Range(0f, .12f), Size = Random.Range(.9f, 1.6f) });
+                Color dust = Color.Lerp(colors[0], new Color(.62f, .52f, .4f), .6f);
+                r.color = new Color(dust.r, dust.g, dust.b, 0f);
+                root.puffs.Add(new Puff { Body = r.transform, Renderer = r, Drift = dir * Random.Range(.6f, 1.6f) + Vector2.up * .5f, Delay = Random.Range(0f, .12f), Size = Random.Range(.9f, 1.6f) * chunkScale });
             }
         }
 
@@ -90,9 +105,9 @@ namespace PersistentWorld.World
         {
             float age = Time.time - startedAt;
             float dt = Time.deltaTime;
-            bool alive = age < CraterLife;
+            bool alive = crater != null && age < CraterLife;
 
-            crater.color = new Color(crater.color.r, crater.color.g, crater.color.b, .55f * (1f - Mathf.Clamp01(age / CraterLife)));
+            if (crater != null) crater.color = new Color(crater.color.r, crater.color.g, crater.color.b, .55f * (1f - Mathf.Clamp01(age / CraterLife)));
 
             foreach (Chunk c in chunks)
             {
