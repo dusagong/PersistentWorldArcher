@@ -81,6 +81,7 @@ namespace PersistentWorld.World
             visual.color = Color.white;
             lastPosition = transform.position;
             PlayMove();
+            ActorShadow.Attach(transform, bodyHeight * uniform * .9f, bodyHeight * uniform * .5f);
         }
 
         // duration: 반복 동작은 한 바퀴, 그 외는 전체 재생 시간. facing이 있으면 그 방향을 보게 뒤집는다.

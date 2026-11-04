@@ -87,6 +87,7 @@ namespace PersistentWorld.World
             transform.localScale = new Vector3(uniform, uniform, scale.z);
             visual.color = tint;
             visual.sprite = frames.Move[0];
+            ActorShadow.Attach(transform, height * uniform * .95f, height * uniform * .5f);
         }
 
         private void Update()
