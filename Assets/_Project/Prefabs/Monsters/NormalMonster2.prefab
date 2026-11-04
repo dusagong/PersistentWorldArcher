@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3378410480214071952}
   - component: {fileID: 5203893116651313845}
-  - component: {fileID: 7057464210434042298}
   - component: {fileID: 6502577165362113850}
   - component: {fileID: 4130401319253407092}
   - component: {fileID: 123038278658679768}
@@ -19,6 +18,7 @@ GameObject:
   - component: {fileID: 7941330534665128065}
   - component: {fileID: 9123537857761924305}
   - component: {fileID: 2124025867874078890}
+  - component: {fileID: 5710071214506351079}
   m_Layer: 0
   m_Name: NormalMonster2
   m_TagString: Untagged
@@ -36,7 +36,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.6, y: 0.9, z: 1}
+  m_LocalScale: {x: 1.5, y: 1.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -85,31 +85,17 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 0}
-  m_Color: {r: 0.95, g: 0.75, b: 0.15, a: 1}
+  m_Sprite: {fileID: -8197176194898214782, guid: f3d432b03cd0e2347843bce1d1c095e6, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.652439, y: 0.75}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 0
+  m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &7057464210434042298
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3456696383843372104}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fd01c6cdc2774b942bcae06a2c3b9cf8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  color: {r: 0.95, g: 0.75, b: 0.15, a: 1}
-  size: {x: 0.6, y: 0.9}
 --- !u!50 &6502577165362113850
 Rigidbody2D:
   serializedVersion: 5
@@ -236,6 +222,9 @@ MonoBehaviour:
   aimTime: 0.35
   projectileColor: {r: 1, g: 0.55, b: 0.1, a: 1}
   aimTint: {r: 1, g: 1, b: 0.4, a: 1}
+  projectileSprite: {fileID: 21300000, guid: c6bb2ddc24ccae9468a6a81fb79caf84, type: 3}
+  projectileSpriteScale: 1
+  projectileSpin: 540
 --- !u!114 &9123537857761924305
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -279,3 +268,19 @@ MonoBehaviour:
     quantity: 1
     chance: 0.35
   scatterRadius: 0.7
+--- !u!114 &5710071214506351079
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3456696383843372104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 114db80b810f3ab4aa539b83ee50410e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  art: 1
+  height: 0.75
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  sourceFacesRight: 1

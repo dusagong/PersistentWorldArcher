@@ -13874,6 +13874,7 @@ GameObject:
   - component: {fileID: 183068812}
   - component: {fileID: 183068811}
   - component: {fileID: 183068810}
+  - component: {fileID: 183068816}
   m_Layer: 0
   m_Name: Prototype Boss
   m_TagString: Untagged
@@ -13931,6 +13932,15 @@ MonoBehaviour:
   quakeJumpHeight: 1.6
   quakeWarnTime: 1.5
   quakeDamage: 18
+  quakeDebrisSprites:
+  - {fileID: 21300102, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300104, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300106, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300108, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300110, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300152, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  - {fileID: 21300154, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  quakeShake: 0.45
   debuffDamage: 8
   debuffWarnTime: 0.6
   transitionDuration: 20
@@ -13943,6 +13953,21 @@ MonoBehaviour:
   safeZoneArmLength: 1.6
   safeZoneArmWidth: 1
   instantDeathDamage: 9999999
+  statueSprite: {fileID: 21300058, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  statueBrokenSprite: {fileID: 21300060, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  statueGlowSprite: {fileID: 21300062, guid: 29c9cded5e558164aaf8c9bf08aa1510, type: 3}
+  statueGlowOffset: {x: 0.02, y: 0.19}
+  statueGlowColor: {r: 0, g: 0.875, b: 1, a: 1}
+  statueRiseTime: 0.7
+  minionPrefabs:
+  - {fileID: 1130909746213680288, guid: 5e1c9a2145e5be94b95683d92b04cb9a, type: 3}
+  - {fileID: 3456696383843372104, guid: 0bc2f79ee128b954d9141686f3d7ad5d, type: 3}
+  - {fileID: 8041184623125599256, guid: ddb3bcdac3ef2814599c6d03da7fd126, type: 3}
+  minionFirstDelay: 2
+  minionInterval: 5
+  minionsPerWave: 2
+  maxMinions: 5
+  minionWarnTime: 0.8
   telegraphColor: {r: 1, g: 0.12, b: 0.1, a: 1}
   projectileColor: {r: 1, g: 0.25, b: 0.2, a: 1}
   debuffColor: {r: 0.65, g: 0.2, b: 1, a: 1}
@@ -13961,7 +13986,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   faction: 2
-  maxHealth: 800
+  maxHealth: 1200
   destroyOnDeath: 1
 --- !u!58 &183068812
 CircleCollider2D:
@@ -14057,8 +14082,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 1602866692}
-  m_Color: {r: 0.8, g: 0.12, b: 0.12, a: 1}
+  m_Sprite: {fileID: -8625158115376519627, guid: 41aa15e6d78cf6742bab3e7aa53bcf33, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -14083,6 +14108,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &183068816
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 183068809}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 116acda500f2bbf459d3432ba572b83f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bodyHeight: 1.4
+  barrageBallSize: 0.35
+  debuffRockSize: 0.75
 --- !u!1 &190832318
 GameObject:
   m_ObjectHideFlags: 0

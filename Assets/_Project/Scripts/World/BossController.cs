@@ -12,6 +12,7 @@ namespace PersistentWorld.World
     // - 패턴 사이에는 가까운 플레이어와 거리를 두며 천천히 움직인다.
     // - HP가 phaseTwoHealthRatio 이하가 되면 페이즈 전환 패턴(20초, 조각상 4개, 십자가 안전지대, 즉사기) 후 2페이즈로 들어간다.
     // - 피해가 들어가는 범위는 BossTelegraph로 먼저 빨갛게 보여 준다.
+    // - BossSpriteAnimator가 붙어 있으면 패턴 타이밍에 맞춰 그림 동작을 지시하고 탄 그림을 바꾼다. 판정·타이밍은 그림과 무관하다.
     [RequireComponent(typeof(Health))]
     public sealed class BossController : MonoBehaviour
     {
@@ -80,6 +81,8 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("지진 때 슬라임처럼 뛰어오르는 높이")] private float quakeJumpHeight = 1.6f;
         [SerializeField] private float quakeWarnTime = 1.5f;
         [SerializeField] private int quakeDamage = 18;
+        [SerializeField, Tooltip("내려찍을 때 흙과 함께 튀는 돌 조각 그림 (비우면 흙덩이만)")] private Sprite[] quakeDebrisSprites;
+        [SerializeField, Tooltip("내려찍을 때 화면 흔들림 세기 (0이면 끔)")] private float quakeShake = .45f;
 
         [Header("디버프 구체 (탄막보다 크기 5배, 속도 1.5배 느림)")]
         [SerializeField] private int debuffDamage = 8;
@@ -95,6 +98,18 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("십자가 중심에서 팔 끝까지 길이")] private float safeZoneArmLength = 1.6f;
         [SerializeField] private float safeZoneArmWidth = 1f;
         [SerializeField] private int instantDeathDamage = 9999999;
+        [SerializeField, Tooltip("기둥 그림 (비우면 네모 도형). 발 위치가 피벗인 스프라이트")] private Sprite statueSprite;
+        [SerializeField, Tooltip("부서진 기둥 그림 (비우면 부서질 때 사라진다)")] private Sprite statueBrokenSprite;
+        [SerializeField, Tooltip("기둥 룬 빛 그림 (선택)")] private Sprite statueGlowSprite;
+        [SerializeField] private Vector2 statueGlowOffset = new Vector2(.02f, .19f);
+        [SerializeField] private Color statueGlowColor = new Color(0f, .875f, 1f);
+        [SerializeField, Tooltip("기둥이 땅에서 솟아오르는 시간")] private float statueRiseTime = .7f;
+        [SerializeField, Tooltip("페이즈 전환 동안 불러내는 잡몹 프리팹 (비우면 소환 안 함). 전환이 끝나면 사라진다")] private GameObject[] minionPrefabs;
+        [SerializeField] private float minionFirstDelay = 2f;
+        [SerializeField] private float minionInterval = 5f;
+        [SerializeField] private int minionsPerWave = 2;
+        [SerializeField, Tooltip("동시에 살아 있을 수 있는 잡몹 수")] private int maxMinions = 5;
+        [SerializeField, Tooltip("잡몹이 나타나기 전 바닥 경고 시간")] private float minionWarnTime = .8f;
 
         [Header("표시")]
         [SerializeField] private Color telegraphColor = new Color(1f, .12f, .1f);
@@ -107,12 +122,14 @@ namespace PersistentWorld.World
         private readonly List<GameObject> transitionObjects = new List<GameObject>();
         private Health health;
         private Collider2D bodyCollider;
+        private BossSpriteAnimator art;
         private bool phaseTwo;
         private bool performing;
         private bool inTransition;
         private bool hasLastPattern;
         private Pattern lastPattern;
         private bool inQuakeJump;
+        private int summoning;
         private Vector3 quakeBaseScale;
         private Vector2 quakeGround;
 
@@ -126,12 +143,26 @@ namespace PersistentWorld.World
         private Vector2 Position => transform.position;
         private float SpeedScale => phaseTwo ? phaseTwoSpeedMultiplier : 1f;
         private float Warn(float seconds) => phaseTwo ? seconds * phaseTwoWarnMultiplier : seconds;
+        private bool Animated => art != null && art.Ready;
 
         private void Awake()
         {
             BossEncounter.Begin();
             health = GetComponent<Health>();
             bodyCollider = GetComponent<Collider2D>();
+            art = GetComponent<BossSpriteAnimator>();
+        }
+
+        private void Animate(BossClip clip, float duration, Vector2 facing = default)
+        {
+            if (Animated) art.Play(clip, duration, facing);
+        }
+
+        // 그림 위에서는 원래 2페이즈 색을 그대로 곱하면 너무 어두워져 옅게 섞는다
+        private void TintPhaseTwo()
+        {
+            if (GetComponent<SpriteRenderer>() is SpriteRenderer sprite)
+                sprite.color = Animated ? Color.Lerp(Color.white, phaseTwoColor, .35f) : phaseTwoColor;
         }
 
         private void OnEnable()
@@ -167,8 +198,10 @@ namespace PersistentWorld.World
             foreach (GameObject obj in transitionObjects)
                 if (obj != null) Destroy(obj);
             transitionObjects.Clear();
+            summoning = 0;
             performing = false;
             inTransition = false;
+            if (health != null) health.Invulnerable = false;
             CurrentPattern = string.Empty;
             if (bodyCollider != null) bodyCollider.isTrigger = false;
         }
@@ -181,7 +214,7 @@ namespace PersistentWorld.World
             if (testStartPhase == TestStartPhase.Phase2)
             {
                 phaseTwo = true;
-                if (GetComponent<SpriteRenderer>() is SpriteRenderer sprite) sprite.color = phaseTwoColor;
+                TintPhaseTwo();
             }
             else if (testStartPhase == TestStartPhase.PhaseTransition)
             {
@@ -197,9 +230,11 @@ namespace PersistentWorld.World
                     continue;
                 }
 
-                if (Time.time < nextPatternAt || AlivePlayers().Count == 0)
+                // 패턴 뒤 원래 자세로 돌아오는 동작이 끝날 때까지는 제자리에 서 있고 다음 패턴도 미룬다
+                bool returning = Animated && art.IsReturning;
+                if (returning || Time.time < nextPatternAt || AlivePlayers().Count == 0)
                 {
-                    Drift();
+                    if (!returning) Drift();
                     yield return null;
                     continue;
                 }
@@ -291,6 +326,7 @@ namespace PersistentWorld.World
             var paths = new List<BossTelegraph>();
             for (int i = 0; i < count; i++)
                 paths.Add(Rect(points[i], points[i + 1], chargeWidth, chargeWarnTime).Steady(chargePathAlpha));
+            Animate(BossClip.ChargeWindup, chargeWarnTime, points[1] - points[0]);
             yield return new WaitForSeconds(chargeWarnTime);
 
             if (bodyCollider != null) bodyCollider.isTrigger = true;
@@ -299,6 +335,7 @@ namespace PersistentWorld.World
                 Fire(paths[i]);
                 var hit = new HashSet<Health>();
                 Vector2 end = points[i + 1];
+                Animate(BossClip.ChargeRun, .5f, end - points[i]);
                 while (Vector2.Distance(Position, end) > .05f && !health.IsDead)
                 {
                     transform.position = Vector2.MoveTowards(Position, end, chargeSpeed * SpeedScale * Time.deltaTime);
@@ -309,6 +346,7 @@ namespace PersistentWorld.World
                 yield return new WaitForSeconds(.12f);
             }
             if (bodyCollider != null) bodyCollider.isTrigger = false;
+            Animate(BossClip.ChargeEnd, .6f);
         }
 
         // 탄막: 랜덤 플레이어 1명에게 3발(가운데, 양옆 ±각도)씩 연속 발사. 1페이즈 3회 ±20도 / 2페이즈 4회 ±30도
@@ -332,11 +370,28 @@ namespace PersistentWorld.World
                     dirs.Add(d);
                     lines.Add(Rect(Position, Position + d * 7f, .22f, warn));
                 }
+                // 첫 발 전에는 대포로 변신하고, 다음 발부터는 대포 상태로 조준한다
+                Animate(v == 0 ? BossClip.CannonForm : BossClip.CannonHold, v == 0 ? warn : .32f, aim);
                 yield return new WaitForSeconds(warn);
                 foreach (BossTelegraph line in lines) Fire(line);
-                foreach (Vector2 d in dirs) Shoot(d, barrageSpeed * SpeedScale, 2.5f, barrageDamage, projectileColor);
-                yield return new WaitForSeconds(barrageVolleyInterval / SpeedScale);
+                foreach (Vector2 d in dirs) UseArt(Shoot(d, barrageSpeed * SpeedScale, 2.5f, barrageDamage, projectileColor), Animated ? art.BarrageBall : null);
+                float interval = barrageVolleyInterval / SpeedScale;
+                Animate(BossClip.CannonFire, interval, aim);
+                yield return new WaitForSeconds(interval);
             }
+            Animate(BossClip.CannonReturn, .9f);
+        }
+
+        // 탄 판정은 그대로 두고 막대 도형 대신 그림을 똑바로 세워 보여 준다
+        private static void UseArt(Projectile projectile, Sprite sprite)
+        {
+            if (sprite == null) return;
+            projectile.transform.localScale = Vector3.one;
+            projectile.transform.rotation = Quaternion.identity;
+            SpriteRenderer renderer = projectile.GetComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.color = Color.white;
+            renderer.sortingOrder = 1500;
         }
 
         // 유도탄: 1페이즈 랜덤 1명에게 1개 / 2페이즈 모든 플레이어에게 1개씩. 부딪히거나 5초 뒤 폭발
@@ -345,13 +400,26 @@ namespace PersistentWorld.World
             var targets = phaseTwo ? AlivePlayers() : new List<Transform> { RandomPlayer() };
             float warn = Warn(.5f);
             BossTelegraph cast = Circle(Position, 1f, warn);
+            Transform first = targets.Count > 0 ? targets[0] : null;
+            Vector2 aim = first != null ? (Vector2)first.position - Position : Vector2.zero;
+            Animate(BossClip.CannonForm, warn, aim);
             yield return new WaitForSeconds(warn);
             Fire(cast);
+            Animate(BossClip.CannonFire, .5f, aim);
             foreach (Transform target in targets)
                 if (target != null)
-                    BossHomingMissile.Spawn(Position, target, gameObject, homingDamage, homingSpeed, homingLifetime,
+                {
+                    BossHomingMissile missile = BossHomingMissile.Spawn(Position, target, gameObject, homingDamage, homingSpeed, homingLifetime,
                         homingExplosionRadius, projectileColor, telegraphColor);
+                    if (Animated && art.HomingBall != null)
+                    {
+                        SpriteRenderer renderer = missile.GetComponent<SpriteRenderer>();
+                        renderer.sprite = art.HomingBall;
+                        renderer.color = Color.white;
+                    }
+                }
             yield return new WaitForSeconds(.5f);
+            Animate(BossClip.CannonReturn, .9f);
         }
 
         // 지진: 보스 주변 일정 범위 안의 캐릭터에게 피해 (1·2페이즈 동일). 플레이어가 quakeTriggerDistance 안으로 붙었을 때만 고른다.
@@ -361,6 +429,11 @@ namespace PersistentWorld.World
             float warn = Warn(quakeWarnTime);
             Vector2 center = Position;
             BossTelegraph area = Circle(center, quakeRadius, warn);
+            if (Animated)
+            {
+                yield return QuakeSlam(warn, center, area);
+                yield break;
+            }
             quakeBaseScale = transform.localScale;
             quakeGround = center;
             inQuakeJump = true;
@@ -387,6 +460,7 @@ namespace PersistentWorld.World
             Fire(area);
             BossTelegraph.Shockwave(center, quakeRadius, telegraphColor);
             HitPlayers(p => Vector2.Distance(p, center) <= quakeRadius + PlayerRadius, quakeDamage);
+            SlamImpact(center);
 
             start = Time.time;
             while (Time.time < start + .25f)
@@ -397,6 +471,29 @@ namespace PersistentWorld.World
             transform.localScale = quakeBaseScale;
             inQuakeJump = false;
             yield return new WaitForSeconds(.1f);
+        }
+
+        // 그림이 있을 때의 지진: 뛰어오르는 대신 경고 동안 두 주먹을 들어 올리고, 경고가 끝나는 순간 내려찍는다.
+        private IEnumerator QuakeSlam(float warn, Vector2 center, BossTelegraph area)
+        {
+            art.Play(BossClip.QuakeWindup, warn);
+            float start = Time.time;
+            while (Time.time < start + warn && !health.IsDead) yield return null;
+            if (health.IsDead) yield break;
+            Fire(area);
+            BossTelegraph.Shockwave(center, quakeRadius, telegraphColor);
+            HitPlayers(p => Vector2.Distance(p, center) <= quakeRadius + PlayerRadius, quakeDamage);
+            SlamImpact(center);
+            art.Play(BossClip.QuakeSlam, .35f);
+            yield return new WaitForSeconds(.35f);
+            art.Play(BossClip.QuakeRecover, .6f);
+        }
+
+        // 내려찍은 자리: 흙·돌 조각이 튀고 흙먼지가 퍼지며 화면이 흔들린다 (연출 전용)
+        private void SlamImpact(Vector2 center)
+        {
+            GroundBurst.Spawn(center, quakeRadius, quakeDebrisSprites);
+            if (quakeShake > 0f) CameraFollow.Shake(quakeShake, .4f);
         }
 
         // amount > 1: 납작하게(가로로 넓게), < 1: 길쭉하게
@@ -412,13 +509,21 @@ namespace PersistentWorld.World
             Vector2 dir = aim.sqrMagnitude > .01f ? aim.normalized : Vector2.right;
             float warn = Warn(debuffWarnTime);
             BossTelegraph line = Track(BossTelegraph.Rect(Position, Position + dir * 8f, .9f, warn, debuffColor));
+            Animate(BossClip.CannonForm, warn, dir);
             yield return new WaitForSeconds(warn);
             Fire(line);
+            Animate(BossClip.CannonFire, .5f, dir);
             Projectile orb = Shoot(dir, barrageSpeed * SpeedScale / 1.5f, 3.5f, debuffDamage, debuffColor);
             orb.HitRadius *= 5f;
             orb.InflictsVulnerability = true;
-            orb.GetComponent<PlaceholderVisual>().Configure(debuffColor, new Vector2(.65f, .65f));
+            if (Animated && art.DebuffRock != null)
+            {
+                UseArt(orb, art.DebuffRock[0]);
+                orb.gameObject.AddComponent<SpriteFrameLoop>().Play(art.DebuffRock);
+            }
+            else orb.GetComponent<PlaceholderVisual>().Configure(debuffColor, new Vector2(.65f, .65f));
             yield return new WaitForSeconds(.3f);
+            Animate(BossClip.CannonReturn, .9f);
         }
 
         // 페이즈 전환: 20초 동안 보스 정지. 조각상 4개를 모두 부수면 그중 1곳에 십자가 안전지대가 생긴다.
@@ -428,9 +533,11 @@ namespace PersistentWorld.World
             phaseTwo = true;
             inTransition = true;
             performing = true;
+            health.Invulnerable = true; // 페이즈 전환 동안 보스는 피해를 받지 않는다
             CurrentPattern = "PhaseTransition";
             ClearTelegraphs();
-            if (GetComponent<SpriteRenderer>() is SpriteRenderer sprite) sprite.color = phaseTwoColor;
+            TintPhaseTwo();
+            Animate(BossClip.Stand, 1f);
 
             var statues = new List<Health>();
             var statuePositions = new List<Vector2>();
@@ -446,9 +553,20 @@ namespace PersistentWorld.World
             Vector2 safeCenter = Vector2.zero;
             BossTelegraph finalWarning = null;
             float endsAt = Time.time + transitionDuration;
+            float nextWaveAt = Time.time + minionFirstDelay;
+            var minions = new List<GameObject>();
             while (Time.time < endsAt)
             {
                 if (health.IsDead) yield break;
+
+                // 기둥을 부수는 동안 잡몹이 계속 나와 방해한다. 즉사기 3초 전부터는 더 부르지 않는다.
+                minions.RemoveAll(m => m == null);
+                if (minionPrefabs != null && minionPrefabs.Length > 0 && Time.time >= nextWaveAt && endsAt - Time.time > 3f + minionWarnTime)
+                {
+                    nextWaveAt = Time.time + minionInterval;
+                    for (int i = 0; i < minionsPerWave && minions.Count + summoning < maxMinions; i++)
+                        StartCoroutine(SummonMinion(minionPrefabs[Random.Range(0, minionPrefabs.Length)], MinionSpot(), minions));
+                }
                 int broken = 0;
                 foreach (Health statue in statues)
                     if (statue == null || statue.IsDead) broken++;
@@ -490,24 +608,119 @@ namespace PersistentWorld.World
             transitionObjects.Clear();
             inTransition = false;
             performing = false;
+            health.Invulnerable = false;
             CurrentPattern = string.Empty;
+            if (Animated) art.PlayMove();
             yield return new WaitForSeconds(1f);
         }
 
         // ---------- 페이즈 전환 오브젝트 ----------
 
+        // position은 기둥 몸통 가운데. 그림이 있으면 땅에서 솟아오르고, 부서지면 부서진 기둥으로 남는다.
         private Health CreateStatue(Vector2 position)
         {
             GameObject statue = new GameObject("Boss Statue");
-            statue.transform.position = position;
-            statue.AddComponent<PlaceholderVisual>().Configure(statueColor, new Vector2(.9f, 1.4f));
-            statue.AddComponent<BoxCollider2D>().size = Vector2.one;
-            statue.AddComponent<WorldDepthSort>();
-            Health statueHealthComponent = statue.AddComponent<Health>();
-            statueHealthComponent.Configure(Faction.Enemy, statueHealth);
+            Health statueHealthComponent;
+            if (statueSprite == null)
+            {
+                statue.transform.position = position;
+                statue.AddComponent<PlaceholderVisual>().Configure(statueColor, new Vector2(.9f, 1.4f));
+                statue.AddComponent<BoxCollider2D>().size = Vector2.one;
+                statue.AddComponent<WorldDepthSort>();
+                statueHealthComponent = statue.AddComponent<Health>();
+                statueHealthComponent.Configure(Faction.Enemy, statueHealth);
+            }
+            else
+            {
+                Vector2 size = statueSprite.bounds.size;
+                statue.transform.position = position - Vector2.up * size.y * .5f;
+                SpriteRenderer body = statue.AddComponent<SpriteRenderer>();
+                body.sprite = statueSprite;
+                SpriteRenderer glow = null;
+                if (statueGlowSprite != null)
+                {
+                    var glowObject = new GameObject("Glow");
+                    glowObject.transform.SetParent(statue.transform, false);
+                    glowObject.transform.localPosition = new Vector3(statueGlowOffset.x, statueGlowOffset.y, -.5f);
+                    glow = glowObject.AddComponent<SpriteRenderer>();
+                    glow.sprite = statueGlowSprite;
+                    glow.color = statueGlowColor;
+                }
+                var box = statue.AddComponent<BoxCollider2D>();
+                box.size = new Vector2(size.x * .9f, size.y * .9f);
+                box.offset = Vector2.up * size.y * .5f;
+                statue.AddComponent<WorldDepthSort>();
+                statueHealthComponent = statue.AddComponent<Health>();
+                statueHealthComponent.Configure(Faction.Enemy, statueHealth, false);
+                statueHealthComponent.Died += _ =>
+                {
+                    box.enabled = false;
+                    if (glow != null) glow.enabled = false;
+                    if (statueBrokenSprite != null) body.sprite = statueBrokenSprite;
+                    else body.enabled = false;
+                };
+                StartCoroutine(RiseStatue(statue.transform));
+            }
+            statue.AddComponent<CombatStatus>().Immovable = true; // 넉백 스킬에 밀리지 않게
             CombatFeedback.Attach(statueHealthComponent);
+            if (statue.GetComponent<CombatFeedback>() is CombatFeedback feedback) feedback.ShowHealthAlways(1.2f, .18f, true);
             transitionObjects.Add(statue);
             return statueHealthComponent;
+        }
+
+        // 플레이어와 너무 가깝지 않은 아레나 안 임의 지점
+        private Vector2 MinionSpot()
+        {
+            Vector2 half = arenaHalfSize - Vector2.one;
+            Vector2 spot = arenaCenter;
+            for (int i = 0; i < 12; i++)
+            {
+                spot = arenaCenter + new Vector2(Random.Range(-half.x, half.x), Random.Range(-half.y, half.y));
+                Transform nearest = null;
+                float best = float.MaxValue;
+                foreach (Transform p in AlivePlayers())
+                {
+                    float d = Vector2.Distance(p.position, spot);
+                    if (d < best) { best = d; nearest = p; }
+                }
+                if (nearest == null || best >= 3f) break;
+            }
+            return spot;
+        }
+
+        // 바닥 경고 뒤에 잡몹이 흙먼지와 함께 튀어나온다. 전환이 끝나면 transitionObjects와 함께 사라진다.
+        private IEnumerator SummonMinion(GameObject prefab, Vector2 spot, List<GameObject> minions)
+        {
+            summoning++; // 경고 중인 것도 세어 최대치를 넘지 않게 한다
+            BossTelegraph warning = Circle(spot, .8f, minionWarnTime);
+            yield return new WaitForSeconds(minionWarnTime);
+            summoning--;
+            Fire(warning);
+            if (!inTransition) yield break;
+            GameObject minion = Instantiate(prefab, spot, Quaternion.identity);
+            minions.Add(minion);
+            transitionObjects.Add(minion);
+            if (minion.GetComponent<Health>() is Health minionHealth) CombatFeedback.Attach(minionHealth);
+            GroundBurst.Spawn(spot, 1.2f, quakeDebrisSprites, 18, 8);
+        }
+
+        // 납작한 상태에서 흔들리며 길어져 살짝 넘쳤다가 제 크기로 선다. 발밑에 먼지 고리를 퍼뜨린다.
+        private IEnumerator RiseStatue(Transform statue)
+        {
+            Vector3 basePosition = statue.position;
+            BossTelegraph.Shockwave(basePosition, 1.1f, statueColor);
+            float start = Time.time;
+            while (statue != null && Time.time < start + statueRiseTime)
+            {
+                float t = (Time.time - start) / statueRiseTime;
+                float height = t < .8f ? Mathf.Lerp(0f, 1.08f, t / .8f) : Mathf.Lerp(1.08f, 1f, (t - .8f) / .2f);
+                statue.localScale = new Vector3(1f, Mathf.Max(.01f, height), 1f);
+                statue.position = basePosition + Vector3.right * Mathf.Sin(Time.time * 70f) * .04f * (1f - t);
+                yield return null;
+            }
+            if (statue == null) yield break;
+            statue.localScale = Vector3.one;
+            statue.position = basePosition;
         }
 
         private GameObject CreateSafeZone(Vector2 center)

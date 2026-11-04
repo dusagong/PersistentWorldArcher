@@ -6,7 +6,7 @@ namespace PersistentWorld.World
     // 돌진형 몬스터 (기획서 원안): 플레이어에게 일정 거리까지 접근 → 잠시 멈칫(빨간 경고선) → 짧은 거리 돌진.
     // 부딪히거나 돌진이 끝나면 잠깐 멈춰 서서 반격할 틈이 생긴다.
     [RequireComponent(typeof(Rigidbody2D), typeof(Health))]
-    public sealed class DashEnemyController : MonoBehaviour
+    public sealed class DashEnemyController : MonoBehaviour, IMonsterAnimationSource
     {
         private enum State { Chase, Windup, Dash, Recover }
 
@@ -44,6 +44,25 @@ namespace PersistentWorld.World
 
         public bool IsDashing => state == State.Dash;
         public bool IsWindingUp => state == State.Windup;
+
+        public MonsterAnimPhase Phase => state switch
+        {
+            State.Windup => MonsterAnimPhase.Windup,
+            State.Dash => MonsterAnimPhase.Attack,
+            State.Recover => MonsterAnimPhase.Recover,
+            _ => MonsterAnimPhase.Move
+        };
+
+        public float PhaseProgress
+        {
+            get
+            {
+                float duration = state == State.Windup ? windupTime : state == State.Dash ? dashDuration : recoverTime;
+                return 1f - (stateEndsAt - Time.time) / Mathf.Max(.01f, duration);
+            }
+        }
+
+        public Vector2 Facing => state == State.Chase ? body.linearVelocity : dashDirection;
 
         private void Awake()
         {

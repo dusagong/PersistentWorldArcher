@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 8716320457059369533}
   - component: {fileID: 6953376832759107488}
-  - component: {fileID: 5046693502417463446}
   - component: {fileID: 7449939004638721998}
   - component: {fileID: 3241949074591773520}
   - component: {fileID: 4749731816077729567}
@@ -19,6 +18,7 @@ GameObject:
   - component: {fileID: 5994699619896553645}
   - component: {fileID: 8973498766832874240}
   - component: {fileID: 7451660957452071914}
+  - component: {fileID: 2266191001753902148}
   m_Layer: 0
   m_Name: DashMonster
   m_TagString: Untagged
@@ -36,7 +36,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.85, y: 0.85, z: 1}
+  m_LocalScale: {x: 0.7, y: 0.7, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -85,31 +85,17 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 0}
-  m_Color: {r: 1, g: 0.45, b: 0.15, a: 1}
+  m_Sprite: {fileID: -7011593844785252004, guid: 0ef6afcc93f941b40b07aed208c4bdd6, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.90000004, y: 0.75}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 0
+  m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &5046693502417463446
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8041184623125599256}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fd01c6cdc2774b942bcae06a2c3b9cf8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  color: {r: 1, g: 0.45, b: 0.15, a: 1}
-  size: {x: 0.85, y: 0.85}
 --- !u!50 &7449939004638721998
 Rigidbody2D:
   serializedVersion: 5
@@ -281,3 +267,19 @@ MonoBehaviour:
     quantity: 1
     chance: 0.35
   scatterRadius: 0.7
+--- !u!114 &2266191001753902148
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8041184623125599256}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 114db80b810f3ab4aa539b83ee50410e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  art: 0
+  height: 0.75
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  sourceFacesRight: 0

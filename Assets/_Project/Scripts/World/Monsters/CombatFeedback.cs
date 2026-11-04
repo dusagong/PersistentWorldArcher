@@ -21,6 +21,7 @@ namespace PersistentWorld.World
         [SerializeField] private float healthBarGap = .2f;
 
         private static Sprite square;
+        private static Material silhouetteMaterial;
         private Health health;
         private SpriteRenderer body;
         private SpriteRenderer flash;
@@ -30,6 +31,9 @@ namespace PersistentWorld.World
         private SpriteRenderer barFront;
         private int lastHealth = -1;
         private float flashEndsAt;
+        private bool alwaysShowHealthBar;
+        private bool showHealthNumbers;
+        private TextMesh healthLabel;
 
         public void Configure(bool flashOnHit, bool healthBar, bool deathBurst, Color numberColor)
         {
@@ -37,6 +41,16 @@ namespace PersistentWorld.World
             showHealthBar = healthBar;
             showDeathBurst = deathBurst;
             damageNumberColor = numberColor;
+        }
+
+        // 부숴야 하는 목표물처럼 맞기 전에도 HP 바를 계속 보여 준다. numbers면 바 위에 "현재/최대"를 적는다.
+        public void ShowHealthAlways(float width, float height, bool numbers)
+        {
+            showHealthBar = true;
+            alwaysShowHealthBar = true;
+            healthBarWidth = width;
+            healthBarHeight = height;
+            showHealthNumbers = numbers;
         }
 
         private void Awake()
@@ -95,7 +109,8 @@ namespace PersistentWorld.World
             if (barRoot != null) barRoot.gameObject.SetActive(false);
             if (flash != null) flash.enabled = false;
             if (showDeathBurst && body != null)
-                DeathBurst.Spawn(transform.position, body.color, body.bounds.size, body.sortingOrder + 2);
+                DeathBurst.Spawn(transform.position, body.color, body.bounds.size, body.sortingOrder + 2,
+                    GetComponent<PersistentWorld.Core.PlaceholderVisual>() == null ? body : null);
         }
 
         private void LateUpdate()
@@ -110,7 +125,7 @@ namespace PersistentWorld.World
 
             if (barRoot != null)
             {
-                bool visible = !health.IsDead && health.Current < health.Maximum;
+                bool visible = !health.IsDead && (alwaysShowHealthBar || health.Current < health.Maximum);
                 barRoot.gameObject.SetActive(visible);
                 if (!visible) return;
                 barRoot.position = TopPosition() + Vector3.up * healthBarGap;
@@ -120,13 +135,19 @@ namespace PersistentWorld.World
                 int order = body != null ? body.sortingOrder + 5 : 3000;
                 barBack.sortingOrder = order;
                 barFront.sortingOrder = order + 1;
+                if (healthLabel != null)
+                {
+                    healthLabel.text = health.Current + " / " + health.Maximum;
+                    healthLabel.GetComponent<MeshRenderer>().sortingOrder = order + 2;
+                }
             }
         }
 
+        // 그림 윗변. 피벗이 발밑인 그림(기둥 등)도 머리 위에 오도록 실제 경계를 쓴다.
         private Vector3 TopPosition()
         {
-            float half = body != null ? body.bounds.extents.y : .4f;
-            return transform.position + Vector3.up * half;
+            if (body == null || body.sprite == null) return transform.position + Vector3.up * .4f;
+            return new Vector3(transform.position.x, body.bounds.max.y, transform.position.z);
         }
 
         private void CreateFlash()
@@ -136,6 +157,8 @@ namespace PersistentWorld.World
             flash = flashObject.AddComponent<SpriteRenderer>();
             flash.sprite = body.sprite;
             flash.color = new Color(1f, 1f, 1f, .9f);
+            // 그림 스프라이트도 흰 실루엣으로 번쩍이게 텍스처 알파만 쓰는 셰이더를 쓴다 (없으면 기본 셰이더)
+            if (SilhouetteMaterial != null) flash.sharedMaterial = SilhouetteMaterial;
             flash.enabled = false;
         }
 
@@ -145,6 +168,22 @@ namespace PersistentWorld.World
             barBack = CreateBarPart("Back", new Color(0f, 0f, 0f, .7f), new Vector3(healthBarWidth + .04f, healthBarHeight + .04f, 1f));
             barFront = CreateBarPart("Fill", new Color(.9f, .2f, .2f), new Vector3(healthBarWidth, healthBarHeight, 1f));
             barFill = barFront.transform;
+            if (showHealthNumbers)
+            {
+                var labelObject = new GameObject("HP Label");
+                labelObject.transform.SetParent(barRoot, false);
+                labelObject.transform.localPosition = Vector3.up * (healthBarHeight * .5f + .04f);
+                healthLabel = labelObject.AddComponent<TextMesh>();
+                Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                healthLabel.font = font;
+                healthLabel.fontSize = 48;
+                healthLabel.characterSize = .05f;
+                healthLabel.fontStyle = FontStyle.Bold;
+                healthLabel.anchor = TextAnchor.LowerCenter;
+                healthLabel.alignment = TextAlignment.Center;
+                healthLabel.color = Color.white;
+                labelObject.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            }
             barRoot.gameObject.SetActive(false);
         }
 
@@ -157,6 +196,16 @@ namespace PersistentWorld.World
             renderer.sprite = Square;
             renderer.color = color;
             return renderer;
+        }
+
+        private static Material SilhouetteMaterial
+        {
+            get
+            {
+                if (silhouetteMaterial == null && Shader.Find("GUI/Text Shader") is Shader shader)
+                    silhouetteMaterial = new Material(shader);
+                return silhouetteMaterial;
+            }
         }
 
         internal static Sprite Square
