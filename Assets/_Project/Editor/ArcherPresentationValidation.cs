@@ -104,9 +104,9 @@ namespace PersistentWorld.Editor
             UnityEngine.Object.Destroy(target);
             Require(skills.TrySpecial(), "Archer special did not start.");
             float buffStarted = Time.time;
-            BasicAttackEffect buff = null;
-            foreach (BasicAttackEffect effect in UnityEngine.Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None))
-                if (effect.IsBuff && effect.Owner == player.transform) buff = effect;
+            ClassSheetEffect buff = null;
+            foreach (ClassSheetEffect effect in UnityEngine.Object.FindObjectsByType<ClassSheetEffect>(FindObjectsSortMode.None))
+                if (effect.Id == ClassArtEffect.ArcherSpecial && effect.Owner == player.transform) buff = effect;
             Require(buff != null, "No continuous image for archer special.");
             HashSet<string> frames = new HashSet<string>();
             string last = null;
@@ -118,12 +118,15 @@ namespace PersistentWorld.Editor
                 frames.Add(frame); last = frame;
                 yield return null;
             }
-            Require(frames.Count == 4 && looped && buff != null, "Special image does not loop all four frames.");
+            Require(frames.Count == 9 && looped && buff != null, "Special image does not loop all nine frames.");
             Require(UnityEngine.Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None).Length == 0, "Image loop incorrectly fires arrows without input.");
             player.SetAim(Vector2.up);
             player.transform.position += Vector3.up * .5f;
             yield return .1f;
-            Require(Quaternion.Angle(buff.transform.rotation, Quaternion.Euler(0, 0, 45)) < .1f && Vector2.Distance(buff.transform.position, (Vector2)player.transform.position + Vector2.up * .65f) < .01f, "Special image does not follow player and aim.");
+            SpriteRenderer actor = player.GetComponent<SpriteRenderer>();
+            SpriteRenderer aura = buff.GetComponent<SpriteRenderer>();
+            Require(Quaternion.Angle(buff.transform.rotation, Quaternion.identity) < .1f && Vector2.Distance(buff.transform.position, actor.bounds.center) < .01f, "Special backdrop does not follow character body.");
+            Require(aura.sortingLayerID == actor.sortingLayerID && aura.sortingOrder == actor.sortingOrder - 1, "Special aura does not render behind the character.");
             player.SetMenuOpen(true);
             yield return .1f;
             Require(buff != null && skills.SpecialActive, "Opening menu removed an active special image.");
@@ -136,7 +139,7 @@ namespace PersistentWorld.Editor
                 foreach (Projectile projectile in UnityEngine.Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None)) shots.Add(projectile.GetInstanceID());
                 yield return null;
             }
-            Require(shots.Count == 2 && UnityEngine.Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None).Length == 1, "Special attack duplicates the shared bow or fires the wrong number of arrows.");
+            Require(shots.Count == 2 && UnityEngine.Object.FindObjectsByType<BasicAttackEffect>(FindObjectsSortMode.None).Length == 0 && buff != null, "Special attack duplicates bow art or fires the wrong number of arrows.");
             while (Time.time - buffStarted < 4.9f) yield return null;
             Require(buff != null && skills.SpecialActive, "Special image stopped before the buff ended.");
             yield return .2f;

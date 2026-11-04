@@ -108,6 +108,7 @@ namespace PersistentWorld.Editor
             SkillLoadout loadout = player.Loadout;
             PlayerSkills skills = player.Skills;
             InventoryMergeValidation.RunPure();
+            ClassArtValidation.CheckDefinitions();
             int attack = player.EquipmentBonuses.Attack;
             Check(loadout.Slots.Length == 3 && loadout.Slots[0] == SkillId.Repulse, "default slots");
             Check(!loadout.Equip(1, SkillId.Repulse) && !loadout.Equip(0, SkillId.Whirlwind), "duplicate and foreign class rejected");
@@ -149,6 +150,7 @@ namespace PersistentWorld.Editor
             Check(snipeTarget.Current == 20 - attack && !skills.MovementLocked, "charged snipe damage and release cleanup");
             ClearTargets(); yield return .05f;
             Check(skills.TrySpecial() && !skills.TrySpecial(), "archer special cooldown");
+            Check(ClassArtValidation.Has(ClassArtEffect.ArcherSpecial), "archer special supplied ring");
             AimRight(); Check(player.TryBasicAttack() && !player.TryBasicAttack(), "basic attack cooldown");
             HashSet<int> arrows = new HashSet<int>(); float sampledUntil = Time.time + .4f;
             while (Time.time < sampledUntil)
@@ -168,33 +170,42 @@ namespace PersistentWorld.Editor
             Check(swordBack.Current == 100, "whirlwind preparation delay");
             yield return .4f;
             Check(swordBack.Current == 70 - attack && swordFront.Current == 58 - attack * 2, "whirlwind circular damage");
+            Check(ClassArtValidation.Has(ClassArtEffect.WarriorWhirlwind), "whirlwind supplied art");
             AimRight();
             Check(skills.BeginSkill(1, Vector2.right) && skills.ComboStage == 1, "combo first");
             Health far = Target(new Vector2(3, 0));
             Check(skills.BeginSkill(1, Vector2.right) && far.Current == 100, "combo second range");
             Check(skills.BeginSkill(1, Vector2.right) && far.Current == 76 - attack && skills.Cooldown(SkillId.ComboSlash) > 0, "combo third wider and cooldown");
+            Check(ClassArtValidation.Has(ClassArtEffect.WarriorCombo), "combo supplied art");
             ClearTargets(); yield return .05f;
             loadout.Equip(0, SkillId.Excalibur); AimRight();
             Health excaliburTarget = Target(new Vector2(4, 0));
             Check(skills.BeginSkill(0, Vector2.right) && skills.MovementLocked, "excalibur charge");
+            Check(ClassArtValidation.Has(ClassArtEffect.WarriorCharge), "excalibur charge supplied art");
             yield return 1.95f;
             Check(excaliburTarget.Current == 20 - attack && !skills.MovementLocked, "excalibur full charge range and damage");
+            Check(ClassArtValidation.Has(ClassArtEffect.WarriorRelease), "excalibur release supplied art");
             ClearTargets(); yield return .05f;
             yield return Mathf.Max(0, skills.SpecialRemaining) + .05f;
             AimRight(); Check(skills.TrySpecial(), "parry start");
+            Check(ClassArtValidation.Has(ClassArtEffect.WarriorParry), "parry supplied art");
             Projectile hostile = Projectile.Spawn(new Vector2(.35f, 0), Vector2.left, 20, Faction.Enemy, null, Color.red, 1);
             Check(skills.TryParry(hostile) && hostile.SourceFaction == Faction.Player && hostile.Damage == 10, "parry returns half damage");
             ClearTargets(); yield return .05f;
 
             loadout.SelectClass(CharacterClass.Healer);
             attack = player.EquipmentBonuses.Attack;
+            AimRight(); Check(player.TryBasicAttack() && ClassArtValidation.Has(ClassArtEffect.HealerBolt), "healer supplied missile");
+            ClearTargets(); yield return .05f;
             Health ally = Target(new Vector2(1, 0), Faction.Player); ally.TryDamage(70, Faction.Enemy);
             CombatStatus debuff = ally.gameObject.AddComponent<CombatStatus>(); debuff.ApplyVulnerability();
             player.GetComponent<CombatStatus>().ApplyVulnerability();
             Check(skills.BeginSkill(1, Vector2.zero) && !debuff.Vulnerable && !player.GetComponent<CombatStatus>().Vulnerable, "cleanse self and ally");
+            Check(ClassArtValidation.Has(ClassArtEffect.HealerCleanse), "cleanse supplied art");
             boss = Target(new Vector2(1, 1), boss: true);
             Health ordinaryEnemy = Target(new Vector2(1, -1));
             Check(skills.BeginSkill(0, Vector2.zero), "healing zone start");
+            Check(ClassArtValidation.Has(ClassArtEffect.HealerHealingZone), "healing zone supplied art");
             yield return 1.1f;
             Check(ally.Current == 50 && boss.Current == 90 - attack && ordinaryEnemy.Current == 100, "healing zone 20 percent per second and boss only damage");
             yield return 4.1f;
@@ -203,6 +214,7 @@ namespace PersistentWorld.Editor
             loadout.Equip(0, SkillId.Judgment); AimRight();
             Health beamTarget = Target(new Vector2(2, .35f));
             Check(skills.BeginSkill(0, Vector2.right * 2) && skills.MovementLocked, "judgment movement lock");
+            Check(ClassArtValidation.Has(ClassArtEffect.HealerJudgment), "judgment supplied art");
             // Hold aim stable only for the first synchronous beam tick.
             Check(beamTarget.Current < 100, "judgment beam damages");
             yield return 5.2f;
@@ -244,6 +256,7 @@ namespace PersistentWorld.Editor
             healer.AcceptLocalInput = false;
             healer.Loadout.SelectClass(CharacterClass.Healer);
             Check(healer.Skills.TrySpecial() && player.Health.Current == 70, "healer revives ally at seventy percent");
+            Check(ClassArtValidation.Has(ClassArtEffect.HealerRevive), "revive supplied art");
             yield return .1f;
             Check(player.GetComponent<Rigidbody2D>().simulated && player.GetComponent<Collider2D>().enabled && !player.Health.TryDamage(10, Faction.Enemy), "revival restores body and grants immunity");
             yield return 3.1f;
@@ -268,6 +281,9 @@ namespace PersistentWorld.Editor
             player.AcceptLocalInput = false;
             InventoryMergeValidation.CheckRuntime(player);
             yield return .1f;
+            Time.timeScale = 1;
+            IEnumerator art = ClassArtValidation.Runtime(player);
+            while (art.MoveNext()) yield return art.Current;
         }
     }
 }
