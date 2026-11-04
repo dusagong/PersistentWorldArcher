@@ -5,8 +5,10 @@ namespace PersistentWorld.World
 {
     // 일반 몬스터2 (원거리형): 일반 몬스터1보다 먼 거리를 유지하며 짧게 조준한 뒤 투척물을 던진다.
     [RequireComponent(typeof(Rigidbody2D), typeof(Health))]
-    public sealed class RangedEnemyController : MonoBehaviour
+    public sealed class RangedEnemyController : MonoBehaviour, IMonsterAnimationSource
     {
+        private const float ThrowAnimationTime = .5f; // 던진 뒤 자세를 되돌리는 연출 시간 (이동은 막지 않는다)
+
         [Header("이동")]
         [SerializeField] private float detectionRange = 9f;
         [SerializeField] private float preferredRange = 6.5f;
@@ -21,6 +23,9 @@ namespace PersistentWorld.World
         [SerializeField] private float aimTime = .35f;
         [SerializeField] private Color projectileColor = new Color(1f, .55f, .1f);
         [SerializeField] private Color aimTint = new Color(1f, 1f, .4f);
+        [SerializeField, Tooltip("비워 두면 projectileColor 막대 도형을 던진다")] private Sprite projectileSprite;
+        [SerializeField] private float projectileSpriteScale = 1f;
+        [SerializeField, Tooltip("던진 그림이 날아가며 도는 속도(도/초)")] private float projectileSpin = 540f;
 
         private Rigidbody2D body;
         private Health health;
@@ -30,8 +35,16 @@ namespace PersistentWorld.World
         private Transform player;
         private float fireReadyAt;
         private float aimEndsAt = -1f;
+        private float firedAt = float.NegativeInfinity;
 
         public bool IsAiming => aimEndsAt >= 0f;
+
+        public MonsterAnimPhase Phase => IsAiming ? MonsterAnimPhase.Windup
+            : Time.time < firedAt + ThrowAnimationTime ? MonsterAnimPhase.Attack : MonsterAnimPhase.Move;
+
+        public float PhaseProgress => IsAiming ? 1f - (aimEndsAt - Time.time) / Mathf.Max(.01f, aimTime) : (Time.time - firedAt) / ThrowAnimationTime;
+
+        public Vector2 Facing => player != null ? (Vector2)(player.position - transform.position) : body.linearVelocity;
 
         private void Awake()
         {
@@ -105,10 +118,24 @@ namespace PersistentWorld.World
         private void Fire(Vector2 delta)
         {
             CancelAim();
+            firedAt = Time.time;
             fireReadyAt = Time.time + fireInterval;
             Vector2 direction = delta.sqrMagnitude > 0f ? delta.normalized : Vector2.right;
-            Projectile.Spawn(transform.position, direction, projectileDamage, Faction.Enemy, gameObject,
+            Projectile projectile = Projectile.Spawn(transform.position, direction, projectileDamage, Faction.Enemy, gameObject,
                 projectileColor, projectileSpeed, projectileLifetime);
+            if (projectileSprite != null) UseProjectileSprite(projectile);
+        }
+
+        // 판정은 그대로 두고 그림만 바꾼다. 막대 도형 대신 그림을 똑바로 세운 채 돌리며 날린다.
+        private void UseProjectileSprite(Projectile projectile)
+        {
+            SpriteRenderer renderer = projectile.GetComponent<SpriteRenderer>();
+            renderer.sprite = projectileSprite;
+            renderer.color = Color.white;
+            renderer.sortingOrder = 1500;
+            projectile.transform.localScale = Vector3.one * projectileSpriteScale;
+            projectile.transform.rotation = Quaternion.identity;
+            if (projectileSpin != 0f) projectile.gameObject.AddComponent<SpinVisual>().DegreesPerSecond = projectileSpin;
         }
 
         private void CancelAim()

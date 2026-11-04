@@ -21,6 +21,7 @@ namespace PersistentWorld.World
         [SerializeField] private float healthBarGap = .2f;
 
         private static Sprite square;
+        private static Material silhouetteMaterial;
         private Health health;
         private SpriteRenderer body;
         private SpriteRenderer flash;
@@ -95,7 +96,8 @@ namespace PersistentWorld.World
             if (barRoot != null) barRoot.gameObject.SetActive(false);
             if (flash != null) flash.enabled = false;
             if (showDeathBurst && body != null)
-                DeathBurst.Spawn(transform.position, body.color, body.bounds.size, body.sortingOrder + 2);
+                DeathBurst.Spawn(transform.position, body.color, body.bounds.size, body.sortingOrder + 2,
+                    GetComponent<MonsterSpriteAnimator>() != null ? body : null);
         }
 
         private void LateUpdate()
@@ -136,6 +138,8 @@ namespace PersistentWorld.World
             flash = flashObject.AddComponent<SpriteRenderer>();
             flash.sprite = body.sprite;
             flash.color = new Color(1f, 1f, 1f, .9f);
+            // 그림 스프라이트도 흰 실루엣으로 번쩍이게 텍스처 알파만 쓰는 셰이더를 쓴다 (없으면 기본 셰이더)
+            if (SilhouetteMaterial != null) flash.sharedMaterial = SilhouetteMaterial;
             flash.enabled = false;
         }
 
@@ -157,6 +161,16 @@ namespace PersistentWorld.World
             renderer.sprite = Square;
             renderer.color = color;
             return renderer;
+        }
+
+        private static Material SilhouetteMaterial
+        {
+            get
+            {
+                if (silhouetteMaterial == null && Shader.Find("GUI/Text Shader") is Shader shader)
+                    silhouetteMaterial = new Material(shader);
+                return silhouetteMaterial;
+            }
         }
 
         internal static Sprite Square

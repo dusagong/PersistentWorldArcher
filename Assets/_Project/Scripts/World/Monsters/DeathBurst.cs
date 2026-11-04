@@ -15,19 +15,21 @@ namespace PersistentWorld.World
         private Vector3[] velocities;
         private float age;
 
-        public static void Spawn(Vector3 position, Color color, Vector3 size, int sortingOrder)
+        // shape를 주면 네모 대신 그 그림 모양 그대로 잔상을 남긴다
+        public static void Spawn(Vector3 position, Color color, Vector3 size, int sortingOrder, SpriteRenderer shape = null)
         {
             GameObject root = new GameObject("Death Burst");
             root.transform.position = position;
             DeathBurst burst = root.AddComponent<DeathBurst>();
             burst.color = color;
-            burst.baseScale = new Vector3(size.x, size.y, 1f);
+            burst.baseScale = shape != null ? shape.transform.lossyScale : new Vector3(size.x, size.y, 1f);
 
             GameObject ghostObject = new GameObject("Ghost");
             ghostObject.transform.SetParent(root.transform, false);
             ghostObject.transform.localScale = burst.baseScale;
             burst.ghost = ghostObject.AddComponent<SpriteRenderer>();
-            burst.ghost.sprite = CombatFeedback.Square;
+            burst.ghost.sprite = shape != null ? shape.sprite : CombatFeedback.Square;
+            if (shape != null) burst.ghost.flipX = shape.flipX;
             burst.ghost.color = Color.white;
             burst.ghost.sortingOrder = sortingOrder;
 

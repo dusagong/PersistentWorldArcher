@@ -6,7 +6,7 @@ namespace PersistentWorld.World
     // 일반 몬스터1 / 레어 몬스터: 슬라임처럼 다가와서 움츠렸다가(착지 지점 빨간 원 경고)
     // 포물선으로 뛰어올라 플레이어가 있던 자리에 내려찍는다. 착지 후 잠깐 멈춰 반격할 틈이 생긴다.
     [RequireComponent(typeof(Rigidbody2D), typeof(Health))]
-    public sealed class SlimeJumpEnemyController : MonoBehaviour
+    public sealed class SlimeJumpEnemyController : MonoBehaviour, IMonsterAnimationSource
     {
         private enum State { Chase, Windup, Airborne, Recover }
 
@@ -47,9 +47,22 @@ namespace PersistentWorld.World
         private Vector3 baseScale;
         private Color baseColor;
         private bool visualsCaptured;
+        private bool squashBody;
 
         public bool IsWindingUp => state == State.Windup;
         public bool IsAirborne => state == State.Airborne;
+
+        public MonsterAnimPhase Phase => state switch
+        {
+            State.Windup => MonsterAnimPhase.Windup,
+            State.Airborne => MonsterAnimPhase.Attack,
+            State.Recover => MonsterAnimPhase.Recover,
+            _ => MonsterAnimPhase.Move
+        };
+
+        public float PhaseProgress => Elapsed / Mathf.Max(.01f, state == State.Windup ? windupTime : state == State.Airborne ? jumpDuration : recoverTime);
+
+        public Vector2 Facing => state == State.Chase ? body.linearVelocity : jumpEnd - jumpStart;
 
         private void Awake()
         {
@@ -65,6 +78,8 @@ namespace PersistentWorld.World
             baseScale = transform.localScale;
             if (spriteRenderer != null) baseColor = spriteRenderer.color;
             visualsCaptured = true;
+            // 스프라이트 애니메이션이 움츠림·도약을 그리므로 도형용 늘리기·누르기는 끈다
+            squashBody = !(GetComponent<MonsterSpriteAnimator>() is MonsterSpriteAnimator animator && animator.Ready);
             warning = CreateCircle("Jump Warning", -400);
             shadow = CreateCircle("Jump Shadow", -401);
             shadow.color = new Color(0f, 0f, 0f, .35f);
@@ -210,7 +225,7 @@ namespace PersistentWorld.World
         // amount > 1: 납작하게(가로로 넓게), < 1: 길쭉하게
         private void SetSquash(float amount)
         {
-            if (!visualsCaptured) return;
+            if (!visualsCaptured || !squashBody) return;
             transform.localScale = new Vector3(baseScale.x * amount, baseScale.y / amount, baseScale.z);
         }
 
