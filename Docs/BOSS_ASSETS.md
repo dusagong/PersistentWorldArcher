@@ -54,7 +54,7 @@
 - 소품: `Scenery/Arena Details`에 석관, 벤치, 항아리, 풀, 덤불, 돌을 넣었다. 싸우는 안뜰은 비워 두고 양옆 통로와 제단 주변에만 놓았다. 그림자는 `Shadows/Detail Shadows`에 있다.
 - 룬: 안뜰 가운데 룬 고리(16개)와 룬 기둥 빛이 `GlowPulse`로 천천히 밝아졌다 어두워진다.
 
-## 밤 분위기 — 2026-11-05
+## 오후 분위기 — 2026-11-05
 
-- 바닥(`Ground tiles`)과 `Scenery`의 색을 푸른 밤색으로 칠했다. 룬 빛, 플레이어, 몬스터, 보스, 경고 표시, 전환 기둥은 칠하지 않아 어둠 속에서 밝게 보인다.
-- `Arena Atmosphere`(`ArenaAtmosphere`)가 실행 중 빛 웅덩이, 불티, 안개를 만든다. 빛 위치·색은 Inspector의 `Lights`에서 바꾼다. 2페이즈에 들어가면 빛과 불티가 붉게 변한다.
+- 밤 분위기는 캐릭터의 밝은 색과 맞지 않아 따뜻한 오후의 유적으로 바꿨다. 바닥(`Ground tiles`)과 `Scenery`를 사암 빛으로 칠했다. 룬 빛, 캐릭터, 경고 표시, 전환 기둥은 칠하지 않았다.
+- `Arena Atmosphere`(`ArenaAtmosphere`)가 실행 중 햇빛 웅덩이와 내려오는 꽃가루를 만든다. 빛 위치·색은 `Lights`, 입자 색·방향은 `Mote Color`·`Mote Accent Color`·`Mote Rise`(음수면 아래로)에서 바꾼다. 안개는 `Fog Count` 0으로 껐다. 2페이즈에 들어가면 빛과 입자가 붉게 변한다.

@@ -1,10 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace PersistentWorld.World
 {
-    // 보스방 밤 분위기: 바닥의 빛 웅덩이가 일렁이고, 불티와 안개가 화면 주변을 떠다닌다. 2페이즈가 되면 빛이 붉게 변한다.
-    // 연출 전용이라 판정이 없고, 어두운 색은 씬의 배경 오브젝트 색에 칠해 두어 캐릭터와 경고 표시는 밝게 남는다.
+    // 보스방 분위기: 바닥의 빛 웅덩이가 일렁이고, 빛 입자와 안개가 화면 주변을 떠다닌다. 2페이즈가 되면 빛이 붉게 변한다.
+    // 연출 전용이라 판정이 없고, 배경 색은 씬의 오브젝트에 칠해 두어 캐릭터와 경고 표시 색은 그대로 남는다.
     public sealed class ArenaAtmosphere : MonoBehaviour
     {
         [System.Serializable]
@@ -43,8 +44,9 @@ namespace PersistentWorld.World
         [SerializeField] private LightPool[] lights;
         [SerializeField] private int moteCount = 46;
         [SerializeField] private int fogCount = 7;
-        [SerializeField] private Color emberColor = new Color(1f, .62f, .25f);
-        [SerializeField] private Color spiritColor = new Color(.35f, .9f, 1f);
+        [SerializeField, FormerlySerializedAs("emberColor")] private Color moteColor = new Color(1f, .62f, .25f);
+        [SerializeField, FormerlySerializedAs("spiritColor")] private Color moteAccentColor = new Color(.35f, .9f, 1f);
+        [SerializeField, Tooltip("입자가 오르내리는 속도. 음수면 아래로 내려온다")] private float moteRise = .5f;
         [SerializeField] private Color phaseTwoColor = new Color(1f, .16f, .12f);
         [SerializeField, Range(0f, 1f)] private float fogAlpha = .07f;
 
@@ -135,13 +137,13 @@ namespace PersistentWorld.World
 
         private void Respawn(Mote mote)
         {
-            bool ember = Random.value < .65f;
-            mote.Color = ember ? emberColor : spiritColor;
+            bool main = Random.value < .65f;
+            mote.Color = main ? moteColor : moteAccentColor;
             mote.Age = 0f;
             mote.Life = Random.Range(2.5f, 6f);
-            mote.Size = Random.Range(.05f, ember ? .12f : .2f);
+            mote.Size = Random.Range(.05f, main ? .12f : .2f);
             mote.Sway = Random.value * 6f;
-            mote.Velocity = new Vector2(Random.Range(-.15f, .15f), Random.Range(.25f, .8f));
+            mote.Velocity = new Vector2(Random.Range(-.15f, .15f), moteRise * Random.Range(.5f, 1.6f));
             mote.Body.position = ViewPoint(1.1f);
         }
 
