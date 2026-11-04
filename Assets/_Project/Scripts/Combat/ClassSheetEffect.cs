@@ -37,7 +37,7 @@ namespace PersistentWorld.Combat
             ClassArtEffect.WarriorCombo => new Sheet(4, 2, 100),
             ClassArtEffect.WarriorCharge => new Sheet(4, 3, 150, -90),
             ClassArtEffect.WarriorRelease => new Sheet(2, 2, 70, -90),
-            ClassArtEffect.WarriorParry => new Sheet(2, 2, 160),
+            ClassArtEffect.WarriorParry => new Sheet(2, 2, 160, 180),
             ClassArtEffect.HealerBolt => new Sheet(3, 1, 300, 90, new Vector2(.5f, .8f)),
             ClassArtEffect.HealerHealingZone => new Sheet(4, 2, 64, ground: true),
             ClassArtEffect.HealerCleanse => new Sheet(4, 4, 70, ground: true),
@@ -99,6 +99,13 @@ namespace PersistentWorld.Combat
             transform.localScale = new Vector3(length / (visual.sprite.rect.width / visual.sprite.pixelsPerUnit), 1, 1);
         }
 
+        public void SetAimPose(Vector2 position, Vector2 direction)
+        {
+            transform.position = position;
+            if (follow != null) followOffset = position - (Vector2)follow.position;
+            transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - Definition(Id).SourceAngle);
+        }
+
         private void Update()
         {
             if (Time.time >= endsAt || (hasFollow && (follow == null || !follow.gameObject.activeInHierarchy))) { Destroy(gameObject); return; }
@@ -129,6 +136,11 @@ namespace PersistentWorld.Combat
 
         private void UpdateArcherBackdrop()
         {
+            if (Id == ClassArtEffect.WarriorWhirlwind && follow != null)
+            {
+                SpriteRenderer body = follow.GetComponent<SpriteRenderer>();
+                if (body != null) transform.position = body.bounds.center;
+            }
             if (Id != ClassArtEffect.ArcherSpecial || follow == null || visual == null) return;
             SpriteRenderer actor = follow.GetComponent<SpriteRenderer>();
             if (actor == null) return;

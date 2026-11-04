@@ -6,7 +6,7 @@ namespace PersistentWorld.Combat
     // A single original sprite rotates around its handle; damage remains in PlayerSkills.
     public sealed class SwordSwingEffect : MonoBehaviour
     {
-        public const float Duration = .24f;
+        public const float Duration = .24f / 1.5f;
         public const float Arc = 120f;
         private static Sprite sword;
         private Transform owner;
@@ -28,6 +28,7 @@ namespace PersistentWorld.Combat
                 sword.name = "Warrior Sword - Handle Pivot";
             }
             GameObject obj = new GameObject("Warrior Basic Sword Swing");
+            obj.transform.localScale = Vector3.one * 1.5f;
             SwordSwingEffect effect = obj.AddComponent<SwordSwingEffect>();
             effect.owner = caster.transform;
             effect.controller = caster;
