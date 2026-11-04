@@ -18,4 +18,4 @@
 - 방향: 슬라임은 원본이 왼쪽을 봐서 DashMonster의 `sourceFacesRight`를 껐다. 슬라임·고양이는 공격 시트가 이동 시트와 반대쪽을 보고 그려져 있어 공격 프레임만 반대로 뒤집는다.
 - 원거리 몬스터는 `Monster02Projectile`(클로버, 0.35 유닛)을 돌리며 던진다. 판정 반경은 기존 투사체 그대로다. `projectileSprite`를 비우면 예전 막대 도형을 던진다.
 
-현재 Field 씬의 적은 예전 `EnemyController` 도형이며, 이 프리팹들은 `Assets/_Sandbox/MonsterTest`에만 배치되어 있다. 정식 씬 배치는 별도 작업이다.
+Field 씬에는 이 프리팹 6마리(점프 2, 돌진 2, 원거리 1, 보스 게이트 앞 레어 1)를 배치했다. 예전 `EnemyController` 사각형 적은 제거했다. 보스 페이즈 전환 잡몹도 같은 프리팹을 쓴다.

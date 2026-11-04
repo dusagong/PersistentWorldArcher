@@ -14,6 +14,8 @@ namespace PersistentWorld.Combat
         public bool Vulnerable => Time.time < vulnerableUntil;
         public bool IsDisplaced => Time.time < displacedUntil;
         public float OutgoingMultiplier => Vulnerable ? 1.5f : 1f;
+        // 기둥처럼 땅에 박힌 대상은 넉백으로 밀리지 않는다 (피해는 그대로 받는다)
+        public bool Immovable { get; set; }
         public void ApplyVulnerability(float seconds = 10f) => vulnerableUntil = Time.time + Mathf.Max(0, seconds);
         public void Cleanse() => vulnerableUntil = 0;
         public void ResetState() { vulnerableUntil = displacedUntil = 0; }
@@ -22,7 +24,7 @@ namespace PersistentWorld.Combat
         {
             BossController boss = GetComponent<BossController>();
             Health health = GetComponent<Health>();
-            if (health == null || health.IsDead || (boss != null && boss.IsPerformingPattern)) return false;
+            if (health == null || health.IsDead || Immovable || (boss != null && boss.IsPerformingPattern)) return false;
             displacedUntil = Time.time + duration;
             displacementVelocity = direction.normalized * distance / duration;
             return true;
