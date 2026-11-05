@@ -17,7 +17,7 @@ namespace PersistentWorld.Networking
         private int lastStage;
         private float deadline;
         private int checks;
-        private bool captured, capturedInvite, capturedHp;
+        private bool captured, capturedInvite, capturedHp, capturedDeath;
         private void Start() { world = GetComponent<NetworkGameWorld>(); deadline = Time.realtimeSinceStartup + 90; }
         private void Update()
         {
@@ -70,6 +70,13 @@ namespace PersistentWorld.Networking
                 case 21: if (role == "Leader") Send(PartyCommand.Leave); break;
                 case 22: if (role == "Outsider") Send(PartyCommand.Interact); break;
                 case 23: if (role == "Outsider") Send(PartyCommand.Leave); break;
+                case 26:
+                    if (frame.players.First(p => p.name == "Member").hp != 0) Fail("dead party HP replication");
+                    if (world.Local.area == (int)GameArea.BossArena)
+                        foreach (string texture in new[] { "DeathGhost", "DeathGravestone" })
+                            if (!frame.sprites.Any(s => s.texture >= 0 && world.assets.textures[s.texture].name == texture)) Fail("death sprite replication " + texture);
+                    Debug.Log("PWA_PARTY_DEATH_REPLICATION_OK");
+                    break;
                 case 25: Debug.Log("PWA_PARTY_CLIENT_OK " + role); Application.Quit(0); break;
             }
         }
@@ -85,6 +92,8 @@ namespace PersistentWorld.Networking
             { CaptureWorld(Variant("-invite")); capturedInvite = true; }
             if (!capturedHp && world.Frame.validationStage == 19)
             { CaptureWorld(Variant("-hp")); capturedHp = true; }
+            if (!capturedDeath && world.Frame.validationStage == 26)
+            { CaptureWorld(Variant("-death")); capturedDeath = true; }
         }
         private void CaptureWorld(string path)
         {
@@ -137,6 +146,14 @@ namespace PersistentWorld.Networking
             yield return Step(18, () => !world.Parties.Invitations.ContainsKey(healer) && MessageContains(leader, "보스 룸"));
             actors[member].Health.TryDamage(10, Faction.Enemy); world.ValidationStage = 19;
             yield return new WaitForSeconds(.4f); Require(actors[member].Health.Current == 90, "party health source damage");
+            actors[member].Health.TryDamage(1000, Faction.Enemy);
+            world.ValidationStage = 26;
+            yield return new WaitForSeconds(10.4f);
+            Require(actors[member].Health.IsDead && world.Parties.Members[member].Area == GameArea.BossArena, "boss corpse waits past normal ten-second return");
+            Require(actors[member].GetComponent<PlayerDeathVisual>() != null && !actors[member].GetComponent<SpriteRenderer>().enabled, "death marker replaces living sprite");
+            Require(actors[member].Health.Revive(.7f, 3), "revival succeeds during boss fight");
+            yield return new WaitForSeconds(.4f);
+            Require(actors[member].GetComponent<SpriteRenderer>().enabled && actors[member].GetComponent<Rigidbody2D>().simulated && actors[member].Health.Current == 70, "revival restores sprite physics and seventy percent HP");
             yield return Step(20, () => world.Parties.Members[member].Area == GameArea.Town && world.Parties.Members[member].Party == 0);
             Require(world.Parties.BossParty != 0, "one remaining member holds room");
             yield return Step(21, () => world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Town);
@@ -150,6 +167,12 @@ namespace PersistentWorld.Networking
             target.AddComponent<CircleCollider2D>().radius = .2f; Health health = target.AddComponent<Health>(); health.Configure(Faction.Enemy, 300, false);
             Physics2D.SyncTransforms(); yield return new WaitForSeconds(.5f);
             Require(health.Current == 200, "reflected projectile deals actual fivefold damage"); Destroy(target);
+            yield return new WaitForSeconds(Mathf.Max(0, actors[member].Health.InvulnerableUntil - Time.time) + .1f);
+            world.Teleport(member, GameArea.Field, Vector2.left * 5);
+            Require(actors[member].Health.TryDamage(1000, Faction.Enemy) && actors[member].Health.IsDead, "field death occurs after revival immunity expires");
+            yield return new WaitForSeconds(10.5f);
+            Require(world.Parties.Members[member].Area == GameArea.Town && !actors[member].Health.IsDead, "field death returns and revives in town after ten seconds");
+            Require(actors[member].GetComponent<SpriteRenderer>().enabled && actors[member].GetComponent<Rigidbody2D>().simulated, "town return restores living presentation and physics");
             ServerWorldEntity monster = FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).First(e => e.area == GameArea.Field && e.GetComponent<SlimeJumpEnemyController>() != null);
             Vector2 before = monster.transform.position;
             foreach (var actor in actors.Values) actor.Health.Invulnerable = true;
@@ -161,8 +184,13 @@ namespace PersistentWorld.Networking
             world.ReturnToTown(leader); world.Parties.Create(leader, out _);
             world.Teleport(leader, GameArea.Field, (Vector2)entrance.transform.position - NetworkGameWorld.Origin(GameArea.Field) + Vector2.left * .3f);
             world.UsePortal(leader, entrance);
-            yield return new WaitForSeconds(4f);
-            Require(world.CurrentBoss != null && !string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern), "actual boss AI runs for admitted party");
+            float patternDeadline = Time.realtimeSinceStartup + 8;
+            while (world.CurrentBoss != null && string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern) && Time.realtimeSinceStartup < patternDeadline) yield return null;
+            Require(world.Parties.Members[leader].Area == GameArea.BossArena && world.CurrentBoss != null && !string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern), "actual boss AI runs for admitted party");
+            actors[leader].Health.Invulnerable = false;
+            actors[leader].Health.TryDamage(10000, Faction.Enemy);
+            yield return new WaitForSeconds(.5f);
+            Require(world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.IsDead, "solo party wipe releases boss room and returns to town");
             world.ValidationStage = 25;
             float until = Time.realtimeSinceStartup + 8;
             while (actors.Count != 0 && Time.realtimeSinceStartup < until) yield return null;

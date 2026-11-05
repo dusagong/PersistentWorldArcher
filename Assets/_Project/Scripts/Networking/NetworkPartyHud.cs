@@ -74,8 +74,8 @@ namespace PersistentWorld.Networking
             GUILayout.BeginArea(HealthRect, GUI.skin.box);
             GUILayout.Label(me.name + " · " + SkillCatalog.ClassName((CharacterClass)me.character) + " · " + (GameArea)me.area);
             GUILayout.Label("HP " + me.hp + "/" + me.maximum + "  MP " + me.mp.ToString("0"));
-            Rect hp = GUILayoutUtility.GetRect(400, 8); Bar(hp, me.hp / (float)me.maximum, Color.red);
-            Rect mp = GUILayoutUtility.GetRect(300, 5); Bar(mp, me.mp / 100, Color.cyan);
+            Rect hp = GUILayoutUtility.GetRect(0, 8, GUILayout.ExpandWidth(true)); Bar(hp, me.hp / (float)me.maximum, Color.red);
+            Rect mp = GUILayoutUtility.GetRect(0, 5, GUILayout.ExpandWidth(true)); Bar(mp, me.mp / 100, Color.cyan);
             GUILayout.Label("Q " + SkillCatalog.Name((SkillId)me.slots[0]) + "  E " + SkillCatalog.Name((SkillId)me.slots[1]) + " | F 상호작용 · ESC 스킬/직업");
             GUILayout.EndArea();
             if (world.Frame.inviteRemaining > 0)
