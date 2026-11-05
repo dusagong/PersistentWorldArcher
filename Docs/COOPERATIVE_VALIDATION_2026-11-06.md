@@ -7,6 +7,7 @@
 - Linux Dedicated Server Docker + Windows 클라이언트 4개: `Library/Validation/Party-20261106-012558`, 통합 31개, 각 클라이언트 HP 전송 확인. 실제 Town/보스 캐릭터와 배경을 카메라 캡처로 확인했다.
 - Linux 컨테이너 + Windows 클라이언트 2개 이동/잘못된 코드 거부: `Library/Validation/Network-20261106-012417`.
 - 기존 씬/전사 모션 회귀: `unity-cooperative-regression.log`, `PERSISTENT_WORLD_VALIDATION_OK`, `SWORD_SWING_VALIDATION_OK checks=46`.
+- 푸시 전 원격 `85e9d10`의 사망 표시를 통합하고 텍스처 레지스트리를 68개로 갱신했다. 재빌드 후 Windows 4인 검사 `Party-20261106-012930`, Linux 4인 검사 `Party-20261106-013029` 모두 31개 통과했다.
 
 통합 검사는 원본 20 피해 탄환을 패링해 100으로 바꾸고 실제 300 HP 표적을 200으로 만드는 것까지 검사한다. 무파티 입장을 거부하고 명시적으로 만든 1인 파티는 입장을 허용한다. 다른 파티의 입장 차단, 룸 반환, 필드 스킬 교체 거부, 실제 필드/보스 AI도 포함한다.
 
