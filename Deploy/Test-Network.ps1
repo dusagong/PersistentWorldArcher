@@ -1,7 +1,7 @@
 param([string]$Endpoint = '')
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$binary = Join-Path $repoRoot 'Builds/NetworkWindows/PwaNetwork.exe'
+$binary = Join-Path $repoRoot 'Builds/CooperativeWindows/PwaCoop.exe'
 $logs = Join-Path $repoRoot ('Library/Validation/Network-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
 if (-not (Test-Path -LiteralPath $binary)) { throw 'Build the Windows test client first.' }

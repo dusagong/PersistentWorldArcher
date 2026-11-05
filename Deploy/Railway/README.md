@@ -1,6 +1,6 @@
 # Railway 멀티플레이 인프라
 
-이 구성은 **독립 접속 테스트 씬**이다. 기존 Town/Field/BossArena의 전투를 네트워크화하지 않는다.
+협동 빌드는 실제 Town/Field/BossArena 전투와 파티를 실행한다. [협동 플레이 안내](../../Docs/COOPERATIVE_PLAY.md)를 먼저 참고한다. 운영 서버가 새 협동 빌드로 배포되기 전에는 기존 접속 테스트만 가능하다.
 Netcode for GameObjects 2.4.4 + Unity Transport 2.6.0을 Unity 6000.0.60f1에 고정했다.
 
 ## 현재 서버
@@ -75,10 +75,9 @@ GitHub에 소스만 푸시하는 것으로 자동 Unity 빌드가 되지 않는�
 
 ## 클라이언트
 
-Unity 메뉴 `Tools > Persistent World > Multiplayer > Build Windows Test Client`로 빌드한다.
-`Builds/NetworkWindows/PwaNetwork.exe` 실행 → 서버 주소 `wss://생성된도메인` → 참가 코드 → 접속.
-WASD 이동. 서로 다른 색의 테스트 플레이어가 보여야 한다.
-기존 게임의 직업/스킬/전투 UI는 이 테스트 씬에 연결하지 않았다.
+Unity 메뉴 `Tools > Persistent World > Multiplayer > Build Cooperative Windows Client`로 빌드한다.
+`Builds/CooperativeWindows/PwaCoop.exe` 실행 → 서버 주소 `wss://생성된도메인` → 참가 코드 → 접속.
+WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 서버/클라이언트 모두 프로토콜 2 협동 빌드를 사용한다.
 
 ## 검증
 
@@ -95,5 +94,6 @@ Windows 두 프로세스 접속 통과는 실제 두 PC/인터넷/지연 환경 
 
 ## 다음 연결 작업
 
-실제 플레이어 프리팹과 소유자별 입력, 몬스터/보스 AI의 서버 실행, 스킬 요청/판정/이펙트,
-사망/부활, 씬 이동, 개인별 저장과 접속 해제/재접속 정책을 차례로 연결한다.
+계정별 영구 저장, 온라인 장비·인벤토리·드롭 UI, 접속 해제/재접속 복구를 연결한다.
+
+협동 서버는 시각 상태 전송에 Renderer 메타데이터를 사용하므로 추가 Dedicated Server Optimizations를 끄고 빌드한다. 클라이언트 화면을 서버에서 렌더링하지 않는다.

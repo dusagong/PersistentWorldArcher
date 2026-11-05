@@ -7,6 +7,7 @@ using PersistentWorld.UI;
 using PersistentWorld.World;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PersistentWorld.Networking;
 
 namespace PersistentWorld.Player
 {
@@ -56,7 +57,8 @@ namespace PersistentWorld.Player
         public float PowerShotRemaining => skills.Cooldown(SkillId.Snipe);
         public float FocusRemaining => skills.SpecialRemaining;
         public bool IsFocused => loadout.Class == CharacterClass.Archer && skills.SpecialActive;
-        public bool WaitingForBoss => health.IsDead && waitForBoss && BossEncounter.Active;
+        private bool BattleActive => GetComponent<NetworkActorContext>() is NetworkActorContext context ? context.BattleActive : BossEncounter.Active;
+        public bool WaitingForBoss => health.IsDead && waitForBoss && BattleActive;
         public float ReturnRemaining => health.IsDead && !waitForBoss ? Mathf.Max(0, 10 - (Time.time - diedAt)) : 0;
         public event Action BackstepStarted;
 
@@ -108,7 +110,7 @@ namespace PersistentWorld.Player
             if (health.IsDead)
             {
                 if (!deathHandled) OnDeath(health);
-                if (waitForBoss ? !BossEncounter.Active : Time.time - diedAt >= 10) ReturnToTown();
+                if (waitForBoss ? !BattleActive : Time.time - diedAt >= 10) ReturnToTown();
                 return;
             }
             if (deathHandled) OnRevived();
@@ -119,7 +121,7 @@ namespace PersistentWorld.Player
                 itemUiWasOpen = true; moveInput = Vector2.zero; return;
             }
             itemUiWasOpen = false;
-            if (!AcceptLocalInput) { moveInput = Vector2.zero; return; }
+            if (!AcceptLocalInput) { if (GetComponent<NetworkActorContext>() == null) moveInput = Vector2.zero; return; }
             if (Input.GetKeyDown(KeyCode.Escape)) SetMenuOpen(!MenuOpen);
             if (MenuOpen) { moveInput = Vector2.zero; return; }
             moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized;
@@ -193,7 +195,7 @@ namespace PersistentWorld.Player
         private void OnDeath(Health dead)
         {
             if (deathHandled) return;
-            deathHandled = true; diedAt = Time.time; waitForBoss = BossEncounter.Active;
+            deathHandled = true; diedAt = Time.time; waitForBoss = BattleActive;
             MenuOpen = false; NearbyPrompt = ""; moveInput = Vector2.zero;
             StopAllCoroutines(); isDashing = false; skills.OnDeath();
             body.linearVelocity = Vector2.zero; body.simulated = false;
@@ -214,8 +216,16 @@ namespace PersistentWorld.Player
 
         private void ReturnToTown()
         {
+            if (GetComponent<NetworkActorContext>() is NetworkActorContext context)
+            { NetworkGameWorld.Instance?.ReturnToTown(context.ClientId); return; }
             DialogueState.Clear();
             SceneManager.LoadScene("Town");
+        }
+
+        public void SetExternalMovement(Vector2 movement, Vector2 aim)
+        {
+            if (GetComponent<NetworkActorContext>() == null || health.IsDead) return;
+            moveInput = Vector2.ClampMagnitude(movement, 1); SetAim(aim);
         }
 
         private void UpdateClassVisual()

@@ -190,7 +190,7 @@ namespace PersistentWorld.Editor
             AimRight(); Check(skills.TrySpecial(), "parry start");
             Check(ClassArtValidation.Has(ClassArtEffect.WarriorParry), "parry supplied art");
             Projectile hostile = Projectile.Spawn(new Vector2(.35f, 0), Vector2.left, 20, Faction.Enemy, null, Color.red, 1);
-            Check(skills.TryParry(hostile) && hostile.SourceFaction == Faction.Player && hostile.Damage == 10, "parry returns half damage");
+            Check(skills.TryParry(hostile) && hostile.SourceFaction == Faction.Player && hostile.Damage == 100, "parry returns five times damage");
             ClearTargets(); yield return .05f;
 
             loadout.SelectClass(CharacterClass.Healer);

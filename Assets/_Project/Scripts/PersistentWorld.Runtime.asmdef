@@ -1,7 +1,7 @@
 {
   "name": "PersistentWorld.Runtime",
   "rootNamespace": "PersistentWorld",
-  "references": ["Unity.Netcode.Runtime", "Unity.Networking.Transport"],
+  "references": ["Unity.Netcode.Runtime", "Unity.Networking.Transport", "Unity.Collections"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

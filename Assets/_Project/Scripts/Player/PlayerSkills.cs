@@ -6,6 +6,7 @@ using PersistentWorld.Items;
 using PersistentWorld.UI;
 using PersistentWorld.World;
 using UnityEngine;
+using PersistentWorld.Networking;
 
 namespace PersistentWorld.Player
 {
@@ -16,8 +17,12 @@ namespace PersistentWorld.Player
         [SerializeField] private float skillRange = 6f;
         [SerializeField] private float reviveRange = 3f;
         public static bool SpecialSkillsEnabled { get; set; } = true;
-        private static readonly Dictionary<string, float> Ready = new Dictionary<string, float>();
-        private static readonly Dictionary<string, float> HudCooldownDurations = new Dictionary<string, float>();
+        private static readonly Dictionary<string, float> SessionReady = new Dictionary<string, float>();
+        private static readonly Dictionary<string, float> SessionDurations = new Dictionary<string, float>();
+        private readonly Dictionary<string, float> personalReady = new Dictionary<string, float>();
+        private readonly Dictionary<string, float> personalDurations = new Dictionary<string, float>();
+        private Dictionary<string, float> Ready => GetComponent<NetworkActorContext>() == null ? SessionReady : personalReady;
+        private Dictionary<string, float> HudCooldownDurations => GetComponent<NetworkActorContext>() == null ? SessionDurations : personalDurations;
         private ArcherController controller;
         private Health health;
         private SkillLoadout loadout;
@@ -163,10 +168,12 @@ namespace PersistentWorld.Player
                     if (!controller.Mana.TrySpend(manaCost)) return false;
                     SetCooldown(id, 20);
                     Camera camera = Camera.main;
-                    if (camera != null)
+                    bool networked = GetComponent<NetworkActorContext>() != null;
+                    if (camera != null || networked)
                         foreach (Health enemy in UnityEngine.Object.FindObjectsByType<Health>(FindObjectsSortMode.None))
                         {
-                            Vector3 point = camera.WorldToViewportPoint(enemy.transform.position);
+                            Vector3 point = networked ? new Vector3(.5f + (enemy.transform.position.x - transform.position.x) / 21.333f,
+                                .5f + (enemy.transform.position.y - transform.position.y - .4f) / 12, 1) : camera.WorldToViewportPoint(enemy.transform.position);
                             if (enemy.Faction == Faction.Enemy && !enemy.IsDead && point.z > 0 && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1)
                             {
                                 enemy.TryDamage(Damage(60), Faction.Player, gameObject);
@@ -398,6 +405,6 @@ namespace PersistentWorld.Player
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetSession() { Ready.Clear(); HudCooldownDurations.Clear(); SpecialSkillsEnabled = true; }
+        private static void ResetSession() { SessionReady.Clear(); SessionDurations.Clear(); SpecialSkillsEnabled = true; }
     }
 }

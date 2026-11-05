@@ -67,11 +67,13 @@ namespace PersistentWorld.World
         {
             SkillLoadout loadout = player.Loadout;
             GUILayout.Label("일반 스킬 2개 · 보스 스킬 1개 | 특수 스킬은 직업 고정");
+            bool canEquip = loadout.CanChangeSkills;
+            if (!canEquip) GUILayout.Label("스킬 장착·해제는 마을에서만 가능합니다.");
             for (int slot = 0; slot < 3; slot++)
             {
                 GUILayout.BeginHorizontal(GUI.skin.box);
                 GUILayout.Label(Keys[slot] + "  " + SkillCatalog.Name(loadout.Slots[slot]), GUILayout.Height(28));
-                GUI.enabled = loadout.Slots[slot] != SkillId.None;
+                GUI.enabled = canEquip && loadout.Slots[slot] != SkillId.None;
                 if (GUILayout.Button("해제", GUILayout.Width(70))) { loadout.Equip(slot, SkillId.None); message = "스킬을 해제했습니다."; }
                 GUI.enabled = true;
                 GUILayout.EndHorizontal();
@@ -84,20 +86,22 @@ namespace PersistentWorld.World
                     (id == SkillId.ComboSlash ? "/타" : "") + " · " + Cooldown(player.Skills.Cooldown(id)));
                 GUILayout.Label(SkillCatalog.Description(id));
                 GUILayout.BeginHorizontal();
+                GUI.enabled = canEquip;
                 for (int slot = 0; slot < 2; slot++)
                     if (GUILayout.Button(Keys[slot] + " 장착")) message = loadout.Equip(slot, id) ? "장착했습니다." : "다른 슬롯에 이미 장착돼 있습니다. 먼저 해제하세요.";
                 GUILayout.EndHorizontal();
+                GUI.enabled = true;
                 GUILayout.EndVertical();
             }
             GUILayout.BeginHorizontal(GUI.skin.box);
             GUILayout.Label((loadout.BossLearned ? "보스 스킬 습득 완료" : $"보스 스킬 북: {loadout.BossSkillBooks}개") + " · MP " + PrototypeManaBalance.Cost(SkillId.BossBlast));
             GUI.enabled = !loadout.BossLearned && loadout.BossSkillBooks > 0;
             if (GUILayout.Button("스킬 북 사용")) loadout.UseBossSkillBook();
-            GUI.enabled = loadout.BossLearned;
+            GUI.enabled = canEquip && loadout.BossLearned;
             if (GUILayout.Button("Shift 장착")) loadout.Equip(2, SkillId.BossBlast);
             GUI.enabled = true;
             GUILayout.EndHorizontal();
-            string special = loadout.Class switch { CharacterClass.Warrior => "패링: 전방 탄막 반사 (원래 피해의 50%)", CharacterClass.Healer => "부활: 근처 아군 HP 70%로 부활 · 3초 무적", _ => "일석이조: 5초간 버프 · 지속 중 우클릭 평타 2연사/공속 증가" };
+            string special = loadout.Class switch { CharacterClass.Warrior => "패링: 전방 탄막 반사 (원래 피해의 500%)", CharacterClass.Healer => "부활: 근처 아군 HP 70%로 부활 · 3초 무적", _ => "일석이조: 5초간 버프 · 지속 중 우클릭 평타 2연사/공속 증가" };
             GUILayout.Label("좌클릭 " + special + " · MP " + PrototypeManaBalance.SpecialCost(loadout.Class));
             GUILayout.Label("Space 회피 MP " + PrototypeManaBalance.DodgeCost + " · 평타 무료 · MP 즉시 초당 " + PrototypeManaBalance.RecoveryPerSecond + " 회복 (임시)");
         }

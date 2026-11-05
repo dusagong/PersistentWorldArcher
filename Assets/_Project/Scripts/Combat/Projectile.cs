@@ -23,7 +23,7 @@ namespace PersistentWorld.Combat
         public void Reflect(GameObject reflector)
         {
             direction = -direction;
-            damage = Mathf.Max(1, Mathf.RoundToInt(damage * .5f));
+            damage = Mathf.Max(1, Mathf.RoundToInt(damage * 5f));
             sourceFaction = Faction.Player;
             owner = reflector;
             damageContext = DamageContext.From(sourceFaction, reflector);

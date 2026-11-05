@@ -13,6 +13,7 @@ namespace PersistentWorld.Networking
         private void Update()
         {
             if (!Application.isBatchMode || !NetworkSandbox.HasArgument("-pwa-probe")) return;
+            if (NetworkSandbox.HasArgument("-pwa-party-probe")) return;
             float elapsed = Time.realtimeSinceStartup - startedAt;
             if (NetworkSandbox.HasArgument("-pwa-expect-reject"))
             {

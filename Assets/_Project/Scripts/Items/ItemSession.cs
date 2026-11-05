@@ -30,8 +30,8 @@ namespace PersistentWorld.Items
         private static void Boot()
         {
             // The standalone infrastructure scene has no character inventory or local profile.
-            if (SceneManager.GetActiveScene().name == "NetworkSandbox" ||
-                (SceneManager.sceneCountInBuildSettings == 1 && SceneUtility.GetScenePathByBuildIndex(0).EndsWith("/NetworkSandbox.unity", StringComparison.Ordinal))) return;
+            if (SceneManager.GetActiveScene().name.StartsWith("Network", StringComparison.Ordinal) ||
+                (SceneManager.sceneCountInBuildSettings == 1 && SceneUtility.GetScenePathByBuildIndex(0).Contains("/Networking/"))) return;
             if (Instance == null) new GameObject("Player Item Session").AddComponent<ItemSession>();
         }
 

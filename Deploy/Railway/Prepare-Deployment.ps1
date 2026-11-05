@@ -7,7 +7,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $bundleRoot = Join-Path $repoRoot 'Builds/Railway'
 if (-not $SkipBuild) {
     $buildLog = Join-Path $repoRoot 'unity-railway-build.log'
-    $buildArguments = @('-batchmode', '-nographics', '-quit', '-projectPath', "`"$repoRoot`"", '-buildTarget', 'Linux64', '-standaloneBuildSubtarget', 'Server', '-executeMethod', 'PersistentWorld.Editor.NetworkSandboxBuild.BuildLinux', '-logFile', "`"$buildLog`"")
+    $buildArguments = @('-batchmode', '-nographics', '-quit', '-projectPath', "`"$repoRoot`"", '-buildTarget', 'Linux64', '-standaloneBuildSubtarget', 'Server', '-executeMethod', 'PersistentWorld.Editor.NetworkGameBuild.BuildLinux', '-logFile', "`"$buildLog`"")
     $buildProcess = Start-Process -FilePath $UnityEditor -ArgumentList $buildArguments -WindowStyle Hidden -PassThru -Wait
     if ($buildProcess.ExitCode -ne 0) { throw "Unity build failed. See $buildLog" }
 }

@@ -100,6 +100,8 @@ namespace PersistentWorld.World
 
         private bool FindPlayer()
         {
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance != null)
+            { player = PersistentWorld.Networking.NetworkGameWorld.Instance.NearestLivingPlayer(transform.position); return player != null; }
             if (player == null)
             {
                 GameObject playerObject = GameObject.FindGameObjectWithTag("Player");

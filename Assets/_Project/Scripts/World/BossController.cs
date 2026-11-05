@@ -778,7 +778,7 @@ namespace PersistentWorld.World
         {
             var result = new List<Transform>();
             foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
-                if (player.GetComponent<Health>() is Health h && !h.IsDead) result.Add(player.transform);
+                if (player.GetComponent<Health>() is Health h && !h.IsDead && PersistentWorld.Networking.NetworkGameWorld.SameArea(player.transform.position, Position)) result.Add(player.transform);
             return result;
         }
 

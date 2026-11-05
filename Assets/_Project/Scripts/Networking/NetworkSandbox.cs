@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace PersistentWorld.Networking
 {
-    // Separate infrastructure scene: existing Town/Field combat remains offline.
+    // Shared connection bootstrap for the sandbox and cooperative game scenes.
     public sealed class NetworkSandbox : MonoBehaviour
     {
         [SerializeField] private NetworkManager manager;
@@ -24,7 +24,10 @@ namespace PersistentWorld.Networking
         public NetworkManager Manager => manager;
         public bool Ready => manager != null && manager.IsServer && manager.IsListening;
         public string Status => status;
-        [Serializable] private sealed class Ticket { public int protocol = 1; public string code; }
+        private readonly Dictionary<ulong, string> names = new Dictionary<ulong, string>();
+        private string displayName = "";
+        public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
+        [Serializable] private sealed class Ticket { public int protocol = 2; public string code, name; }
 
         public static string Argument(string name, string fallback = null)
         {
@@ -51,6 +54,7 @@ namespace PersistentWorld.Networking
 
         private void Start()
         {
+            displayName = Argument("-pwa-name", "");
             // NGO registers its message table during startup; starting in Awake is too early.
             bool server = HasArgument("-pwa-server");
 #if UNITY_SERVER && !UNITY_EDITOR
@@ -132,7 +136,7 @@ namespace PersistentWorld.Networking
                 transport.UseEncryption = uri.Scheme == "wss";
                 if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);
                 transport.SetConnectionData(address.ToString(), (ushort)uri.Port);
-                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { code = code }));
+                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { code = code, name = displayName }));
                 status = "접속 중…";
                 if (!manager.StartClient()) throw new InvalidOperationException("접속을 시작할 수 없습니다.");
             }
@@ -150,9 +154,12 @@ namespace PersistentWorld.Networking
             Ticket ticket;
             try { ticket = JsonUtility.FromJson<Ticket>(Encoding.UTF8.GetString(request.Payload)); }
             catch (ArgumentException) { return; }
-            if (ticket == null || ticket.protocol != 1 || ticket.code != serverPassword) return;
+            if (ticket == null || ticket.protocol != 2 || ticket.code != serverPassword) return;
             if (admitted.Count >= limit) { response.Reason = "서버 정원이 찼습니다."; return; }
             admitted.Add(request.ClientNetworkId);
+            string requestedName = (ticket.name ?? "").Trim();
+            requestedName = new string(Array.FindAll(requestedName.ToCharArray(), value => !char.IsControl(value)));
+            names[request.ClientNetworkId] = requestedName.Length == 0 ? "Player " + request.ClientNetworkId : requestedName.Substring(0, Math.Min(16, requestedName.Length));
             response.Approved = response.CreatePlayerObject = true;
             response.Reason = "";
         }
@@ -165,6 +172,7 @@ namespace PersistentWorld.Networking
         private void Disconnected(ulong id)
         {
             admitted.Remove(id);
+            names.Remove(id);
             status = string.IsNullOrEmpty(manager.DisconnectReason) ? "연결이 종료되었습니다. 다시 접속할 수 있습니다." : manager.DisconnectReason;
             Debug.Log("PWA_CLIENT_DISCONNECTED id=" + id);
         }
@@ -178,13 +186,15 @@ namespace PersistentWorld.Networking
         }
         private void OnGUI()
         {
+            if (NetworkGameWorld.Instance != null && manager.IsConnectedClient) return;
             if (Application.isBatchMode || manager.IsServer) return;
             GUILayout.BeginArea(new Rect(16, 16, 460, 215), GUI.skin.box);
-            GUILayout.Label("멀티플레이 접속 테스트 · 전투 기능은 아직 연결 전");
+            GUILayout.Label(NetworkGameWorld.Instance != null ? "4인 협동 · 파티 플레이" : "멀티플레이 접속 테스트");
             GUILayout.Label(status);
             if (!manager.IsListening)
             {
                 endpoint = GUILayout.TextField(endpoint, 200);
+                GUILayout.Label("캐릭터 이름"); displayName = GUILayout.TextField(displayName, 16);
                 GUILayout.Label("참가 코드"); password = GUILayout.PasswordField(password, '*', 64);
                 GUI.enabled = !connecting && !manager.ShutdownInProgress;
                 if (GUILayout.Button("서버 접속")) Connect(endpoint.Trim(), password);

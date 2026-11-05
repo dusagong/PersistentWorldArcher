@@ -64,6 +64,7 @@ namespace PersistentWorld.Player
         }
 
         public bool CanAfford(float amount) => amount >= 0 && Current >= amount;
+        public void RestoreAtTown() => state.Refill();
         public bool TrySpend(float amount)
         {
             if (health.IsDead || !CanAfford(amount)) return false;

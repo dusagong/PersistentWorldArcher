@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using PersistentWorld.Networking;
 
 namespace PersistentWorld.Player
 {
@@ -50,55 +52,65 @@ namespace PersistentWorld.Player
         private static readonly SkillId[][] Saved = new SkillId[3][];
         private static bool bossLearned;
         private static int bossSkillBooks;
+        private readonly SkillId[][] personalSlots = new SkillId[3][];
+        private bool personalBossLearned;
+        private int personalBooks;
+        private bool Shared => GetComponent<NetworkActorContext>() == null;
+        private SkillId[][] Store => Shared ? Saved : personalSlots;
+        public bool CanChangeSkills => !Application.isPlaying ||
+            (GetComponent<NetworkActorContext>() is NetworkActorContext context ? context.Area == GameArea.Town : SceneManager.GetActiveScene().name == "Town");
         public CharacterClass Class { get; private set; }
         public SkillId[] Slots { get; private set; }
-        public bool BossLearned => bossLearned;
-        public int BossSkillBooks => bossSkillBooks;
+        public bool BossLearned => Shared ? bossLearned : personalBossLearned;
+        public int BossSkillBooks => Shared ? bossSkillBooks : personalBooks;
         public event Action Changed;
 
-        private void Awake() => SelectClass(selectedClass);
+        private void Awake() => SelectClass(Shared ? selectedClass : GetComponent<NetworkActorContext>().StartingClass);
 
         public void SelectClass(CharacterClass type)
         {
             if (!Enum.IsDefined(typeof(CharacterClass), type)) return;
-            Class = selectedClass = type;
-            if (Saved[(int)type] == null)
+            if (Slots != null && !CanChangeSkills) return;
+            Class = type;
+            if (Shared) selectedClass = type;
+            if (Store[(int)type] == null)
             {
                 SkillId[] list = SkillCatalog.ForClass(type);
-                Saved[(int)type] = new[] { list[0], list[1], SkillId.None };
+                Store[(int)type] = new[] { list[0], list[1], SkillId.None };
             }
-            Slots = (SkillId[])Saved[(int)type].Clone();
+            Slots = (SkillId[])Store[(int)type].Clone();
             Changed?.Invoke();
         }
 
         public bool Equip(int slot, SkillId skill)
         {
+            if (!CanChangeSkills) return false;
             if (slot < 0 || slot > 2) return false;
             if (Slots[slot] == skill) return true;
             if (skill != SkillId.None)
             {
-                if (slot == 2 ? skill != SkillId.BossBlast || !bossLearned : Array.IndexOf(SkillCatalog.ForClass(Class), skill) < 0) return false;
+                if (slot == 2 ? skill != SkillId.BossBlast || !BossLearned : Array.IndexOf(SkillCatalog.ForClass(Class), skill) < 0) return false;
                 for (int i = 0; i < Slots.Length; i++) if (i != slot && Slots[i] == skill) return false;
             }
             Slots[slot] = skill;
-            Saved[(int)Class] = (SkillId[])Slots.Clone();
+            Store[(int)Class] = (SkillId[])Slots.Clone();
             Changed?.Invoke();
             return true;
         }
 
         private bool LearnBossSkill()
         {
-            if (bossLearned) return false;
-            bossLearned = true;
+            if (BossLearned) return false;
+            if (Shared) bossLearned = true; else personalBossLearned = true;
             Changed?.Invoke();
             return true;
         }
 
-        public void AddBossSkillBook() { bossSkillBooks++; Changed?.Invoke(); }
+        public void AddBossSkillBook() { if (Shared) bossSkillBooks++; else personalBooks++; Changed?.Invoke(); }
         public bool UseBossSkillBook()
         {
-            if (bossSkillBooks <= 0 || bossLearned) return false;
-            bossSkillBooks--;
+            if (BossSkillBooks <= 0 || BossLearned) return false;
+            if (Shared) bossSkillBooks--; else personalBooks--;
             return LearnBossSkill();
         }
 

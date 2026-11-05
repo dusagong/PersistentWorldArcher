@@ -41,7 +41,7 @@ namespace PersistentWorld.Networking
                     string line = reader.ReadLine();
                     bool healthy = ready && (Stopwatch.GetTimestamp() - Interlocked.Read(ref heartbeat)) / (double)Stopwatch.Frequency < 10;
                     bool path = line != null && line.StartsWith("GET /health HTTP/", StringComparison.Ordinal);
-                    string body = path ? "{\"ready\":" + (healthy ? "true" : "false") + ",\"players\":" + players + ",\"protocol\":1}" : "{}";
+                    string body = path ? "{\"ready\":" + (healthy ? "true" : "false") + ",\"players\":" + players + ",\"protocol\":2}" : "{}";
                     string code = !path ? "404 Not Found" : healthy ? "200 OK" : "503 Service Unavailable";
                     byte[] response = Encoding.UTF8.GetBytes("HTTP/1.1 " + code + "\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: " + Encoding.UTF8.GetByteCount(body) + "\r\n\r\n" + body);
                     stream.Write(response, 0, response.Length);
