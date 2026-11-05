@@ -18,7 +18,7 @@ namespace PersistentWorld.Editor
             ValidateBuildSettings();
             ValidatePlayerArt();
             ValidateScene("Town", expectedEnemies: 0, expectedBosses: 0, expectedNpcs: 1, expectedPortals: 1);
-            ValidateScene("Field", expectedEnemies: 4, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
+            ValidateScene("Field", expectedEnemies: 6, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
             ValidateScene("BossArena", expectedEnemies: 0, expectedBosses: 1, expectedNpcs: 0, expectedPortals: 1);
             ValidateDamageRules();
             Debug.Log("PERSISTENT_WORLD_VALIDATION_OK");
@@ -50,7 +50,11 @@ namespace PersistentWorld.Editor
             EditorSceneManager.OpenScene(SceneFolder + "/" + sceneName + ".unity");
             RequireCount<ArcherController>(sceneName, 1);
             RequireCount<ArcherSpriteAnimator>(sceneName, 1);
-            RequireCount<EnemyController>(sceneName, expectedEnemies);
+            int enemies = 0;
+            foreach (Health actor in UnityEngine.Object.FindObjectsByType<Health>(FindObjectsSortMode.None))
+                if (actor.Faction == Faction.Enemy && actor.GetComponentInParent<BossController>() == null) enemies++;
+            if (enemies != expectedEnemies)
+                throw new InvalidOperationException($"{sceneName}: expected {expectedEnemies} non-boss enemies, found {enemies}.");
             RequireCount<BossController>(sceneName, expectedBosses);
             RequireCount<NpcDialogue>(sceneName, expectedNpcs);
             RequireCount<ScenePortal>(sceneName, expectedPortals);

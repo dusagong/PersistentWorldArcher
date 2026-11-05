@@ -13,3 +13,6 @@
 *.wav binary
 *.mp3 binary
 
+Deploy/Railway/entrypoint.sh text eol=lf
+Deploy/Railway/Caddyfile text eol=lf
+Deploy/Railway/Dockerfile text eol=lf

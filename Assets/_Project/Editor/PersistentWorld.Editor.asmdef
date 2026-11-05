@@ -2,7 +2,9 @@
   "name": "PersistentWorld.Editor",
   "rootNamespace": "PersistentWorld.Editor",
   "references": [
-    "PersistentWorld.Runtime"
+    "PersistentWorld.Runtime",
+    "Unity.Netcode.Runtime",
+    "Unity.Networking.Transport"
   ],
   "includePlatforms": [
     "Editor"

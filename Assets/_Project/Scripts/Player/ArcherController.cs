@@ -200,12 +200,12 @@ namespace PersistentWorld.Player
             for (int i = 0; i < colliders.Length; i++) { colliderStates[i] = colliders[i].enabled; colliders[i].enabled = false; }
             ArcherSpriteAnimator animator = GetComponent<ArcherSpriteAnimator>();
             if (animator != null) animator.enabled = false;
-            if (visual != null) visual.color = new Color(.45f, .45f, .45f, .6f);
-            transform.rotation = Quaternion.Euler(0, 0, -90);
+            (GetComponent<PlayerDeathVisual>() ?? gameObject.AddComponent<PlayerDeathVisual>()).Show(visual);
         }
 
         private void OnRevived()
         {
+            GetComponent<PlayerDeathVisual>()?.Hide();
             deathHandled = waitForBoss = false; body.simulated = true;
             for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = colliderStates[i];
             transform.rotation = Quaternion.identity;

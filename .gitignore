@@ -42,3 +42,9 @@ crashlytics-build.properties
 Assets/Cainos/
 Assets/Cainos.meta
 
+# Deployment credentials and local-only configuration
+Deploy/.local/
+.env
+.env.*
+!.env.example
+

@@ -1,0 +1,8 @@
+*
+!Server/
+!Server/**
+!Caddyfile
+!entrypoint.sh
+!Dockerfile
+Server/*_BurstDebugInformation_DoNotShip/
+Server/*_BackUpThisFolder_ButDontShipItWithYourGame/
