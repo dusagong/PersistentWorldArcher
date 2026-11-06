@@ -8,7 +8,7 @@ namespace PersistentWorld.World
 {
     // 보스 (기획서 기준)
     // - 일반 패턴 5종(돌진, 탄막, 유도탄, 지진, 디버프 구체)을 patternInterval(3초)마다 랜덤으로 재생한다.
-    //   돌진은 chargeMinDistance보다 멀리 있는 플레이어가 있을 때(chargePriority 확률로 우선), 지진은 quakeTriggerDistance 안으로 붙었을 때만 고른다.
+    //   돌진은 chargeMinDistance보다 멀리 있는 플레이어가 있을 때(chargePriority 확률로 우선), 지진은 quakeTriggerDistance 안에 있을 때(quakePriority 확률로 우선) 고른다.
     // - 패턴 사이에는 가까운 플레이어와 거리를 두며 천천히 움직인다.
     // - HP가 phaseTwoHealthRatio 이하가 되면 페이즈 전환 패턴(20초, 조각상 4개, 십자가 안전지대, 즉사기) 후 2페이즈로 들어간다.
     // - 피해가 들어가는 범위는 BossTelegraph로 먼저 빨갛게 보여 준다.
@@ -76,8 +76,10 @@ namespace PersistentWorld.World
 
         [Header("지진")]
         [SerializeField] private float quakeRadius = 4.5f;
-        [SerializeField, Tooltip("플레이어가 이 거리 안으로 붙었을 때만 지진을 쓴다. 평소 유지 거리(preferredDistance)보다 작게 둘 것")]
-        private float quakeTriggerDistance = 3f;
+        [SerializeField, Tooltip("플레이어가 이 거리 안에 있을 때만 지진을 쓴다. 평소 유지 거리(preferredDistance)보다 크게 둘 것. 작으면 보스가 물러나서 거의 나오지 않는다")]
+        private float quakeTriggerDistance = 5f;
+        [SerializeField, Range(0f, 1f), Tooltip("플레이어가 가까이 있을 때 다른 패턴보다 지진을 먼저 고를 확률")]
+        private float quakePriority = .6f;
         [SerializeField, Tooltip("지진 때 슬라임처럼 뛰어오르는 높이")] private float quakeJumpHeight = 1.6f;
         [SerializeField] private float quakeWarnTime = 1.5f;
         [SerializeField] private int quakeDamage = 18;
@@ -252,10 +254,12 @@ namespace PersistentWorld.World
             }
         }
 
-        // 멀리 떨어진 플레이어가 있으면 chargePriority 확률로 돌진을 먼저 고른다 (연속 돌진은 제외).
+        // 가까운 플레이어가 있으면 quakePriority, 멀리 떨어진 플레이어가 있으면 chargePriority 확률로 먼저 고른다 (같은 패턴 연속은 제외).
         // 그 외에는 거리 조건을 만족하는 패턴 중에서 직전 패턴을 빼고 고른다. 탄막·유도탄·디버프는 항상 후보라 비지 않는다.
         private Pattern ChoosePattern()
         {
+            bool quakedLast = hasLastPattern && lastPattern == Pattern.Earthquake;
+            if (!quakedLast && CanUse(Pattern.Earthquake) && Random.value < quakePriority) return Pattern.Earthquake;
             bool chargedLast = hasLastPattern && lastPattern == Pattern.Charge;
             if (!chargedLast && CanUse(Pattern.Charge) && Random.value < chargePriority) return Pattern.Charge;
 
