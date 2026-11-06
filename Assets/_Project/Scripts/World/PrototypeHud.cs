@@ -9,13 +9,19 @@ namespace PersistentWorld.World
     public sealed class PrototypeHud : MonoBehaviour
     {
         private ArcherController player;
-        private int tab;
+        private enum MenuPage { Main, Skills, Classes }
+        private MenuPage menuPage;
         private Vector2 scroll;
         private string message = "";
         private static readonly string[] Keys = { "Q", "E", "Shift" };
         private CombatHud combatHud;
 
         private void Awake() => combatHud = GetComponent<CombatHud>() ?? gameObject.AddComponent<CombatHud>();
+
+        private void Update()
+        {
+            if (player != null && !player.MenuOpen) menuPage = MenuPage.Main;
+        }
 
         private void OnGUI()
         {
@@ -42,26 +48,48 @@ namespace PersistentWorld.World
 
         private void DrawMenu()
         {
+            if (menuPage == MenuPage.Main) { DrawMainMenu(); return; }
             float scale = Mathf.Min(1, Screen.width / 760f, Screen.height / 580f);
             Matrix4x4 previous = GUI.matrix;
             GUI.matrix = Matrix4x4.TRS(new Vector3((Screen.width - 720 * scale) / 2, (Screen.height - 540 * scale) / 2), Quaternion.identity, Vector3.one * scale);
             GUILayout.BeginArea(new Rect(0, 0, 720, 540), GUI.skin.box);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("캐릭터 메뉴", GUILayout.Height(30));
-            if (GUILayout.Button("장비 · 인벤토리", GUILayout.Width(150)))
-                ItemSession.Instance?.GetComponent<InventoryWindow>()?.Open(player.gameObject);
+            GUILayout.Label(menuPage == MenuPage.Skills ? "스킬" : "직업 선택", GUILayout.Height(30));
             if (GUILayout.Button("닫기 (ESC)", GUILayout.Width(120))) player.SetMenuOpen(false);
             GUILayout.EndHorizontal();
-            tab = GUILayout.Toolbar(tab, new[] { "스킬", "직업" });
             GUILayout.Space(8);
             scroll = GUILayout.BeginScrollView(scroll);
-            if (tab == 0) DrawSkills();
+            if (menuPage == MenuPage.Skills) DrawSkills();
             else DrawClasses();
             GUILayout.EndScrollView();
             GUILayout.Label(message, GUILayout.Height(30));
             GUILayout.EndArea();
             GUI.matrix = previous;
         }
+
+        private void DrawMainMenu()
+        {
+            float scale = Mathf.Min(1, Screen.width / 400f, Screen.height / 300f);
+            Matrix4x4 previous = GUI.matrix;
+            GUI.matrix = Matrix4x4.TRS(new Vector3((Screen.width - 360 * scale) / 2,
+                (Screen.height - 260 * scale) / 2), Quaternion.identity, Vector3.one * scale);
+            GUI.Box(new Rect(0, 0, 360, 260), "메뉴");
+            if (GUI.Button(new Rect(20, 42, 320, 50), "장비 · 인벤토리"))
+                OpenInventory();
+            if (GUI.Button(new Rect(20, 106, 320, 50), "스킬")) OpenPage(MenuPage.Skills);
+            if (GUI.Button(new Rect(20, 170, 320, 50), "직업 선택")) OpenPage(MenuPage.Classes);
+            GUI.Label(new Rect(20, 232, 320, 20), "ESC · 메뉴 닫기");
+            GUI.matrix = previous;
+        }
+
+        private void OpenPage(MenuPage page)
+        {
+            menuPage = page;
+            scroll = Vector2.zero;
+            message = "";
+        }
+
+        private void OpenInventory() => ItemSession.Instance?.GetComponent<InventoryWindow>()?.Open(player.gameObject);
 
         private void DrawSkills()
         {
