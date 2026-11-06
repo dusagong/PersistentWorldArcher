@@ -660,6 +660,7 @@ namespace PersistentWorld.World
                     else body.enabled = false;
                 };
                 StartCoroutine(RiseStatue(statue.transform));
+                ActorShadow.Attach(statue.transform, size.x * 1.25f, 0f, false);
             }
             statue.AddComponent<CombatStatus>().Immovable = true; // 넉백 스킬에 밀리지 않게
             CombatFeedback.Attach(statueHealthComponent);
