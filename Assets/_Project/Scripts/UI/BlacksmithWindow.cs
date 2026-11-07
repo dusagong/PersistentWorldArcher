@@ -207,7 +207,7 @@ namespace PersistentWorld.UI
                 row.Add(equip);
                 recipes.Add(row);
             }
-            if (!string.IsNullOrEmpty(session.SaveError)) message.text = "현재 진행 상태를 저장할 수 없습니다. 저장 위치를 확인해주세요.";
+            if (!string.IsNullOrEmpty(session?.SaveError)) message.text = "현재 진행 상태를 저장할 수 없습니다. 저장 위치를 확인해주세요.";
         }
 
         private void Craft(string id)

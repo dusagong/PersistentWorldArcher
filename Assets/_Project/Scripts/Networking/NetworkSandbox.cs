@@ -29,6 +29,15 @@ namespace PersistentWorld.Networking
         private string recoveryKey = "";
         private string pendingCharacterKey;
         private string pendingCharacterPreference;
+        private Uri lastServer;
+        private string lastCode, lastCharacterKey;
+        private bool connectedLocally;
+        private int retryIndex;
+        private float retryAt = -1;
+        private static readonly float[] RetryDelays = { 2, 5, 10, 20 };
+        private bool CanReconnect => NetworkGameWorld.Instance != null &&
+            (!Application.isBatchMode || HasArgument("-pwa-reconnect-test")) &&
+            !HasArgument("-pwa-probe");
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
         public const int Protocol = 4;
         [Serializable] private sealed class Ticket { public int protocol; public string code, name, characterKey; }
@@ -116,15 +125,25 @@ namespace PersistentWorld.Networking
                 if (uri.Scheme == "ws" && !uri.IsLoopback)
                     throw new ArgumentException("외부 서버에는 wss:// 주소를 사용하세요.");
                 if ((code ?? "").Length > 64) throw new ArgumentException("참가 코드는 최대 64자입니다.");
-                connecting = true;
-                status = "서버 주소 확인 중…";
-                ResolveAndConnect(uri, code ?? "");
+                retryAt = -1;
+                retryIndex = 0;
+                lastServer = uri;
+                lastCode = code ?? "";
+                lastCharacterKey = NetworkGameWorld.Instance == null ? null : CharacterKey(uri);
+                StartConnection();
                 return true;
             }
             catch (Exception exception) { status = exception.Message; return false; }
         }
 
-        private async void ResolveAndConnect(Uri uri, string code)
+        private void StartConnection()
+        {
+            connecting = true;
+            status = retryIndex == 0 ? "서버 주소 확인 중…" : "같은 캐릭터로 다시 접속 중…";
+            ResolveAndConnect(lastServer, lastCode, lastCharacterKey);
+        }
+
+        private async void ResolveAndConnect(Uri uri, string code, string key)
         {
             try
             {
@@ -143,14 +162,18 @@ namespace PersistentWorld.Networking
                 transport.UseEncryption = uri.Scheme == "wss";
                 if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);
                 transport.SetConnectionData(address.ToString(), (ushort)uri.Port);
-                string key = NetworkGameWorld.Instance == null ? null : CharacterKey(uri);
                 pendingCharacterKey = key;
                 pendingCharacterPreference = CharacterPreference(uri);
                 manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { protocol = Protocol, code = code, name = displayName, characterKey = key }));
                 status = "접속 중…";
                 if (!manager.StartClient()) throw new InvalidOperationException("접속을 시작할 수 없습니다.");
             }
-            catch (Exception exception) { status = exception.Message; Debug.LogWarning("PWA_CLIENT_START_FAILED " + exception.Message); }
+            catch (Exception exception)
+            {
+                status = exception.Message;
+                Debug.LogWarning("PWA_CLIENT_START_FAILED " + exception.Message);
+                if (retryIndex > 0) QueueReconnect();
+            }
             finally { connecting = false; }
         }
 
@@ -178,6 +201,12 @@ namespace PersistentWorld.Networking
 
         private void Connected(ulong id)
         {
+            if (!manager.IsServer && id == manager.LocalClientId)
+            {
+                connectedLocally = true;
+                retryIndex = 0;
+                retryAt = -1;
+            }
             if (!manager.IsServer && id == manager.LocalClientId && pendingCharacterKey != null &&
                 !Application.isBatchMode && !HasArgument("-pwa-probe"))
             {
@@ -190,14 +219,43 @@ namespace PersistentWorld.Networking
         }
         private void Disconnected(ulong id)
         {
+            bool local = !manager.IsServer && id == manager.LocalClientId;
+            string reason = manager.DisconnectReason;
+            if (local)
+            {
+                bool shouldRetry = CanReconnect && (connectedLocally || retryIndex > 0) &&
+                    (string.IsNullOrEmpty(reason) || reason == "이미 이 캐릭터가 접속 중입니다.");
+                connectedLocally = false;
+                status = string.IsNullOrEmpty(reason) ? "연결이 종료되었습니다. 다시 접속할 수 있습니다." : reason;
+                if (shouldRetry) QueueReconnect();
+            }
             if (manager.IsServer && NetworkGameWorld.Instance is NetworkGameWorld world && !world.Actors.ContainsKey(id))
                 world.ReleaseCharacter(id);
             admitted.Remove(id);
             names.Remove(id);
-            status = string.IsNullOrEmpty(manager.DisconnectReason) ? "연결이 종료되었습니다. 다시 접속할 수 있습니다." : manager.DisconnectReason;
-            Debug.Log("PWA_CLIENT_DISCONNECTED id=" + id);
+            Debug.Log("PWA_CLIENT_DISCONNECTED id=" + id + " reason=" + (string.IsNullOrEmpty(reason) ? "transport" : reason));
         }
-        private void Update() => readiness?.Heartbeat(Ready, manager.ConnectedClientsIds.Count);
+        private void QueueReconnect()
+        {
+            if (retryIndex >= RetryDelays.Length)
+            {
+                retryAt = -1;
+                retryIndex = 0;
+                status = "자동 재접속에 실패했습니다. 서버 접속을 다시 눌러주세요.";
+                return;
+            }
+            retryAt = Time.realtimeSinceStartup + RetryDelays[retryIndex++];
+            status = $"연결이 끊겨 재접속을 기다리는 중입니다 ({retryIndex}/{RetryDelays.Length}).";
+            Debug.Log("PWA_RECONNECT_QUEUED attempt=" + retryIndex);
+        }
+
+        private void Update()
+        {
+            readiness?.Heartbeat(Ready, manager.ConnectedClientsIds.Count);
+            if (retryAt < 0 || Time.realtimeSinceStartup < retryAt || connecting || manager.IsListening || manager.ShutdownInProgress) return;
+            retryAt = -1;
+            StartConnection();
+        }
         private void OnDestroy()
         {
             readiness?.Dispose();
@@ -226,9 +284,21 @@ namespace PersistentWorld.Networking
                 }
                 GUI.enabled = !connecting && !manager.ShutdownInProgress;
                 if (GUILayout.Button("서버 접속")) Connect(endpoint.Trim(), password);
+                if (retryAt >= 0 && GUILayout.Button("자동 재접속 취소"))
+                {
+                    retryAt = -1;
+                    retryIndex = 0;
+                    status = "자동 재접속을 취소했습니다.";
+                }
                 GUI.enabled = true;
             }
-            else if (GUILayout.Button("접속 종료")) manager.Shutdown();
+            else if (GUILayout.Button("접속 종료"))
+            {
+                connectedLocally = false;
+                retryAt = -1;
+                retryIndex = 0;
+                manager.Shutdown();
+            }
             GUILayout.EndArea();
         }
 

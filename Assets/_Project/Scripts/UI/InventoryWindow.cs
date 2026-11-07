@@ -218,7 +218,7 @@ namespace PersistentWorld.UI
             capacity.EnableInClassList("hidden", showingQuests);
             questList.EnableInClassList("hidden", !showingQuests);
             selectionPanel.EnableInClassList("hidden", showingQuests && selectedSlot == EquipmentSlot.None);
-            message.EnableInClassList("hidden", showingQuests && string.IsNullOrEmpty(session.SaveError));
+            message.EnableInClassList("hidden", showingQuests && string.IsNullOrEmpty(session?.SaveError));
             if (selectedSlot != EquipmentSlot.None) selectedId = profile.GetEquipped(selectedSlot);
             else if (selectedId != null && inventory.GetCount(selectedId) == 0) selectedId = null;
             capacity.text = $"전체 가방 {inventory.UsedSlots} / {inventory.Capacity}칸 · 장착 장비 제외";
@@ -238,7 +238,7 @@ namespace PersistentWorld.UI
                 $"6부위: 보스에게 주는 피해 +30% {(pieces >= 6 ? "[적용]" : "")}";
             grid.Clear();
             RefreshSelection();
-            if (!string.IsNullOrEmpty(session.SaveError)) message.text = "저장할 수 없습니다. 저장 위치를 확인해주세요.";
+            if (!string.IsNullOrEmpty(session?.SaveError)) message.text = "저장할 수 없습니다. 저장 위치를 확인해주세요.";
             if (showingQuests) return;
             int cells = 0;
             foreach (ItemDefinition item in ItemCatalog.All)
