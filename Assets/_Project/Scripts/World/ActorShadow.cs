@@ -71,7 +71,7 @@ namespace PersistentWorld.World
         }
 
         // 가장자리가 부드러운 원 (지름 1유닛)
-        private static Sprite Blob
+        internal static Sprite Blob
         {
             get
             {

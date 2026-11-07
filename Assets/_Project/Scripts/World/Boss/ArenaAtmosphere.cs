@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
+using PersistentWorld.Networking;
 
 namespace PersistentWorld.World
 {
@@ -59,11 +60,14 @@ namespace PersistentWorld.World
 
         private void Start()
         {
+            if (NetworkGameWorld.Instance != null && !NetworkGameWorld.Instance.gameCamera.enabled)
+            { enabled = false; return; }
             boss = FindFirstObjectByType<BossController>();
             if (lights != null)
                 foreach (LightPool light in lights)
                 {
-                    SpriteRenderer r = Create("Light Pool", light.position, GroundOrder);
+                    Vector2 offset = NetworkGameWorld.Instance == null ? Vector2.zero : NetworkGameWorld.Origin(GameArea.BossArena);
+                    SpriteRenderer r = Create("Light Pool", light.position + offset, GroundOrder);
                     r.transform.localScale = new Vector3(light.radius * 2f, light.radius * 1.5f, 1f);
                     pools.Add(new Pool { Renderer = r, Color = light.color, Phase = Random.value * 6f });
                 }
@@ -97,7 +101,10 @@ namespace PersistentWorld.World
 
         private void Update()
         {
-            float target = boss != null && boss.IsPhaseTwo ? 1f : 0f;
+            bool phaseTwo = NetworkGameWorld.Instance != null
+                ? NetworkGameWorld.Instance.Frame?.bossPhaseTwo == true
+                : boss != null && boss.IsPhaseTwo;
+            float target = phaseTwo ? 1f : 0f;
             rage = Mathf.MoveTowards(rage, target, Time.deltaTime * .6f);
 
             foreach (Pool pool in pools)

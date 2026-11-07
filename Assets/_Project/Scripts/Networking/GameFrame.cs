@@ -12,18 +12,19 @@ namespace PersistentWorld.Networking
     }
     [Serializable] public sealed class SpriteFrame
     {
-        public int id, texture, order; public Rect rect; public Vector2 pivot; public float ppu, angle;
+        public int id, texture, layer, order; public Rect rect; public Vector2 pivot; public float ppu, angle;
         public Vector3 position, scale; public Color color; public bool flipX, flipY;
     }
     [Serializable] public sealed class LineFrame
     {
-        public int id, order; public Vector3[] points; public float width; public Color color; public bool loop;
+        public int id, layer, order; public Vector3[] points; public float width; public Color color; public bool loop;
     }
     [Serializable] public sealed class GameFrame
     {
         public PlayerFrame[] players; public SpriteFrame[] sprites; public LineFrame[] lines;
         public ulong inviter = ulong.MaxValue; public string inviterName, message; public float inviteRemaining;
         public int bossParty; public int bossHp, bossMax;
+        public bool bossPhaseTwo;
         public string bossNotice;
         public int validationStage;
     }

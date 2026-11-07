@@ -32,7 +32,7 @@ Transform:
   m_GameObject: {fileID: 1387243986554642355}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2002, y: 0, z: 0}
+  m_LocalPosition: {x: 2003, y: 0, z: 0}
   m_LocalScale: {x: 1.8, y: 1.8, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -156,7 +156,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   faction: 2
-  maxHealth: 1200
+  maxHealth: 1800
   destroyOnDeath: 1
 --- !u!114 &6503053957202730860
 MonoBehaviour:
@@ -172,7 +172,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   testStartPhase: 0
   arenaCenter: {x: 2000, y: 0}
-  arenaHalfSize: {x: 8.6, y: 4.6}
+  arenaHalfSize: {x: 12.2, y: 7.2}
   patternInterval: 3
   moveSpeed: 2.2
   preferredDistance: 4.5
@@ -222,10 +222,10 @@ MonoBehaviour:
   transitionDuration: 20
   statueHealth: 60
   statueOffsets:
-  - {x: -5.5, y: 3.2}
-  - {x: 5.5, y: 3.2}
-  - {x: -5.5, y: -3.2}
-  - {x: 5.5, y: -3.2}
+  - {x: -7.5, y: 4.5}
+  - {x: 7.5, y: 4.5}
+  - {x: -7.5, y: -4.5}
+  - {x: 7.5, y: -4.5}
   safeZoneArmLength: 1.6
   safeZoneArmWidth: 1
   instantDeathDamage: 9999999

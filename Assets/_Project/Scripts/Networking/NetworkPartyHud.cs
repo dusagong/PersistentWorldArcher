@@ -11,6 +11,8 @@ namespace PersistentWorld.Networking
         public static NetworkPartyHud Instance { get; private set; }
         private NetworkGameWorld world;
         private bool menu, context, partyContext;
+        private enum MenuPage { Main, Skills, Class }
+        private MenuPage page;
         private ulong target;
         private Vector2 contextAt, scroll;
         private Rect PartyRect => new Rect(12, 12, 240, 65 + (world.Local == null ? 0 : world.Frame.players.Count(p => p.party == world.Local.party && p.party != 0) * 34));
@@ -34,7 +36,13 @@ namespace PersistentWorld.Networking
         {
             PlayerFrame me = world.Local;
             if (me == null) return;
-            if (Input.GetKeyDown(KeyCode.Escape)) { menu = !menu; context = false; Send(PartyCommand.Menu, first: menu ? 1 : 0); }
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                menu = !menu;
+                page = MenuPage.Main;
+                context = false;
+                Send(PartyCommand.Menu, first: menu ? 1 : 0);
+            }
             Vector2 point = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
             if (Input.GetMouseButtonDown(1) && !menu)
             {
@@ -108,13 +116,36 @@ namespace PersistentWorld.Networking
             if (me.area == (int)GameArea.BossArena) GUI.Box(new Rect(Screen.width / 2f - 180, 70, 360, 35), "보스 HP " + world.Frame.bossHp + "/" + world.Frame.bossMax);
             if (me.area == (int)GameArea.BossArena && !string.IsNullOrEmpty(world.Frame.bossNotice)) GUI.Box(new Rect(Screen.width / 2f - 240, 110, 480, 70), world.Frame.bossNotice);
             if (me.hp == 0) GUI.Box(new Rect(Screen.width / 2f - 200, Screen.height / 2f - 35, 400, 70), "사망\n" + (me.area == (int)GameArea.BossArena ? "보스전 종료 또는 힐러 부활까지 대기" : "10초 후 마을 귀환"));
-            if (menu) DrawSkills(me);
+            if (menu) DrawMenu(me);
+        }
+        private void DrawMenu(PlayerFrame me)
+        {
+            GUILayout.BeginArea(MenuRect, GUI.skin.box);
+            if (page == MenuPage.Main)
+            {
+                if (GUILayout.Button("스킬")) { page = MenuPage.Skills; scroll = Vector2.zero; }
+                if (GUILayout.Button("직업 선택")) { page = MenuPage.Class; scroll = Vector2.zero; }
+                if (GUILayout.Button("닫기")) { menu = false; Send(PartyCommand.Menu); }
+                GUILayout.EndArea();
+                return;
+            }
+            GUILayout.Label(page == MenuPage.Skills ? "스킬" : "직업 선택");
+            bool allowed = me.area == (int)GameArea.Town && me.hp > 0;
+            scroll = GUILayout.BeginScrollView(scroll); GUI.enabled = allowed;
+            if (page == MenuPage.Skills) DrawSkills(me);
+            else
+            {
+                foreach (CharacterClass type in Enum.GetValues(typeof(CharacterClass)))
+                    if (GUILayout.Button(SkillCatalog.ClassName(type) + "로 변경")) Send(PartyCommand.ChangeClass, first: (int)type);
+            }
+            GUI.enabled = true; GUILayout.EndScrollView();
+            if (!allowed) GUILayout.Label("스킬 교체와 직업 변경은 마을에서 할 수 있습니다.");
+            if (GUILayout.Button("뒤로")) page = MenuPage.Main;
+            if (GUILayout.Button("닫기")) { menu = false; Send(PartyCommand.Menu); }
+            GUILayout.EndArea();
         }
         private void DrawSkills(PlayerFrame me)
         {
-            GUILayout.BeginArea(MenuRect, GUI.skin.box); GUILayout.Label("스킬 / 직업 · 교체는 마을에서만 가능");
-            bool allowed = me.area == (int)GameArea.Town && me.hp > 0;
-            scroll = GUILayout.BeginScrollView(scroll); GUI.enabled = allowed;
             for (int i = 0; i < me.slots.Length; i++)
                 if (GUILayout.Button((i == 0 ? "Q " : i == 1 ? "E " : "Shift ") + SkillCatalog.Name((SkillId)me.slots[i]) + " 해제")) Send(PartyCommand.Equip, first: i, second: 0);
             foreach (SkillId skill in SkillCatalog.ForClass((CharacterClass)me.character))
@@ -124,12 +155,6 @@ namespace PersistentWorld.Networking
                 if (GUILayout.Button("E 장착")) Send(PartyCommand.Equip, first: 1, second: (int)skill);
                 GUILayout.EndHorizontal();
             }
-            foreach (CharacterClass type in Enum.GetValues(typeof(CharacterClass)))
-                if (GUILayout.Button(SkillCatalog.ClassName(type) + "로 변경")) Send(PartyCommand.ChangeClass, first: (int)type);
-            GUI.enabled = true; GUILayout.EndScrollView();
-            if (!allowed) GUILayout.Label("필드와 보스 룸에서는 스킬을 장착·해제할 수 없습니다.");
-            if (GUILayout.Button("닫기")) { menu = false; Send(PartyCommand.Menu); }
-            GUILayout.EndArea();
         }
         private static void Bar(Rect rect, float ratio, Color color)
         {

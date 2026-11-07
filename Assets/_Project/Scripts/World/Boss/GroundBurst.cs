@@ -162,7 +162,8 @@ namespace PersistentWorld.World
         }
 
         // 가장자리가 부드러운 원 (지름 1유닛)
-        private static Sprite Circle
+        internal const string CircleSpriteName = "Ground Burst Soft Circle";
+        internal static Sprite Circle
         {
             get
             {
@@ -178,6 +179,7 @@ namespace PersistentWorld.World
                     }
                 texture.Apply();
                 circle = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), size);
+                circle.name = CircleSpriteName;
                 return circle;
             }
         }

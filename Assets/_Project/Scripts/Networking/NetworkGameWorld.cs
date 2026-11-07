@@ -24,6 +24,9 @@ namespace PersistentWorld.Networking
         public Transform[] maps;
         public NetworkGameAssets assets;
         public Camera gameCamera;
+        public Color[] mapBackgrounds;
+        public float[] mapCameraSizes;
+        public Vector2[] mapSpawns;
         public readonly PartyState Parties = new PartyState();
         public readonly Dictionary<ulong, ArcherController> Actors = new Dictionary<ulong, ArcherController>();
         public GameFrame Frame { get; private set; }
@@ -40,6 +43,7 @@ namespace PersistentWorld.Networking
         private NetworkPartyHud hud;
         private float nextFrame;
         private int previousBossParty;
+        private int viewedArea = -1;
         public static Vector2 Origin(GameArea area) => Vector2.right * ((int)area * 1000);
         public static GameArea AreaAt(Vector2 position) => (GameArea)Mathf.Clamp(Mathf.RoundToInt(position.x / 1000), 0, 2);
         public static bool SameArea(Vector2 a, Vector2 b) => Instance == null || AreaAt(a) == AreaAt(b);
@@ -72,6 +76,7 @@ namespace PersistentWorld.Networking
             manager.OnClientConnectedCallback += ClientConnected;
             if (!server)
             {
+                for (int i = 1; i < maps.Length; i++) maps[i].gameObject.SetActive(false);
                 view = new NetworkGameView(assets, new GameObject("Server Render Proxies").transform);
                 hud = gameObject.AddComponent<NetworkPartyHud>();
             }
@@ -101,7 +106,8 @@ namespace PersistentWorld.Networking
             context.ClientId = pawn.OwnerClientId; context.Area = GameArea.Town;
             actor.AcceptLocalInput = false; actor.name = "Player " + pawn.OwnerClientId;
             actor.GetComponent<PlayerEquipment>().Bind(PlayerInventoryProfile.CreateNew());
-            actor.transform.position = Origin(GameArea.Town) + new Vector2((int)(pawn.OwnerClientId % 4) - 1.5f, 0);
+            actor.transform.position = TownSpawn(pawn.OwnerClientId);
+            ActorShadow.Attach(actor.transform, .62f, 0);
             Actors[pawn.OwnerClientId] = actor;
             Parties.Add(pawn.OwnerClientId, manager.GetComponent<NetworkSandbox>().PlayerName(pawn.OwnerClientId));
             pawn.Position.Value = actor.transform.position;
@@ -184,25 +190,31 @@ namespace PersistentWorld.Networking
             {
                 SyncMembers();
                 if (!Parties.EnterBoss(id, out ulong[] entering, out string reason)) { Message(id, reason); return; }
-                for (int i = 0; i < entering.Length; i++) Teleport(entering[i], GameArea.BossArena, new Vector2(-5 + i, -2));
+                for (int i = 0; i < entering.Length; i++) Teleport(entering[i], GameArea.BossArena, mapSpawns[(int)GameArea.BossArena] + Vector2.right * (.6f * i));
                 boss.SetSimulation(true); previousBossParty = Parties.BossParty;
                 foreach (ulong member in entering) Message(member, reason);
             }
             else if (Parties.Members[id].Area == GameArea.BossArena)
             {
                 foreach (PartyMember member in Parties.Group(Parties.Members[id].Party))
-                    if (member.Area == GameArea.BossArena) ReturnToTown(member.Id);
+                {
+                    if (member.Area != GameArea.BossArena) continue;
+                    if (portal.Destination == "Field" && !Actors[member.Id].Health.IsDead)
+                        Teleport(member.Id, GameArea.Field, mapSpawns[(int)GameArea.Field]);
+                    else ReturnToTown(member.Id);
+                }
             }
-            else if (portal.Destination == "Field") Teleport(id, GameArea.Field, Vector2.left * 5);
+            else if (portal.Destination == "Field") Teleport(id, GameArea.Field, mapSpawns[(int)GameArea.Field]);
             else if (portal.Destination == "Town") ReturnToTown(id);
         }
         public void ReturnToTown(ulong id)
         {
             if (!Actors.TryGetValue(id, out ArcherController actor)) return;
-            Teleport(id, GameArea.Town, new Vector2((int)(id % 4) - 1.5f, 0));
+            Teleport(id, GameArea.Town, TownSpawn(id));
             if (actor.Health.IsDead) actor.Health.Revive(1, 3); else actor.Health.Heal(actor.Health.Maximum);
             actor.Mana.RestoreAtTown();
         }
+        private Vector2 TownSpawn(ulong id) => mapSpawns[(int)GameArea.Town] + new Vector2((int)(id % 4) - 1.5f, 0);
         public void Teleport(ulong id, GameArea area, Vector2 local)
         {
             if (!Actors.TryGetValue(id, out ArcherController actor)) return;
@@ -217,7 +229,7 @@ namespace PersistentWorld.Networking
         }
         private void Update()
         {
-            if (!manager.IsListening) { Frame = null; view?.Clear(); return; }
+            if (!manager.IsListening) { Frame = null; viewedArea = -1; view?.Clear(); return; }
             if (!manager.IsServer) return;
             SyncMembers(); Parties.Expire(Time.unscaledTime);
             if (Parties.BossParty != 0)
@@ -229,15 +241,29 @@ namespace PersistentWorld.Networking
             previousBossParty = Parties.BossParty;
             if (Time.unscaledTime < nextFrame) return;
             nextFrame = Time.unscaledTime + .1f;
-            foreach (var pair in Actors.ToArray())
+            var renderers = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
+            var lineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None);
+            var frames = new GameFrame[maps.Length];
+            foreach (ulong recipient in Actors.Keys)
             {
-                if (!manager.ConnectedClients.ContainsKey(pair.Key)) continue;
-                GameFrame frame = Capture(pair.Key);
+                if (!manager.ConnectedClients.ContainsKey(recipient)) continue;
+                int area = (int)Parties.Members[recipient].Area;
+                GameFrame frame = frames[area] ??= Capture((GameArea)area, renderers, lineRenderers);
+                frame.message = messageTimes.TryGetValue(recipient, out float until) && until > Time.unscaledTime ? messages[recipient] : "";
+                frame.inviteRemaining = 0;
+                frame.inviter = ulong.MaxValue;
+                frame.inviterName = null;
+                if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
+                {
+                    frame.inviter = invitation.From;
+                    frame.inviterName = Parties.Members[invitation.From].Name;
+                    frame.inviteRemaining = (float)(invitation.Expires - Time.unscaledTime);
+                }
                 byte[] data = Compress(JsonUtility.ToJson(frame));
                 if (data.Length > 100000) { Debug.LogWarning("Game frame exceeded bandwidth limit."); continue; }
                 using FastBufferWriter writer = new FastBufferWriter(data.Length + 4, Allocator.Temp);
                 writer.WriteValueSafe(data.Length); writer.WriteBytesSafe(data);
-                manager.CustomMessagingManager.SendNamedMessage("GameFrame", pair.Key, writer, NetworkDelivery.ReliableFragmentedSequenced);
+                manager.CustomMessagingManager.SendNamedMessage("GameFrame", recipient, writer, NetworkDelivery.ReliableFragmentedSequenced);
             }
         }
         private void ResetBoss()
@@ -250,29 +276,31 @@ namespace PersistentWorld.Networking
             boss = Instantiate(bossPrefab, maps[(int)GameArea.BossArena]).GetComponent<ServerWorldEntity>();
             boss.SetSimulation(false); CurrentBoss = boss.GetComponent<BossController>();
         }
-        private GameFrame Capture(ulong recipient)
+        private GameFrame Capture(GameArea area, SpriteRenderer[] renderers, LineRenderer[] lineRenderers)
         {
-            GameArea area = Parties.Members[recipient].Area;
             List<SpriteFrame> visuals = new List<SpriteFrame>();
-            foreach (SpriteRenderer renderer in FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None))
+            foreach (SpriteRenderer renderer in renderers)
             {
                 if (!renderer.enabled || renderer.sprite == null || scenery.Contains(renderer) || AreaAt(renderer.transform.position) != area || renderer.GetComponent<NetworkSandboxPlayer>() != null) continue;
                 Sprite sprite = renderer.sprite;
-                int texture = textureIds.TryGetValue(sprite.texture, out int index) ? index : -1;
-                visuals.Add(new SpriteFrame { id = renderer.GetInstanceID(), texture = texture, rect = sprite.rect,
+                int texture = -1;
+                if (textureIds.TryGetValue(sprite.texture, out int index)) texture = index;
+                else if (renderer.GetComponent<ActorShadow>() != null) texture = -2;
+                else if (sprite.name == GroundBurst.CircleSpriteName) texture = -3;
+                visuals.Add(new SpriteFrame { id = renderer.GetInstanceID(), texture = texture, rect = sprite.rect, layer = renderer.sortingLayerID,
                     pivot = new Vector2(sprite.pivot.x / sprite.rect.width, sprite.pivot.y / sprite.rect.height), ppu = sprite.pixelsPerUnit, order = renderer.sortingOrder,
                     position = renderer.transform.position, scale = renderer.transform.lossyScale, angle = renderer.transform.eulerAngles.z,
                     color = renderer.color, flipX = renderer.flipX, flipY = renderer.flipY });
                 if (visuals.Count >= 300) break;
             }
             List<LineFrame> lines = new List<LineFrame>();
-            foreach (LineRenderer line in FindObjectsByType<LineRenderer>(FindObjectsSortMode.None))
+            foreach (LineRenderer line in lineRenderers)
             {
                 if (!line.enabled || line.positionCount == 0 || line.positionCount > 128) continue;
                 Vector3[] points = new Vector3[line.positionCount]; line.GetPositions(points);
                 if (!line.useWorldSpace) for (int i = 0; i < points.Length; i++) points[i] = line.transform.TransformPoint(points[i]);
                 if (AreaAt(points[0]) != area) continue;
-                lines.Add(new LineFrame { id = line.GetInstanceID(), points = points, width = line.startWidth, color = line.startColor, order = line.sortingOrder, loop = line.loop });
+                lines.Add(new LineFrame { id = line.GetInstanceID(), points = points, width = line.startWidth, color = line.startColor, layer = line.sortingLayerID, order = line.sortingOrder, loop = line.loop });
                 if (lines.Count >= 100) break;
             }
             PlayerFrame[] players = Actors.Select(pair =>
@@ -287,11 +315,9 @@ namespace PersistentWorld.Networking
             }).ToArray();
             GameFrame frame = new GameFrame { players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
                 bossHp = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Current : 0, bossMax = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Maximum : 0,
-                message = messageTimes.TryGetValue(recipient, out float until) && until > Time.unscaledTime ? messages[recipient] : "" };
+                bossPhaseTwo = CurrentBoss != null && CurrentBoss.IsPhaseTwo };
             if (area == GameArea.BossArena)
                 frame.bossNotice = FindObjectsByType<TextMesh>(FindObjectsSortMode.None).FirstOrDefault(t => t.text.Contains("즉사기") && SameArea(t.transform.position, Origin(area)))?.text;
-            if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
-            { frame.inviter = invitation.From; frame.inviterName = Parties.Members[invitation.From].Name; frame.inviteRemaining = (float)(invitation.Expires - Time.unscaledTime); }
             return frame;
         }
         private void Receive(ulong sender, FastBufferReader reader)
@@ -305,11 +331,28 @@ namespace PersistentWorld.Networking
                 Frame = JsonUtility.FromJson<GameFrame>(Decompress(data));
                 PlayerFrame local = Local;
                 if (local == null) return;
-                for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == local.area);
+                if (viewedArea != local.area)
+                {
+                    viewedArea = local.area;
+                    view.Clear();
+                    gameCamera.transform.position = CameraTarget(local);
+                    gameCamera.backgroundColor = mapBackgrounds[viewedArea];
+                    gameCamera.orthographicSize = mapCameraSizes[viewedArea];
+                    for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == viewedArea);
+                }
                 view.Apply(Frame);
-                gameCamera.transform.position = new Vector3(local.position.x, local.position.y + .4f, -10);
             }
             catch (Exception error) { Debug.LogWarning("Game frame rejected: " + error.Message); }
+        }
+        private static Vector3 CameraTarget(PlayerFrame local) => new Vector3(local.position.x, local.position.y + .4f, -10);
+        private void LateUpdate()
+        {
+            if (view == null || Local is not PlayerFrame local) return;
+            float blend = 1 - Mathf.Exp(-20 * Time.unscaledDeltaTime);
+            view.Animate(blend);
+            Vector3 target = CameraTarget(local);
+            Transform cameraBody = gameCamera.transform;
+            cameraBody.position = Vector3.Lerp(cameraBody.position, target, (cameraBody.position - target).sqrMagnitude > 25 ? 1 : blend);
         }
         public static byte[] Compress(string json)
         {

@@ -77,7 +77,7 @@ GitHub에 소스만 푸시하는 것으로 자동 Unity 빌드가 되지 않는�
 
 Unity 메뉴 `Tools > Persistent World > Multiplayer > Build Cooperative Windows Client`로 빌드한다.
 `Builds/CooperativeWindows/PwaCoop.exe` 실행 → 서버 주소 `wss://생성된도메인` → 참가 코드 → 접속.
-WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 서버/클라이언트 모두 프로토콜 2 협동 빌드를 사용한다.
+WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 서버/클라이언트 모두 프로토콜 3 협동 빌드를 사용한다.
 
 ## 검증
 

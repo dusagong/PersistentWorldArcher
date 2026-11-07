@@ -27,7 +27,8 @@ namespace PersistentWorld.Networking
         private readonly Dictionary<ulong, string> names = new Dictionary<ulong, string>();
         private string displayName = "";
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
-        [Serializable] private sealed class Ticket { public int protocol = 2; public string code, name; }
+        public const int Protocol = 3;
+        [Serializable] private sealed class Ticket { public int protocol; public string code, name; }
 
         public static string Argument(string name, string fallback = null)
         {
@@ -136,7 +137,7 @@ namespace PersistentWorld.Networking
                 transport.UseEncryption = uri.Scheme == "wss";
                 if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);
                 transport.SetConnectionData(address.ToString(), (ushort)uri.Port);
-                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { code = code, name = displayName }));
+                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { protocol = Protocol, code = code, name = displayName }));
                 status = "접속 중…";
                 if (!manager.StartClient()) throw new InvalidOperationException("접속을 시작할 수 없습니다.");
             }
@@ -154,7 +155,7 @@ namespace PersistentWorld.Networking
             Ticket ticket;
             try { ticket = JsonUtility.FromJson<Ticket>(Encoding.UTF8.GetString(request.Payload)); }
             catch (ArgumentException) { return; }
-            if (ticket == null || ticket.protocol != 2 || ticket.code != serverPassword) return;
+            if (ticket == null || ticket.protocol != Protocol || ticket.code != serverPassword) return;
             if (admitted.Count >= limit) { response.Reason = "서버 정원이 찼습니다."; return; }
             admitted.Add(request.ClientNetworkId);
             string requestedName = (ticket.name ?? "").Trim();

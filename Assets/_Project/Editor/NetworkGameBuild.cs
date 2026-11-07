@@ -23,6 +23,13 @@ namespace PersistentWorld.Editor
         [MenuItem("Tools/Persistent World/Multiplayer/Prepare Cooperative World")]
         public static void Prepare()
         {
+            const string materials = "Assets/Cainos/Pixel Art Top Down - Basic/Material/";
+            foreach (string name in new[] { "MT Tileset", "MT Shadow" })
+            {
+                Material material = AssetDatabase.LoadAssetAtPath<Material>(materials + name + ".mat");
+                if (material == null || material.shader == null || material.shader.name == "Hidden/InternalErrorShader")
+                    throw new InvalidOperationException("Import the Cainos tileset and shadow materials with their shaders before building the cooperative world.");
+            }
             NetworkSandboxBuild.Prepare();
             Scene destination = SceneManager.GetActiveScene();
             UnityEngine.Object.DestroyImmediate(GameObject.Find("Test Field"));
@@ -31,6 +38,9 @@ namespace PersistentWorld.Editor
             sandbox.gameObject.AddComponent<NetworkCoopValidation>();
             world.manager = sandbox.Manager; world.gameCamera = Camera.main; world.gameCamera.orthographicSize = 6;
             world.maps = new Transform[3];
+            world.mapBackgrounds = new Color[3];
+            world.mapCameraSizes = new float[3];
+            world.mapSpawns = new Vector2[3];
             foreach (GameArea area in Enum.GetValues(typeof(GameArea)))
             {
                 Scene source = EditorSceneManager.OpenScene("Assets/_Project/Scenes/" + area + ".unity", OpenSceneMode.Additive);
@@ -38,10 +48,18 @@ namespace PersistentWorld.Editor
                 world.maps[(int)area] = map.transform;
                 foreach (GameObject root in source.GetRootGameObjects())
                 {
-                    if (root.GetComponent<Camera>() != null || root.GetComponent<PrototypeHud>() != null)
+                    if (root.TryGetComponent(out Camera sourceCamera))
+                    {
+                        world.mapBackgrounds[(int)area] = sourceCamera.backgroundColor;
+                        world.mapCameraSizes[(int)area] = sourceCamera.orthographicSize;
+                        UnityEngine.Object.DestroyImmediate(root);
+                        continue;
+                    }
+                    if (root.GetComponent<PrototypeHud>() != null)
                     { UnityEngine.Object.DestroyImmediate(root); continue; }
                     if (root.GetComponent<ArcherController>() != null)
                     {
+                        world.mapSpawns[(int)area] = root.transform.position;
                         if (area == GameArea.Town)
                         {
                             root.AddComponent<NetworkActorContext>();

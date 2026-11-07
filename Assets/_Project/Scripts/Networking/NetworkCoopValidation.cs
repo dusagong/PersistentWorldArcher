@@ -187,6 +187,14 @@ namespace PersistentWorld.Networking
             float patternDeadline = Time.realtimeSinceStartup + 8;
             while (world.CurrentBoss != null && string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern) && Time.realtimeSinceStartup < patternDeadline) yield return null;
             Require(world.Parties.Members[leader].Area == GameArea.BossArena && world.CurrentBoss != null && !string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern), "actual boss AI runs for admitted party");
+            ScenePortal exit = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p =>
+                p.Destination == "Field" && NetworkGameWorld.AreaAt(p.transform.position) == GameArea.BossArena);
+            world.Teleport(leader, GameArea.BossArena, (Vector2)exit.transform.position - NetworkGameWorld.Origin(GameArea.BossArena));
+            world.UsePortal(leader, exit);
+            Require(world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Field, "boss exit follows the main scene portal to Field");
+            yield return null;
+            world.Teleport(leader, GameArea.Field, (Vector2)entrance.transform.position - NetworkGameWorld.Origin(GameArea.Field));
+            world.UsePortal(leader, entrance);
             actors[leader].Health.Invulnerable = false;
             actors[leader].Health.TryDamage(10000, Faction.Enemy);
             yield return new WaitForSeconds(.5f);
