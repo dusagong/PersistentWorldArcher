@@ -1,5 +1,6 @@
 using PersistentWorld.Combat;
 using PersistentWorld.Items;
+using PersistentWorld.Networking;
 using PersistentWorld.Player;
 using UnityEngine;
 
@@ -144,20 +145,24 @@ namespace PersistentWorld.World
                 if (player.GetComponent<Health>() is Health h && h.IsDead) continue;
                 if (Vector2.Distance(player.transform.position, transform.position) > PickupRadius) continue;
 
-                ItemSession session = ItemSession.Instance;
-                if (session == null || session.Profile == null) return;
+                NetworkActorContext context = player.GetComponent<NetworkActorContext>();
+                PlayerInventoryProfile profile = context != null
+                    ? player.GetComponent<PlayerEquipment>()?.Profile : ItemSession.Instance?.Profile;
+                if (profile == null) continue;
                 Vector3 labelPosition = transform.position + Vector3.up * .5f;
-                if (session.Profile.Inventory.AddItem(itemId, quantity))
+                if (profile.Inventory.AddItem(itemId, quantity))
                 {
+                    enabled = false;
+                    if (context != null) NetworkGameWorld.Instance?.Message(context.ClientId, $"+{displayName} x{quantity}");
                     DamageNumber.Spawn(labelPosition, $"+{displayName} x{quantity}", labelColor);
                     Destroy(gameObject);
+                    return;
                 }
                 else if (Time.time - lastFullBagMessageAt >= FullBagMessageCooldown)
                 {
                     lastFullBagMessageAt = Time.time;
                     DamageNumber.Spawn(labelPosition, "가방이 가득 찼습니다", new Color(.8f, .8f, .8f));
                 }
-                return;
             }
         }
 

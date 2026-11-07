@@ -37,7 +37,8 @@ namespace PersistentWorld.Networking
             if (!IsSpawned) return;
             if (!IsServer) transform.position = Vector2.Lerp(transform.position, Position.Value, 1 - Mathf.Exp(-18 * Time.deltaTime));
             if (!IsOwner) return;
-            bool blocked = NetworkPartyHud.Instance != null && NetworkPartyHud.Instance.BlocksInput;
+            bool blocked = PersistentWorld.UI.ItemWindows.BlocksGameplay ||
+                (NetworkPartyHud.Instance != null && NetworkPartyHud.Instance.BlocksInput);
             Vector2 aim = Vector2.right, target = Position.Value + aim;
             if (Camera.main != null) { target = Camera.main.ScreenToWorldPoint(Input.mousePosition); aim = target - Position.Value; }
             if (!blocked)
@@ -71,7 +72,13 @@ namespace PersistentWorld.Networking
         [Rpc(SendTo.Server, RequireOwnership = true)]
         public void CommandRpc(byte command, ulong target, int first, int second)
         {
-            if (command <= (byte)PartyCommand.Menu) NetworkGameWorld.Instance?.Command(OwnerClientId, (PartyCommand)command, target, first, second);
+            if (command <= (byte)PartyCommand.LearnBossSkill) NetworkGameWorld.Instance?.Command(OwnerClientId, (PartyCommand)command, target, first, second);
+        }
+        [Rpc(SendTo.Server, RequireOwnership = true)]
+        public void ItemRpc(byte command, string item, int slot)
+        {
+            if (command <= (byte)ItemCommand.Use && item != null && item.Length <= 80)
+                NetworkGameWorld.Instance?.ItemAction(OwnerClientId, (ItemCommand)command, item, slot);
         }
         private void FixedUpdate()
         {

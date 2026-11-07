@@ -2,7 +2,7 @@
 
 Unity 2D 협력 RPG의 공용 개발 기반이다. 궁수·전사·힐러를 선택해 마을, 필드 전투, 보스전을 플레이하는 로컬 프로토타입이다. 스킬 동작은 [팀 기획서](https://docs.google.com/document/d/1-IJpkKf11RCMhlBzN7e_wYJQlbsPxWvhcr-qrMAdYfc/edit)를 기준으로 한다. 최종 수치·MP 소모·정식 에셋은 후속 조정 대상이다.
 
-실제 Town·Field·BossArena 협동 플레이와 1~4인 파티의 실행 방법은 [COOPERATIVE_PLAY.md](Docs/COOPERATIVE_PLAY.md)를 참고한다. 협동 시작 씬은 `Assets/_Project/Networking/NetworkGame.unity`이며 아래 로컬 기능 중 인벤토리/제작 UI는 아직 온라인에 연결하지 않았다.
+실제 Town·Field·BossArena 협동 플레이와 1~4인 파티의 실행 방법은 [COOPERATIVE_PLAY.md](Docs/COOPERATIVE_PLAY.md)를 참고한다. 온라인 빌드의 시작 씬은 `Assets/_Project/Networking/NetworkGame.unity`다.
 
 ## 고정 환경
 
@@ -79,7 +79,7 @@ Assets/_Project/
 
 ## 다음 결정 사항
 
-협동 씬에서는 서버가 이동·전투·몬스터/보스와 파티를 계산한다. 온라인 영구 저장·인벤토리/드롭 UI 동기화·재접속 복구는 후속 작업이다. 장비 수치와 방어 공식은 프로토타입 값이다. 방어구는 기획 원문 표에 따라 재료 1만 5개로 제작하며 강화는 사용자 승인 비용을 따른다.
+협동 씬에서는 서버가 이동·전투·몬스터/보스와 파티를 계산한다. 온라인 장비·인벤토리·스킬은 서버에 저장되며 재접속하면 마을에서 진행도를 이어간다. 장비 수치와 방어 공식은 프로토타입 값이다. 방어구는 기획 원문 표에 따라 재료 1만 5개로 제작하며 강화는 사용자 승인 비용을 따른다.
 
 ## cy 인벤토리·장비 작업
 

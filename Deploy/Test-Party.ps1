@@ -37,7 +37,8 @@ try {
     }
     if (-not $ready) { throw 'Party server not ready.' }
     foreach ($role in @('Leader', 'Member', 'Outsider', 'Healer')) {
-        Start-PartyProcess $role @('-pwa-connect',$endpoint,'-pwa-code',$env:PWA_JOIN_CODE,'-pwa-name',$role,'-pwa-probe','-pwa-party-probe') | Out-Null
+        $key = [Guid]::NewGuid().ToString('N')
+        Start-PartyProcess $role @('-pwa-connect',$endpoint,'-pwa-code',$env:PWA_JOIN_CODE,'-pwa-name',$role,'-pwa-character-key',$key,'-pwa-probe','-pwa-party-probe') | Out-Null
     }
     if (-not $server.WaitForExit(100000) -or $server.ExitCode -ne 0) { throw 'Party server validation failed.' }
     if ($LinuxServer) {

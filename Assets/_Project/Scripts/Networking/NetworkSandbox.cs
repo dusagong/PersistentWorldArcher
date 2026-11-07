@@ -26,9 +26,12 @@ namespace PersistentWorld.Networking
         public string Status => status;
         private readonly Dictionary<ulong, string> names = new Dictionary<ulong, string>();
         private string displayName = "";
+        private string recoveryKey = "";
+        private string pendingCharacterKey;
+        private string pendingCharacterPreference;
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
-        public const int Protocol = 3;
-        [Serializable] private sealed class Ticket { public int protocol; public string code, name; }
+        public const int Protocol = 4;
+        [Serializable] private sealed class Ticket { public int protocol; public string code, name, characterKey; }
 
         public static string Argument(string name, string fallback = null)
         {
@@ -56,6 +59,9 @@ namespace PersistentWorld.Networking
         private void Start()
         {
             displayName = Argument("-pwa-name", "");
+            recoveryKey = Argument("-pwa-character-key", "");
+            if (NetworkGameWorld.Instance != null && !HasArgument("-pwa-server") && !Application.isBatchMode)
+                endpoint = "wss://pwa-game-server-production.up.railway.app";
             // NGO registers its message table during startup; starting in Awake is too early.
             bool server = HasArgument("-pwa-server");
 #if UNITY_SERVER && !UNITY_EDITOR
@@ -137,7 +143,10 @@ namespace PersistentWorld.Networking
                 transport.UseEncryption = uri.Scheme == "wss";
                 if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);
                 transport.SetConnectionData(address.ToString(), (ushort)uri.Port);
-                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { protocol = Protocol, code = code, name = displayName }));
+                string key = NetworkGameWorld.Instance == null ? null : CharacterKey(uri);
+                pendingCharacterKey = key;
+                pendingCharacterPreference = CharacterPreference(uri);
+                manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Ticket { protocol = Protocol, code = code, name = displayName, characterKey = key }));
                 status = "접속 중…";
                 if (!manager.StartClient()) throw new InvalidOperationException("접속을 시작할 수 없습니다.");
             }
@@ -157,6 +166,8 @@ namespace PersistentWorld.Networking
             catch (ArgumentException) { return; }
             if (ticket == null || ticket.protocol != Protocol || ticket.code != serverPassword) return;
             if (admitted.Count >= limit) { response.Reason = "서버 정원이 찼습니다."; return; }
+            if (NetworkGameWorld.Instance is NetworkGameWorld world && !world.ReserveCharacter(request.ClientNetworkId, ticket.characterKey, out string reason))
+            { response.Reason = reason; return; }
             admitted.Add(request.ClientNetworkId);
             string requestedName = (ticket.name ?? "").Trim();
             requestedName = new string(Array.FindAll(requestedName.ToCharArray(), value => !char.IsControl(value)));
@@ -167,11 +178,20 @@ namespace PersistentWorld.Networking
 
         private void Connected(ulong id)
         {
+            if (!manager.IsServer && id == manager.LocalClientId && pendingCharacterKey != null &&
+                !Application.isBatchMode && !HasArgument("-pwa-probe"))
+            {
+                PlayerPrefs.SetString(pendingCharacterPreference, pendingCharacterKey);
+                PlayerPrefs.Save();
+                recoveryKey = "";
+            }
             status = "접속 완료 · WASD 이동";
             Debug.Log("PWA_CLIENT_CONNECTED id=" + id);
         }
         private void Disconnected(ulong id)
         {
+            if (manager.IsServer && NetworkGameWorld.Instance is NetworkGameWorld world && !world.Actors.ContainsKey(id))
+                world.ReleaseCharacter(id);
             admitted.Remove(id);
             names.Remove(id);
             status = string.IsNullOrEmpty(manager.DisconnectReason) ? "연결이 종료되었습니다. 다시 접속할 수 있습니다." : manager.DisconnectReason;
@@ -189,7 +209,7 @@ namespace PersistentWorld.Networking
         {
             if (NetworkGameWorld.Instance != null && manager.IsConnectedClient) return;
             if (Application.isBatchMode || manager.IsServer) return;
-            GUILayout.BeginArea(new Rect(16, 16, 460, 215), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(16, 16, 460, 305), GUI.skin.box);
             GUILayout.Label(NetworkGameWorld.Instance != null ? "4인 협동 · 파티 플레이" : "멀티플레이 접속 테스트");
             GUILayout.Label(status);
             if (!manager.IsListening)
@@ -197,6 +217,13 @@ namespace PersistentWorld.Networking
                 endpoint = GUILayout.TextField(endpoint, 200);
                 GUILayout.Label("캐릭터 이름"); displayName = GUILayout.TextField(displayName, 16);
                 GUILayout.Label("참가 코드"); password = GUILayout.PasswordField(password, '*', 64);
+                if (NetworkGameWorld.Instance != null)
+                {
+                    GUILayout.Label("캐릭터 복구 키 · 처음 접속할 때는 비워두세요");
+                    recoveryKey = GUILayout.PasswordField(recoveryKey, '*', 32);
+                    if (GUILayout.Button("이 서버의 내 캐릭터 키 복사") && Uri.TryCreate(endpoint.Trim(), UriKind.Absolute, out Uri server))
+                        GUIUtility.systemCopyBuffer = CharacterKey(server);
+                }
                 GUI.enabled = !connecting && !manager.ShutdownInProgress;
                 if (GUILayout.Button("서버 접속")) Connect(endpoint.Trim(), password);
                 GUI.enabled = true;
@@ -204,5 +231,21 @@ namespace PersistentWorld.Networking
             else if (GUILayout.Button("접속 종료")) manager.Shutdown();
             GUILayout.EndArea();
         }
+
+        private string CharacterKey(Uri server)
+        {
+            if (recoveryKey.Length != 0) return recoveryKey.Trim();
+            if (Application.isBatchMode || HasArgument("-pwa-probe")) return Guid.NewGuid().ToString("N");
+            string preference = CharacterPreference(server);
+            string key = PlayerPrefs.GetString(preference, "");
+            if (Guid.TryParseExact(key, "N", out Guid existing) && existing != Guid.Empty) return key;
+            key = Guid.NewGuid().ToString("N");
+            PlayerPrefs.SetString(preference, key);
+            PlayerPrefs.Save();
+            return key;
+        }
+
+        private static string CharacterPreference(Uri server) =>
+            "pwa-character-" + NetworkGameWorld.HashKey(server.GetLeftPart(UriPartial.Authority));
     }
 }

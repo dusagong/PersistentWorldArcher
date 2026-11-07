@@ -16,7 +16,7 @@ using UnityEngine;
 namespace PersistentWorld.Networking
 {
     [DefaultExecutionOrder(-200)]
-    public sealed class NetworkGameWorld : MonoBehaviour
+    public sealed partial class NetworkGameWorld : MonoBehaviour
     {
         public static NetworkGameWorld Instance { get; private set; }
         public NetworkManager manager;
@@ -59,6 +59,7 @@ namespace PersistentWorld.Networking
             server = true;
 #endif
             gameCamera.enabled = !server;
+            PrepareProgress(server);
             foreach (Transform map in maps)
             {
                 foreach (SpriteRenderer sprite in map.GetComponentsInChildren<SpriteRenderer>(true))
@@ -84,8 +85,12 @@ namespace PersistentWorld.Networking
         }
         private void ServerStarted()
         {
+            CurrentBoss.GetComponent<Health>().Died += AwardBoss;
             foreach (ServerWorldEntity entity in FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None))
+            {
+                if (entity.area == GameArea.Field) PrepareFieldEnemy(entity);
                 if (entity.area != GameArea.BossArena) entity.SetSimulation(true);
+            }
         }
         private void ClientConnected(ulong id)
         {
@@ -105,7 +110,7 @@ namespace PersistentWorld.Networking
             NetworkActorContext context = actor.GetComponent<NetworkActorContext>();
             context.ClientId = pawn.OwnerClientId; context.Area = GameArea.Town;
             actor.AcceptLocalInput = false; actor.name = "Player " + pawn.OwnerClientId;
-            actor.GetComponent<PlayerEquipment>().Bind(PlayerInventoryProfile.CreateNew());
+            BindCharacter(pawn.OwnerClientId, actor);
             actor.transform.position = TownSpawn(pawn.OwnerClientId);
             ActorShadow.Attach(actor.transform, .62f, 0);
             Actors[pawn.OwnerClientId] = actor;
@@ -117,6 +122,7 @@ namespace PersistentWorld.Networking
             Parties.Remove(id);
             if (Actors.TryGetValue(id, out ArcherController actor)) Destroy(actor.gameObject);
             Actors.Remove(id); messages.Remove(id); messageTimes.Remove(id);
+            ReleaseCharacter(id);
         }
         public Transform NearestLivingPlayer(Vector2 position)
         {
@@ -163,9 +169,12 @@ namespace PersistentWorld.Networking
                     break;
                 case PartyCommand.ChangeClass:
                     if (!actor.Loadout.CanChangeSkills || actor.Health.IsDead || !Enum.IsDefined(typeof(CharacterClass), first)) { reason = "마을에서만 직업을 바꿀 수 있습니다."; break; }
-                    actor.Loadout.SelectClass((CharacterClass)first);
-                    actor.GetComponent<PlayerEquipment>().Bind(PlayerInventoryProfile.CreateNew(ItemSession.ToItemClass((CharacterClass)first)));
+                    ChangeOnlineClass(id, actor, (CharacterClass)first);
                     reason = "직업을 변경했습니다."; break;
+                case PartyCommand.LearnBossSkill:
+                    if (!actor.Health.IsDead && actor.Loadout.CanChangeSkills && actor.Loadout.UseBossSkillBook())
+                        reason = "보스 스킬을 배웠습니다.";
+                    break;
                 case PartyCommand.Menu: actor.SetMenuOpen(first != 0); break;
             }
             if (!string.IsNullOrEmpty(reason)) Message(id, reason);
@@ -175,6 +184,13 @@ namespace PersistentWorld.Networking
         private void Interact(ulong id)
         {
             ArcherController actor = Actors[id];
+            if (actor.Health.IsDead) return;
+            if (NearSmith(id, actor, 1.3f))
+            {
+                smithRequests.TryGetValue(id, out int request);
+                smithRequests[id] = request + 1;
+                return;
+            }
             ScenePortal portal = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None)
                 .Where(p => Vector2.Distance(p.transform.position, actor.transform.position) <= 1.3f).OrderBy(p => Vector2.Distance(p.transform.position, actor.transform.position)).FirstOrDefault();
             if (portal != null) { UsePortal(id, portal); return; }
@@ -229,8 +245,21 @@ namespace PersistentWorld.Networking
         }
         private void Update()
         {
-            if (!manager.IsListening) { Frame = null; viewedArea = -1; view?.Clear(); return; }
+            if (!manager.IsListening)
+            {
+                Frame = null;
+                viewedArea = -1;
+                view?.Clear();
+                ApplyInventory(null);
+                clientSmithRequest = 0;
+                return;
+            }
             if (!manager.IsServer) return;
+            if (Time.unscaledTime >= nextSave)
+            {
+                nextSave = Time.unscaledTime + 1;
+                SaveProgress();
+            }
             SyncMembers(); Parties.Expire(Time.unscaledTime);
             if (Parties.BossParty != 0)
             {
@@ -253,6 +282,8 @@ namespace PersistentWorld.Networking
                 frame.inviteRemaining = 0;
                 frame.inviter = ulong.MaxValue;
                 frame.inviterName = null;
+                frame.inventory = characters[recipient].Encode(Actors[recipient].Loadout.Class);
+                smithRequests.TryGetValue(recipient, out frame.smithRequest);
                 if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
                 {
                     frame.inviter = invitation.From;
@@ -275,6 +306,7 @@ namespace PersistentWorld.Networking
                     !maps.Any(m => m.gameObject == root)) Destroy(root);
             boss = Instantiate(bossPrefab, maps[(int)GameArea.BossArena]).GetComponent<ServerWorldEntity>();
             boss.SetSimulation(false); CurrentBoss = boss.GetComponent<BossController>();
+            CurrentBoss.GetComponent<Health>().Died += AwardBoss;
         }
         private GameFrame Capture(GameArea area, SpriteRenderer[] renderers, LineRenderer[] lineRenderers)
         {
@@ -311,7 +343,8 @@ namespace PersistentWorld.Networking
                     character = (int)actor.Loadout.Class, slots = actor.Loadout.Slots.Select(s => (int)s).ToArray(),
                     cooldowns = actor.Loadout.Slots.Select(s => actor.Skills.Cooldown(s)).ToArray(), charge = actor.Skills.Charge,
                     held = (int)actor.Skills.HoldingSkill, special = actor.Skills.SpecialRemaining,
-                    position = actor.transform.position, leader = Parties.Leader(member.Party) == pair.Key };
+                    position = actor.transform.position, leader = Parties.Leader(member.Party) == pair.Key,
+                    bossLearned = actor.Loadout.BossLearned, books = actor.Loadout.BossSkillBooks };
             }).ToArray();
             GameFrame frame = new GameFrame { players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
                 bossHp = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Current : 0, bossMax = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Maximum : 0,
@@ -331,6 +364,12 @@ namespace PersistentWorld.Networking
                 Frame = JsonUtility.FromJson<GameFrame>(Decompress(data));
                 PlayerFrame local = Local;
                 if (local == null) return;
+                ApplyInventory(Frame.inventory);
+                if (Frame.smithRequest != clientSmithRequest)
+                {
+                    clientSmithRequest = Frame.smithRequest;
+                    if (clientSmithRequest != 0 && CanUseSmith) GetComponent<PersistentWorld.UI.BlacksmithWindow>()?.OpenOnline();
+                }
                 if (viewedArea != local.area)
                 {
                     viewedArea = local.area;

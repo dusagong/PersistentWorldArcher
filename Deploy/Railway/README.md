@@ -77,7 +77,7 @@ GitHub에 소스만 푸시하는 것으로 자동 Unity 빌드가 되지 않는�
 
 Unity 메뉴 `Tools > Persistent World > Multiplayer > Build Cooperative Windows Client`로 빌드한다.
 `Builds/CooperativeWindows/PwaCoop.exe` 실행 → 서버 주소 `wss://생성된도메인` → 참가 코드 → 접속.
-WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 서버/클라이언트 모두 프로토콜 3 협동 빌드를 사용한다.
+WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 서버/클라이언트 모두 프로토콜 4 온라인 빌드를 사용한다.
 
 ## 검증
 
@@ -94,6 +94,6 @@ Windows 두 프로세스 접속 통과는 실제 두 PC/인터넷/지연 환경 
 
 ## 다음 연결 작업
 
-계정별 영구 저장, 온라인 장비·인벤토리·드롭 UI, 접속 해제/재접속 복구를 연결한다.
+캐릭터별 저장은 Railway 볼륨의 `/data/characters-v1`에 기록된다. 재배포할 때 기존 볼륨을 연결한다.
 
 협동 서버는 시각 상태 전송에 Renderer 메타데이터를 사용하므로 추가 Dedicated Server Optimizations를 끄고 빌드한다. 클라이언트 화면을 서버에서 렌더링하지 않는다.

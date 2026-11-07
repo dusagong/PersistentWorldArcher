@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using System.IO;
 using PersistentWorld.Combat;
+using PersistentWorld.Items;
 using PersistentWorld.Player;
 using PersistentWorld.World;
 using UnityEngine;
@@ -18,6 +19,9 @@ namespace PersistentWorld.Networking
         private float deadline;
         private int checks;
         private bool captured, capturedInvite, capturedHp, capturedDeath;
+        private bool reconnecting;
+        private static string TestArmor => EquipmentCrafting.All.First(recipe =>
+            ItemCatalog.TryGet(recipe.ResultId, out ItemDefinition item) && item.CanEquip(PlayerClass.Archer)).ResultId;
         private void Start() { world = GetComponent<NetworkGameWorld>(); deadline = Time.realtimeSinceStartup + 90; }
         private void Update()
         {
@@ -30,8 +34,15 @@ namespace PersistentWorld.Networking
             }
             if (!NetworkSandbox.HasArgument("-pwa-party-probe")) return;
             if (Time.realtimeSinceStartup > deadline) { Fail("client validation timeout"); return; }
+            if (reconnecting && !world.manager.IsListening && !world.manager.ShutdownInProgress)
+            {
+                reconnecting = false;
+                GetComponent<NetworkSandbox>().Connect(NetworkSandbox.Argument("-pwa-connect"), NetworkSandbox.Argument("-pwa-code"));
+                return;
+            }
             GameFrame frame = world.Frame;
             if (frame == null || world.Local == null || frame.validationStage == lastStage) return;
+            if (frame.players.Length < 4) return;
             lastStage = frame.validationStage;
             string role = NetworkSandbox.Argument("-pwa-name");
             ulong member = frame.players.First(p => p.name == "Member").id;
@@ -40,6 +51,12 @@ namespace PersistentWorld.Networking
             void Send(PartyCommand cmd, ulong target = 0, int first = 0, int second = 0) => NetworkSandboxPlayer.LocalPlayer.CommandRpc((byte)cmd, target, first, second);
             switch (lastStage)
             {
+                case 27: if (role == "Member") NetworkSandboxPlayer.LocalPlayer.ItemRpc((byte)ItemCommand.Craft, TestArmor, 0); break;
+                case 28: if (role == "Member") NetworkSandboxPlayer.LocalPlayer.ItemRpc((byte)ItemCommand.Equip, TestArmor, 0); break;
+                case 30: if (role == "Member") NetworkSandboxPlayer.LocalPlayer.ItemRpc((byte)ItemCommand.Upgrade, "", 0); break;
+                case 29:
+                    if (role == "Member") { reconnecting = true; world.manager.Shutdown(); }
+                    break;
                 case 1: if (role == "Leader") Send(PartyCommand.Invite, member); break;
                 case 2: if (role == "Member") Send(PartyCommand.Decline); break;
                 case 3: if (role == "Leader") Send(PartyCommand.Invite, member); break;
@@ -77,7 +94,14 @@ namespace PersistentWorld.Networking
                             if (!frame.sprites.Any(s => s.texture >= 0 && world.assets.textures[s.texture].name == texture)) Fail("death sprite replication " + texture);
                     Debug.Log("PWA_PARTY_DEATH_REPLICATION_OK");
                     break;
-                case 25: Debug.Log("PWA_PARTY_CLIENT_OK " + role); Application.Quit(0); break;
+                case 25:
+                    if (role == "Member")
+                    {
+                        PlayerInventoryProfile inventory = world.ClientInventory;
+                        if (inventory == null || inventory.WeaponUpgradeLevel != 1 || !inventory.OwnsEquipment(TestArmor))
+                        { Fail("restored inventory reaches the client"); return; }
+                    }
+                    Debug.Log("PWA_PARTY_CLIENT_OK " + role); Application.Quit(0); break;
             }
         }
         private void LateUpdate()
@@ -135,6 +159,16 @@ namespace PersistentWorld.Networking
             yield return Step(10, () => world.Parties.Members[healer].Party == 0);
             yield return Step(11, () => world.Parties.Members[outsider].Party != 0);
             yield return Step(12, () => actors[member].Loadout.Slots[0] == SkillId.Snipe && actors[healer].Loadout.Class == CharacterClass.Healer && actors[leader].Loadout.Class == CharacterClass.Warrior);
+            ServerWorldEntity lootEnemy = FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).First(e =>
+                e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null);
+            MonsterDropTable lootTable = lootEnemy.GetComponent<MonsterDropTable>();
+            lootTable.Configure(new[] { new DropEntry(ItemCatalog.MaterialTwo, 5, 1) });
+            lootTable.enabled = true;
+            Vector2 lootPosition = lootEnemy.transform.position;
+            Require(lootEnemy.GetComponent<Health>().TryDamage(100000, Faction.Player), "field enemy killed");
+            Require(FindObjectsByType<DroppedItem>(FindObjectsSortMode.None).Any(item =>
+                item.ItemId == ItemCatalog.MaterialTwo && item.Quantity == 5 && Vector2.Distance(item.transform.position, lootPosition) < 1),
+                "field death drops items through its server drop table");
             ScenePortal entrance = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p => p.Destination == "BossArena");
             foreach (ulong id in actors.Keys.ToArray()) world.Teleport(id, GameArea.Field, (Vector2)entrance.transform.position - NetworkGameWorld.Origin(GameArea.Field) + Vector2.left * .3f);
             yield return Step(13, () => world.Parties.Members[healer].Area == GameArea.Field && world.Parties.Members[healer].Party == 0 && MessageContains(healer, "파티"));
@@ -187,6 +221,8 @@ namespace PersistentWorld.Networking
             float patternDeadline = Time.realtimeSinceStartup + 8;
             while (world.CurrentBoss != null && string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern) && Time.realtimeSinceStartup < patternDeadline) yield return null;
             Require(world.Parties.Members[leader].Area == GameArea.BossArena && world.CurrentBoss != null && !string.IsNullOrEmpty(world.CurrentBoss.CurrentPattern), "actual boss AI runs for admitted party");
+            Health bossHealth = world.CurrentBoss.GetComponent<Health>();
+            Require(bossHealth.TryDamage(100000, Faction.Player) && bossHealth.IsDead && warrior.Loadout.BossSkillBooks == 1, "boss reward granted to admitted player");
             ScenePortal exit = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p =>
                 p.Destination == "Field" && NetworkGameWorld.AreaAt(p.transform.position) == GameArea.BossArena);
             world.Teleport(leader, GameArea.BossArena, (Vector2)exit.transform.position - NetworkGameWorld.Origin(GameArea.BossArena));
@@ -199,6 +235,28 @@ namespace PersistentWorld.Networking
             actors[leader].Health.TryDamage(10000, Faction.Enemy);
             yield return new WaitForSeconds(.5f);
             Require(world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.IsDead, "solo party wipe releases boss room and returns to town");
+            Require(FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).Any(e =>
+                e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null &&
+                !e.GetComponent<Health>().IsDead && Vector2.Distance(e.transform.position, lootPosition) < 1.5f),
+                "field enemy respawns at its spawn point");
+            world.Teleport(member, GameArea.Field, Vector2.left * 5);
+            Vector2 drop = actors[member].transform.position;
+            PlayerInventoryProfile profile = actors[member].GetComponent<PlayerEquipment>().Profile;
+            DroppedItem.Spawn(drop, ItemCatalog.MaterialOne, 10, drop);
+            DroppedItem.Spawn(drop, ItemCatalog.MaterialTwo, 5, drop);
+            yield return new WaitForSeconds(.85f);
+            Require(profile.Inventory.GetCount(ItemCatalog.MaterialOne) == 10 && profile.Inventory.GetCount(ItemCatalog.MaterialTwo) == 5, "field drops collected exactly once into owning inventory");
+            world.Teleport(member, GameArea.Town, new Vector2(-1.5f, -1.5f));
+            yield return Step(27, () => profile.Inventory.HasItem(TestArmor, 1));
+            ItemCatalog.TryGet(TestArmor, out ItemDefinition crafted);
+            yield return Step(28, () => profile.GetEquipped(crafted.Slot) == TestArmor);
+            yield return Step(30, () => profile.WeaponUpgradeLevel == 1);
+            yield return Step(29, () => world.Parties.Members.Values.Any(p => p.Id != member && p.Name == "Member"));
+            ArcherController returned = actors[Id("Member")];
+            PlayerInventoryProfile restored = returned.GetComponent<PlayerEquipment>().Profile;
+            Require(restored.GetEquipped(crafted.Slot) == TestArmor && restored.WeaponUpgradeLevel == 1 &&
+                restored.Inventory.GetCount(ItemCatalog.MaterialOne) == 0 && restored.Inventory.GetCount(ItemCatalog.MaterialTwo) == 0 &&
+                returned.Loadout.Slots[0] == SkillId.Snipe, "reconnect restores crafted gear, upgrade, spent materials and skill");
             world.ValidationStage = 25;
             float until = Time.realtimeSinceStartup + 8;
             while (actors.Count != 0 && Time.realtimeSinceStartup < until) yield return null;

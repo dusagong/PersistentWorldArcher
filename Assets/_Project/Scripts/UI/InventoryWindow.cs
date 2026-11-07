@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using PersistentWorld.Combat;
 using PersistentWorld.Items;
+using PersistentWorld.Networking;
 using PersistentWorld.Player;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -19,6 +20,8 @@ namespace PersistentWorld.UI
         private readonly Dictionary<EquipmentSlot, Button> equipmentButtons = new Dictionary<EquipmentSlot, Button>();
         private readonly Dictionary<string, Sprite> icons = new Dictionary<string, Sprite>();
         private ItemSession session;
+        private NetworkGameWorld network;
+        private PlayerInventoryProfile Profile => network != null ? network.ClientInventory : session?.Profile;
         private PanelSettings settings;
         private UIDocument document;
         private Font font;
@@ -43,8 +46,9 @@ namespace PersistentWorld.UI
         private IEnumerator InitializeWhenReady()
         {
             session = GetComponent<ItemSession>();
-            while (session != null && session.Profile == null) yield return null;
-            if (session != null) Initialize();
+            network = GetComponent<NetworkGameWorld>();
+            while (session != null && Profile == null) yield return null;
+            if (session != null || network != null) Initialize();
         }
 
         private void Initialize()
@@ -108,15 +112,16 @@ namespace PersistentWorld.UI
                 screen.Q("category-tabs").Add(button);
                 tabs.Add(button);
             }
-            session.ProfileChanged += BindProfile;
+            if (session != null) session.ProfileChanged += BindProfile;
+            if (network != null) network.ClientInventoryChanged += BindProfile;
             BindProfile();
         }
 
         private void BindProfile()
         {
             if (observedProfile != null) observedProfile.Changed -= MarkDirty;
-            observedProfile = session.Profile;
-            observedProfile.Changed += MarkDirty;
+            observedProfile = Profile;
+            if (observedProfile != null) observedProfile.Changed += MarkDirty;
             dirty = true;
         }
 
@@ -129,7 +134,9 @@ namespace PersistentWorld.UI
             if (visible)
             {
                 var health = actor != null ? actor.GetComponent<Health>() : null;
-                if (health == null || health.IsDead || Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+                bool alive = network != null ? network.Local?.hp > 0 : health != null && !health.IsDead;
+                if (!alive || Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+                if (network != null) message.text = network.Frame.message;
                 if (dirty) Refresh();
                 return;
             }
@@ -142,6 +149,17 @@ namespace PersistentWorld.UI
             if (controller == null || controller.Health.IsDead) return;
             controller.SetMenuOpen(false);
             controller.Skills.Cancel();
+            Show(player);
+        }
+
+        public void OpenOnline()
+        {
+            if (screen == null || Profile == null || network.Local?.hp <= 0) return;
+            Show(null);
+        }
+
+        private void Show(GameObject player)
+        {
             GetComponent<BlacksmithWindow>()?.Close();
             actor = player;
             visible = true;
@@ -152,8 +170,8 @@ namespace PersistentWorld.UI
             screen.RemoveFromClassList("hidden");
             menu.AddToClassList("hidden");
             panel.RemoveFromClassList("hidden");
-            screen.Q<Label>("class-label").text = ClassName(session.Profile.Class) + " · 장착 장비";
-            preview.sprite = Resources.Load<Sprite>("Characters/" + player.GetComponent<ArcherController>().Loadout.Class + "InventoryIdle");
+            screen.Q<Label>("class-label").text = ClassName(Profile.Class) + " · 장착 장비";
+            preview.sprite = Resources.Load<Sprite>("Characters/" + ItemSession.ToCharacterClass(Profile.Class) + "InventoryIdle");
             message.text = "아이템을 선택하면 아래에서 정보를 확인할 수 있습니다.";
             Refresh();
         }
@@ -179,7 +197,7 @@ namespace PersistentWorld.UI
         private void SelectEquipped(EquipmentSlot slot)
         {
             selectedSlot = slot;
-            selectedId = session.Profile.GetEquipped(slot);
+            selectedId = Profile.GetEquipped(slot);
             Refresh();
         }
 
@@ -193,7 +211,7 @@ namespace PersistentWorld.UI
         private void Refresh()
         {
             dirty = false;
-            var profile = session.Profile;
+            var profile = Profile;
             var inventory = profile.Inventory;
             bool showingQuests = category == ItemCategory.Quest;
             bagScroll.EnableInClassList("hidden", showingQuests);
@@ -288,22 +306,28 @@ namespace PersistentWorld.UI
                 return;
             }
             bool equipped = selectedSlot != EquipmentSlot.None;
-            title.text = session.Profile.DisplayName(item) + (equipped ? " · 장착 중" : "");
+            title.text = Profile.DisplayName(item) + (equipped ? " · 장착 중" : "");
             if (!item.IsEquipment)
             {
-                description.text = Categories[(int)item.Category] + $" · 총 보유 {session.Profile.Inventory.GetCount(item.Id)}개";
+                description.text = Categories[(int)item.Category] + $" · 총 보유 {Profile.Inventory.GetCount(item.Id)}개";
+                if (network != null && (item.Id == PersistentWorld.World.MonsterDropTable.HealthPotion || item.Id == PersistentWorld.World.MonsterDropTable.ManaPotion))
+                {
+                    action.text = "사용";
+                    action.SetEnabled(true);
+                    action.RemoveFromClassList("hidden");
+                }
                 return;
             }
             string stats = "";
-            if (item.Attack != 0) stats += $"공격력 +{item.Attack + session.Profile.GetUpgradeLevel(item.Id)}  ";
+            if (item.Attack != 0) stats += $"공격력 +{item.Attack + Profile.GetUpgradeLevel(item.Id)}  ";
             if (item.Defense != 0) stats += $"방어력 +{item.Defense}  ";
             if (item.MoveSpeed != 0) stats += $"이동속도 +{item.MoveSpeed:0.0}";
-            bool allowed = item.CanEquip(session.Profile.Class);
+            bool allowed = item.CanEquip(Profile.Class);
             description.text = SlotName(item.Slot) + " · " + (item.RequiredClass.HasValue ? ClassName(item.RequiredClass.Value) + " 전용" : "전 직업 공용") +
                 "\n" + stats + (allowed ? "" : "\n현재 직업으로 장착할 수 없습니다.");
             action.text = equipped ? "해제" : "장착";
             action.RemoveFromClassList("hidden");
-            bool sameEquipped = !equipped && session.Profile.GetEquipped(item.Slot) == item.Id;
+            bool sameEquipped = !equipped && Profile.GetEquipped(item.Slot) == item.Id;
             action.SetEnabled(allowed && !sameEquipped);
             if (sameEquipped) description.text += "\n같은 장비를 이미 장착하고 있습니다.";
         }
@@ -312,8 +336,15 @@ namespace PersistentWorld.UI
         {
             if (selectedId == null) return;
             bool removing = selectedSlot != EquipmentSlot.None;
+            if (network != null)
+            {
+                ItemCommand command = removing ? ItemCommand.Unequip : ItemCatalog.TryGet(selectedId, out var selected) && selected.IsEquipment
+                    ? ItemCommand.Equip : ItemCommand.Use;
+                NetworkSandboxPlayer.LocalPlayer?.ItemRpc((byte)command, selectedId, (int)selectedSlot);
+                return;
+            }
             string reason;
-            bool success = removing ? session.Profile.TryUnequip(selectedSlot, out reason) : session.Profile.TryEquip(selectedId, out reason);
+            bool success = removing ? Profile.TryUnequip(selectedSlot, out reason) : Profile.TryEquip(selectedId, out reason);
             if (success && !removing && ItemCatalog.TryGet(selectedId, out ItemDefinition item)) selectedSlot = item.Slot;
             message.text = success ? (removing ? "장비를 해제했습니다." : "장비를 장착했습니다.") : reason;
             Refresh();
@@ -340,6 +371,7 @@ namespace PersistentWorld.UI
             Close();
             if (observedProfile != null) observedProfile.Changed -= MarkDirty;
             if (session != null) session.ProfileChanged -= BindProfile;
+            if (network != null) network.ClientInventoryChanged -= BindProfile;
             observedProfile = null;
             if (active == this) active = null;
             if (document != null) Destroy(document.gameObject);

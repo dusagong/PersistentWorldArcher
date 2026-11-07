@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using PersistentWorld.Player;
+using PersistentWorld.UI;
 using UnityEngine;
 
 namespace PersistentWorld.Networking
@@ -36,6 +37,7 @@ namespace PersistentWorld.Networking
         {
             PlayerFrame me = world.Local;
             if (me == null) return;
+            if (ItemWindows.BlocksGameplay) return;
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 menu = !menu;
@@ -116,6 +118,8 @@ namespace PersistentWorld.Networking
             if (me.area == (int)GameArea.BossArena) GUI.Box(new Rect(Screen.width / 2f - 180, 70, 360, 35), "보스 HP " + world.Frame.bossHp + "/" + world.Frame.bossMax);
             if (me.area == (int)GameArea.BossArena && !string.IsNullOrEmpty(world.Frame.bossNotice)) GUI.Box(new Rect(Screen.width / 2f - 240, 110, 480, 70), world.Frame.bossNotice);
             if (me.hp == 0) GUI.Box(new Rect(Screen.width / 2f - 200, Screen.height / 2f - 35, 400, 70), "사망\n" + (me.area == (int)GameArea.BossArena ? "보스전 종료 또는 힐러 부활까지 대기" : "10초 후 마을 귀환"));
+            if (!menu && !ItemWindows.BlocksGameplay && world.CanUseSmith)
+                GUI.Label(new Rect(Screen.width / 2f - 85, Screen.height - 55, 170, 30), "F · 대장장이");
             if (menu) DrawMenu(me);
         }
         private void DrawMenu(PlayerFrame me)
@@ -123,6 +127,12 @@ namespace PersistentWorld.Networking
             GUILayout.BeginArea(MenuRect, GUI.skin.box);
             if (page == MenuPage.Main)
             {
+                if (GUILayout.Button("장비 · 인벤토리") && me.hp > 0 && world.ClientInventory != null)
+                {
+                    menu = false;
+                    Send(PartyCommand.Menu);
+                    GetComponent<InventoryWindow>()?.OpenOnline();
+                }
                 if (GUILayout.Button("스킬")) { page = MenuPage.Skills; scroll = Vector2.zero; }
                 if (GUILayout.Button("직업 선택")) { page = MenuPage.Class; scroll = Vector2.zero; }
                 if (GUILayout.Button("닫기")) { menu = false; Send(PartyCommand.Menu); }
@@ -146,6 +156,8 @@ namespace PersistentWorld.Networking
         }
         private void DrawSkills(PlayerFrame me)
         {
+            if (!me.bossLearned && me.books > 0 && GUILayout.Button("보스 스킬 북 사용")) Send(PartyCommand.LearnBossSkill);
+            if (me.bossLearned && GUILayout.Button("Shift · 보스 스킬 장착")) Send(PartyCommand.Equip, first: 2, second: (int)SkillId.BossBlast);
             for (int i = 0; i < me.slots.Length; i++)
                 if (GUILayout.Button((i == 0 ? "Q " : i == 1 ? "E " : "Shift ") + SkillCatalog.Name((SkillId)me.slots[i]) + " 해제")) Send(PartyCommand.Equip, first: i, second: 0);
             foreach (SkillId skill in SkillCatalog.ForClass((CharacterClass)me.character))

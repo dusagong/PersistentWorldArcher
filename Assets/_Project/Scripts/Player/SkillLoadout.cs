@@ -47,6 +47,38 @@ namespace PersistentWorld.Player
     [DisallowMultipleComponent]
     public sealed class SkillLoadout : MonoBehaviour
     {
+        [Serializable] internal sealed class ClassSlots { public SkillId[] values; }
+        [Serializable] internal sealed class OnlineState
+        {
+            public CharacterClass selected;
+            public ClassSlots[] classes;
+            public bool bossLearned;
+            public int books;
+        }
+
+        internal OnlineState ExportOnline()
+        {
+            var state = new OnlineState { selected = Class, classes = new ClassSlots[3], bossLearned = personalBossLearned, books = personalBooks };
+            for (int i = 0; i < state.classes.Length; i++)
+                state.classes[i] = new ClassSlots { values = personalSlots[i] };
+            return state;
+        }
+
+        internal void ImportOnline(OnlineState state)
+        {
+            personalBossLearned = state.bossLearned;
+            personalBooks = Mathf.Max(0, state.books);
+            for (int i = 0; i < personalSlots.Length; i++)
+            {
+                var values = state.classes != null && i < state.classes.Length ? state.classes[i]?.values : null;
+                if (values == null || values.Length != 3) continue;
+                SelectClass((CharacterClass)i);
+                for (int slot = 0; slot < 3; slot++) Equip(slot, SkillId.None);
+                for (int slot = 0; slot < 3; slot++) Equip(slot, values[slot]);
+            }
+            SelectClass(state.selected);
+        }
+
         // Session state survives scene transitions; cooldowns live on PlayerSkills.
         private static CharacterClass selectedClass;
         private static readonly SkillId[][] Saved = new SkillId[3][];

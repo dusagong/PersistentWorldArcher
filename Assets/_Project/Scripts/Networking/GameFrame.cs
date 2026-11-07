@@ -3,12 +3,14 @@ using UnityEngine;
 
 namespace PersistentWorld.Networking
 {
-    public enum PartyCommand : byte { Create, Invite, Accept, Decline, Leave, Interact, Equip, ChangeClass, Menu }
+    public enum PartyCommand : byte { Create, Invite, Accept, Decline, Leave, Interact, Equip, ChangeClass, Menu, LearnBossSkill }
     [Serializable] public sealed class PlayerFrame
     {
         public ulong id; public string name; public int party, area, hp, maximum, character;
         public float mp, charge, special; public int held; public int[] slots; public float[] cooldowns;
         public Vector2 position; public bool leader;
+        public bool bossLearned;
+        public int books;
     }
     [Serializable] public sealed class SpriteFrame
     {
@@ -27,5 +29,7 @@ namespace PersistentWorld.Networking
         public bool bossPhaseTwo;
         public string bossNotice;
         public int validationStage;
+        public string inventory;
+        public int smithRequest;
     }
 }

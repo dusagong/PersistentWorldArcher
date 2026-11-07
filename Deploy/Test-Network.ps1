@@ -19,7 +19,7 @@ try {
     if ([string]::IsNullOrEmpty($Endpoint)) {
         $env:PWA_JOIN_CODE = [Guid]::NewGuid().ToString('N')
         $env:PWA_MAX_PLAYERS = '2'
-        $server = Start-Probe 'server' @('-pwa-server')
+        $server = Start-Probe 'server' @('-pwa-server','-pwa-network-validation')
         $Endpoint = 'ws://127.0.0.1:7777'
         $deadline = (Get-Date).AddSeconds(30)
         $healthy = $false
