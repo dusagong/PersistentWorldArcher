@@ -59,6 +59,7 @@ namespace PersistentWorld.Networking
         private Transform fieldTemplates;
         public PlayerInventoryProfile ClientInventory { get; private set; }
         public event Action ClientInventoryChanged;
+        internal Vector2 BlacksmithPosition => onlineBlacksmith.transform.position;
         public bool CanUseSmith => Local is PlayerFrame local && local.hp > 0 && local.area == (int)GameArea.Town &&
             Vector2.Distance(local.position, onlineBlacksmith.transform.position) <= 2.5f;
 
@@ -70,10 +71,16 @@ namespace PersistentWorld.Networking
 
         private void PrepareProgress(bool server)
         {
-            onlineBlacksmith = new GameObject("Blacksmith");
-            onlineBlacksmith.transform.SetParent(maps[(int)GameArea.Town], false);
-            onlineBlacksmith.transform.position = new Vector3(-1.5f, -1.5f, 0);
-            onlineBlacksmith.AddComponent<PlaceholderVisual>().Configure(new Color(.7f, .45f, .25f), new Vector2(.8f, 1.1f));
+            Transform town = maps[(int)GameArea.Town];
+            BlacksmithNpc smith = town.GetComponentInChildren<BlacksmithNpc>(true);
+            if (smith != null) onlineBlacksmith = smith.gameObject;
+            else
+            {
+                onlineBlacksmith = new GameObject("Blacksmith");
+                onlineBlacksmith.transform.SetParent(town, false);
+                onlineBlacksmith.transform.position = new Vector3(-1.5f, -1.5f, 0);
+                onlineBlacksmith.AddComponent<PlaceholderVisual>().Configure(new Color(.7f, .45f, .25f), new Vector2(.8f, 1.1f));
+            }
             if (server)
             {
                 string root = Environment.GetEnvironmentVariable("PWA_DATA_DIR");

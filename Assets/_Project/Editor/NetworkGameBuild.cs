@@ -57,6 +57,9 @@ namespace PersistentWorld.Editor
                     }
                     if (root.GetComponent<PrototypeHud>() != null)
                     { UnityEngine.Object.DestroyImmediate(root); continue; }
+                    // The cooperative server already manages field enemy respawns.
+                    foreach (MonsterRespawner respawner in root.GetComponentsInChildren<MonsterRespawner>(true))
+                        UnityEngine.Object.DestroyImmediate(respawner);
                     if (root.GetComponent<ArcherController>() != null)
                     {
                         world.mapSpawns[(int)area] = root.transform.position;
@@ -100,7 +103,7 @@ namespace PersistentWorld.Editor
             Debug.Log("PWA_COOPERATIVE_WORLD_READY textures=" + registry.textures.Length);
         }
         [MenuItem("Tools/Persistent World/Multiplayer/Build Cooperative Windows Client")]
-        public static void BuildWindows() { Prepare(); Build(BuildTarget.StandaloneWindows64, StandaloneBuildSubtarget.Player, "Builds/CooperativeWindows/PwaCoop.exe"); }
+        public static void BuildWindows() { Prepare(); Build(BuildTarget.StandaloneWindows64, StandaloneBuildSubtarget.Player, Environment.GetEnvironmentVariable("PWA_WINDOWS_BUILD_PATH") ?? "Builds/CooperativeWindows/PwaCoop.exe"); }
         [MenuItem("Tools/Persistent World/Multiplayer/Build Cooperative Linux Server")]
         public static void BuildLinux()
         {
@@ -110,7 +113,7 @@ namespace PersistentWorld.Editor
             {
                 // Renderer metadata is used for visual snapshots, although the server never draws.
                 PlayerSettings.dedicatedServerOptimizations = false;
-                Build(BuildTarget.StandaloneLinux64, StandaloneBuildSubtarget.Server, "Builds/Railway/Server/PwaServer");
+                Build(BuildTarget.StandaloneLinux64, StandaloneBuildSubtarget.Server, Environment.GetEnvironmentVariable("PWA_LINUX_BUILD_PATH") ?? "Builds/Railway/Server/PwaServer");
             }
             finally { PlayerSettings.dedicatedServerOptimizations = optimizations; }
         }

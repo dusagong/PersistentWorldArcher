@@ -382,7 +382,10 @@ namespace Unity.Networking.Transport
                             var connectionData = ConnectionMap[connectionId];
                             if (connectionData.WebSocketState == WebSocket.State.Open)
                             {
-                                if (Settings.HeartbeatTimeoutMS > 0 && !connectionData.IsWaitingForPong &&
+                                // Retry frames deferred by a full receive queue even if TCP has no new bytes.
+                                ProcessWebSocketFrames(ref connectionId, ref connectionData);
+                                if (connectionData.WebSocketState == WebSocket.State.Open &&
+                                    Settings.HeartbeatTimeoutMS > 0 && !connectionData.IsWaitingForPong &&
                                     Time - connectionData.ReceiveTimeStamp > Settings.HeartbeatTimeoutMS)
                                 {
                                     // If there is not enough space in the send buffer we can try again in the
@@ -617,11 +620,7 @@ namespace Unity.Networking.Transport
 
                         // Unmask the payload
                         if (masked)
-                        {
-                            var maskBytes = data - 4;
-                            for (int i = 0; i < payloadSize; ++i)
-                                data[i] = (byte)(data[i] ^ maskBytes[i & 3]);
-                        }
+                            ToggleMask(data, payloadSize);
 
                         if (opcode == (int)WebSocket.Opcode.Continuation)
                         {
@@ -659,7 +658,9 @@ namespace Unity.Networking.Transport
                                     {
                                         if (!ReceiveQueue.EnqueuePacket(out var packetProcessor))
                                         {
-                                            // Leave the data there and hope we can process it later.
+                                            // A retry must start with the original fragment and masked bytes.
+                                            connectionData.RecvPayload.Length -= payloadSize;
+                                            if (masked) ToggleMask(data, payloadSize);
                                             break;
                                         }
 
@@ -707,7 +708,7 @@ namespace Unity.Networking.Transport
 
                                     if (!ReceiveQueue.EnqueuePacket(out var packetProcessor))
                                     {
-                                        // Leave the data there and hope we can process it later.
+                                        if (masked) ToggleMask(data, payloadSize);
                                         break;
                                     }
 
@@ -774,6 +775,13 @@ namespace Unity.Networking.Transport
                         UnsafeUtility.MemMove(start, start + total - pending, pending);
                 }
                 connectionData.RecvBuffer.Length = pending;
+            }
+
+            private static void ToggleMask(byte* data, int payloadSize)
+            {
+                var maskBytes = data - 4;
+                for (int i = 0; i < payloadSize; ++i)
+                    data[i] ^= maskBytes[i & 3];
             }
 
             void Abort(ref ConnectionId connectionId, ref ConnectionData connectionData, WebSocket.StatusCode status, bool isClient)

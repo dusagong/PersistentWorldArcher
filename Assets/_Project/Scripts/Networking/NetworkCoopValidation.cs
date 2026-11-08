@@ -246,7 +246,7 @@ namespace PersistentWorld.Networking
             DroppedItem.Spawn(drop, ItemCatalog.MaterialTwo, 5, drop);
             yield return new WaitForSeconds(.85f);
             Require(profile.Inventory.GetCount(ItemCatalog.MaterialOne) == 10 && profile.Inventory.GetCount(ItemCatalog.MaterialTwo) == 5, "field drops collected exactly once into owning inventory");
-            world.Teleport(member, GameArea.Town, new Vector2(-1.5f, -1.5f));
+            world.Teleport(member, GameArea.Town, world.BlacksmithPosition - NetworkGameWorld.Origin(GameArea.Town));
             yield return Step(27, () => profile.Inventory.HasItem(TestArmor, 1));
             ItemCatalog.TryGet(TestArmor, out ItemDefinition crafted);
             yield return Step(28, () => profile.GetEquipped(crafted.Slot) == TestArmor);

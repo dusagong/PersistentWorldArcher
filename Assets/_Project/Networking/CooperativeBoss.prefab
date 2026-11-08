@@ -204,7 +204,8 @@ MonoBehaviour:
   homingLifetime: 5
   homingExplosionRadius: 1
   quakeRadius: 4.5
-  quakeTriggerDistance: 3
+  quakeTriggerDistance: 5
+  quakePriority: 0.6
   quakeJumpHeight: 1.6
   quakeWarnTime: 1.5
   quakeDamage: 18

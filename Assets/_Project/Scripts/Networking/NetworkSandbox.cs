@@ -39,7 +39,9 @@ namespace PersistentWorld.Networking
             (!Application.isBatchMode || HasArgument("-pwa-reconnect-test")) &&
             !HasArgument("-pwa-probe");
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
-        public const int Protocol = 4;
+        // The town assets change the shared render registry's texture indices.
+        public const int Protocol = 5;
+        private const int CooperativePacketQueueSize = 512;
         [Serializable] private sealed class Ticket { public int protocol; public string code, name, characterKey; }
 
         public static string Argument(string name, string fallback = null)
@@ -93,6 +95,7 @@ namespace PersistentWorld.Networking
                 if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT_ID")) && serverPassword.Length < 12)
                     throw new ArgumentException("Set a private PWA_JOIN_CODE (12+ characters) before deploying to Railway.");
                 UnityTransport transport = manager.GetComponent<UnityTransport>();
+                if (NetworkGameWorld.Instance != null) transport.MaxPacketQueueSize = CooperativePacketQueueSize;
                 transport.UseWebSockets = true;
                 // Railway terminates TLS; Caddy forwards plain WebSocket inside the container.
                 transport.UseEncryption = false;
@@ -158,6 +161,7 @@ namespace PersistentWorld.Networking
                 }
                 if (this == null || manager == null) return;
                 UnityTransport transport = manager.GetComponent<UnityTransport>();
+                if (NetworkGameWorld.Instance != null) transport.MaxPacketQueueSize = CooperativePacketQueueSize;
                 transport.UseWebSockets = true;
                 transport.UseEncryption = uri.Scheme == "wss";
                 if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);

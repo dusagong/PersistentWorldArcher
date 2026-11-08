@@ -77,6 +77,7 @@ namespace PersistentWorld.Networking
             manager.OnClientConnectedCallback += ClientConnected;
             if (!server)
             {
+                Application.targetFrameRate = 60;
                 for (int i = 1; i < maps.Length; i++) maps[i].gameObject.SetActive(false);
                 view = new NetworkGameView(assets, new GameObject("Server Render Proxies").transform);
                 hud = gameObject.AddComponent<NetworkPartyHud>();
