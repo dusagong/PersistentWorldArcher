@@ -521,7 +521,11 @@ namespace Unity.Networking.Transport
 
                     if (error.code != ErrorCode.Success)
                     {
-                        ConnectionList.StartDisconnecting(ref connectionId, Error.DisconnectReason.ProtocolError);
+                        var reason = error.code == ErrorCode.Disconnected
+                            ? Error.DisconnectReason.ClosedByRemote : Error.DisconnectReason.ProtocolError;
+                        if (reason == Error.DisconnectReason.ProtocolError)
+                            Debug.LogWarning($"PWA_TCP_RECEIVE_ERROR code={(int)error.code}");
+                        ConnectionList.StartDisconnecting(ref connectionId, reason);
                         Abort(ref connectionId, ref connectionData);
                         break;
                     }

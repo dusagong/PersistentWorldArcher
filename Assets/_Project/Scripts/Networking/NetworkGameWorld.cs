@@ -116,6 +116,8 @@ namespace PersistentWorld.Networking
             ActorShadow.Attach(actor.transform, .62f, 0);
             Actors[pawn.OwnerClientId] = actor;
             Parties.Add(pawn.OwnerClientId, manager.GetComponent<NetworkSandbox>().PlayerName(pawn.OwnerClientId));
+            if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-field-soak-validation"))
+                Teleport(pawn.OwnerClientId, GameArea.Field, mapSpawns[(int)GameArea.Field]);
             pawn.Position.Value = actor.transform.position;
         }
         public void Remove(ulong id)

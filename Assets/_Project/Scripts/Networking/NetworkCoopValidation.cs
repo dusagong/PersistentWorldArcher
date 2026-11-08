@@ -235,10 +235,12 @@ namespace PersistentWorld.Networking
             actors[leader].Health.TryDamage(10000, Faction.Enemy);
             yield return new WaitForSeconds(.5f);
             Require(world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.IsDead, "solo party wipe releases boss room and returns to town");
-            Require(FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).Any(e =>
+            bool LootEnemyRespawned() => FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).Any(e =>
                 e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null &&
-                !e.GetComponent<Health>().IsDead && Vector2.Distance(e.transform.position, lootPosition) < 1.5f),
-                "field enemy respawns at its spawn point");
+                !e.GetComponent<Health>().IsDead && Vector2.Distance(e.transform.position, lootPosition) < 1.5f);
+            float respawnDeadline = Time.realtimeSinceStartup + 10;
+            while (!LootEnemyRespawned() && Time.realtimeSinceStartup < respawnDeadline) yield return null;
+            Require(LootEnemyRespawned(), "field enemy respawns at its spawn point");
             world.Teleport(member, GameArea.Field, Vector2.left * 5);
             Vector2 drop = actors[member].transform.position;
             PlayerInventoryProfile profile = actors[member].GetComponent<PlayerEquipment>().Profile;

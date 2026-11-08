@@ -164,7 +164,12 @@ namespace PersistentWorld.Networking
                 if (NetworkGameWorld.Instance != null) transport.MaxPacketQueueSize = CooperativePacketQueueSize;
                 transport.UseWebSockets = true;
                 transport.UseEncryption = uri.Scheme == "wss";
-                if (transport.UseEncryption) transport.SetClientSecrets(uri.DnsSafeHost);
+                if (transport.UseEncryption)
+                {
+                    // A cold edge or TLS negotiation can outlast the local socket default.
+                    transport.ConnectTimeoutMS = 5000;
+                    transport.SetClientSecrets(uri.DnsSafeHost);
+                }
                 transport.SetConnectionData(address.ToString(), (ushort)uri.Port);
                 pendingCharacterKey = key;
                 pendingCharacterPreference = CharacterPreference(uri);

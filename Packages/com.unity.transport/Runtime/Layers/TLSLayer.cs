@@ -29,7 +29,11 @@ namespace Unity.Networking.Transport
         //      we can reduce this value (we should normally be fine with a value of 40).
         private const int k_TLSPadding = 5 + 32 + 31;
 
-        private const int k_DecryptBufferSize = NetworkParameterConstants.AbsoluteMaxMessageSize * 2;
+        // Allow a full TLS plaintext record plus data carried over from the previous packet.
+        private const int k_DecryptBufferSize = 16 * 1024 + NetworkParameterConstants.AbsoluteMaxMessageSize * 2;
+
+        private static byte* AllocateDecryptBuffer() =>
+            (byte*)UnsafeUtility.Malloc(k_DecryptBufferSize, 16, Allocator.Persistent);
 
         private struct TLSConnectionData
         {
@@ -48,7 +52,8 @@ namespace Unity.Networking.Transport
             // we decrypt everything in this buffer. What can be fitted inside the packet is then
             // copied there, and any leftovers will be copied in the next packet (which might need
             // to be a newly-enqueued one).
-            public fixed byte DecryptBuffer[k_DecryptBufferSize];
+            [NativeDisableUnsafePtrRestriction]
+            public byte* DecryptBuffer;
             public int DecryptBufferLength;
         }
 
@@ -94,6 +99,8 @@ namespace Unity.Networking.Transport
                 var data = m_ConnectionsData.DataAt(i);
                 if (data.UnityTLSClientPtr != null)
                     Binding.unitytls_client_destroy(data.UnityTLSClientPtr);
+                if (data.DecryptBuffer != null)
+                    UnsafeUtility.Free(data.DecryptBuffer, Allocator.Persistent);
             }
 
             m_ConnectionList.Dispose();
@@ -196,6 +203,7 @@ namespace Unity.Networking.Transport
                 {
                     UnityTLSClientPtr = clientPtr,
                     UnderlyingConnection = packetProcessor.ConnectionRef,
+                    DecryptBuffer = AllocateDecryptBuffer(),
                 };
 
                 return connectionId;
@@ -238,6 +246,7 @@ namespace Unity.Networking.Transport
                 // we need to call it until we've fully read the received packet.
                 while (packetProcessor.Length > 0)
                 {
+                    var bytesBefore = packetProcessor.Length;
                     // Pointer and length of next available space in decryption buffer.
                     var bufferPtr = data.DecryptBuffer + data.DecryptBufferLength;
                     var bufferLength = k_DecryptBufferSize - data.DecryptBufferLength;
@@ -247,6 +256,9 @@ namespace Unity.Networking.Transport
                         data.UnityTLSClientPtr, bufferPtr, new UIntPtr((uint)bufferLength), &decryptedLength);
 
                     var wouldBlock = result == Binding.UNITYTLS_USER_WOULD_BLOCK;
+                    if (result == Binding.UNITYTLS_SUCCESS && decryptedLength.ToUInt32() == 0 &&
+                        packetProcessor.Length < bytesBefore)
+                        continue;
                     if (wouldBlock || (result == Binding.UNITYTLS_SUCCESS && decryptedLength.ToUInt32() == 0))
                     {
                         // The "would block" error (or a successful return with nothing decrypted)
@@ -359,6 +371,7 @@ namespace Unity.Networking.Transport
                         UnityTLSClientPtr = clientPtr,
                         UnderlyingConnection = underlyingId,
                         LastHandshakeUpdate = Time,
+                        DecryptBuffer = AllocateDecryptBuffer(),
                     };
                 }
 
@@ -392,12 +405,13 @@ namespace Unity.Networking.Transport
                 if (clientPtr == null)
                     return;
 
-                ulong dummy;
-                var errorState = Binding.unitytls_client_get_errorsState(clientPtr, &dummy);
+                ulong detail;
+                var errorState = Binding.unitytls_client_get_errorsState(clientPtr, &detail);
                 var clientState = Binding.unitytls_client_get_state(clientPtr);
 
                 if (errorState != Binding.UNITYTLS_SUCCESS || clientState == Binding.UnityTLSClientState_Fail)
                 {
+                    Debug.LogWarning($"PWA_TLS_ERROR state={(int)clientState} code={errorState} detail={detail}");
                     // The only way to get a failed client is because of a failed handshake.
                     if (clientState == Binding.UnityTLSClientState_Fail)
                     {
@@ -433,18 +447,11 @@ namespace Unity.Networking.Transport
 
             private void CopyDecryptBufferToPacket(ref TLSConnectionData data, ref PacketProcessor packetProcessor)
             {
-                fixed(byte* decryptBuffer = data.DecryptBuffer)
-                {
-                    var copyLength = math.min(packetProcessor.BytesAvailableAtEnd, data.DecryptBufferLength);
-                    packetProcessor.AppendToPayload(decryptBuffer, copyLength);
-                    data.DecryptBufferLength -= copyLength;
-
-                    // If there's still data in the decryption buffer, copy it to the beginning.
-                    if (data.DecryptBufferLength > 0)
-                    {
-                        UnsafeUtility.MemMove(decryptBuffer, decryptBuffer + copyLength, data.DecryptBufferLength);
-                    }
-                }
+                var copyLength = math.min(packetProcessor.BytesAvailableAtEnd, data.DecryptBufferLength);
+                packetProcessor.AppendToPayload(data.DecryptBuffer, copyLength);
+                data.DecryptBufferLength -= copyLength;
+                if (data.DecryptBufferLength > 0)
+                    UnsafeUtility.MemMove(data.DecryptBuffer, data.DecryptBuffer + copyLength, data.DecryptBufferLength);
             }
 
             private void AdvanceHandshake(Binding.unitytls_client* clientPtr)
@@ -457,6 +464,8 @@ namespace Unity.Networking.Transport
                 var data = ConnectionsData[connection];
                 if (data.UnityTLSClientPtr != null)
                     Binding.unitytls_client_destroy(data.UnityTLSClientPtr);
+                if (data.DecryptBuffer != null)
+                    UnsafeUtility.Free(data.DecryptBuffer, Allocator.Persistent);
 
                 UnderlyingIdToCurrentId.Remove(data.UnderlyingConnection);
                 ConnectionsData.ClearData(ref connection);

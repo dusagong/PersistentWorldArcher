@@ -58,6 +58,10 @@ namespace PersistentWorld.Networking
             if (!blocked && Input.GetMouseButton(1)) pending |= 1;
             if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-probe") && !NetworkSandbox.HasArgument("-pwa-party-probe"))
                 value = NetworkSandbox.Argument("-pwa-test-move", "right") == "up" ? Vector2.up : Vector2.right;
+            if (Application.isBatchMode && NetworkGameWorld.Instance != null &&
+                NetworkManager.TryGetComponent(out NetworkSandboxProbe probe) &&
+                probe.SoakInput(out var soakMove, out var soakAim, out var soakTarget, out int soakButtons))
+            { value = soakMove; aim = soakAim; target = soakTarget; pending = soakButtons; }
             SubmitInputRpc(value, aim, target, pending); pending = 0;
             nextSendAt = Time.unscaledTime + .05f;
         }

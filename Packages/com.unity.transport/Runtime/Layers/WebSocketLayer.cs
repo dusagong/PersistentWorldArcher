@@ -786,6 +786,8 @@ namespace Unity.Networking.Transport
 
             void Abort(ref ConnectionId connectionId, ref ConnectionData connectionData, WebSocket.StatusCode status, bool isClient)
             {
+                if (status != WebSocket.StatusCode.Normal)
+                    UnityEngine.Debug.LogWarning($"PWA_WEBSOCKET_CLOSE status={(int)status}");
                 if (connectionData.WebSocketState != WebSocket.State.Closing)
                 {
                     // There is no point in checking if a CLOSE message could be written to the send buffer here since

@@ -133,6 +133,7 @@ namespace Unity.Networking.Transport
                     if (disconnectionCommand.Reason == Error.DisconnectReason.Default)
                         continue;
 
+                    Debug.Log($"PWA_TRANSPORT_DISCONNECT reason={(int)disconnectionCommand.Reason}");
                     var offset = Receiver.AppendToStream((byte)disconnectionCommand.Reason);
 
                     EventQueue.PushEvent(new NetworkEvent
