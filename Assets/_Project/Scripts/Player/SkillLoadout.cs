@@ -31,7 +31,7 @@ namespace PersistentWorld.Player
         public static string Description(SkillId id) => id switch
         {
             SkillId.Repulse => "전방 90도 적 피해·넉백. 패턴 중인 보스는 밀리지 않음.",
-            SkillId.ArrowRain => "누르는 동안 범위 조준, 놓으면 화살 비.",
+            SkillId.ArrowRain => "사거리 8. 3초간 화살 비. 일반 몬스터 이동속도 50% 감소.",
             SkillId.Snipe => "누르고 차징, 놓으면 저격. 최대 차징 시 자동 발사.",
             SkillId.Whirlwind => "0.5초 준비 후 주변을 크게 벰.",
             SkillId.ComboSlash => "4초 안에 최대 3회 사용. 사용할수록 범위 증가.",
@@ -41,6 +41,14 @@ namespace PersistentWorld.Player
             SkillId.Judgment => "누르는 동안 최대 5초 레이저. 시전 중 이동 불가. 종료 후 쿨타임 10초.",
             SkillId.BossBlast => "화면에 보이는 모든 적에게 피해. 스킬 북으로 습득.",
             _ => ""
+        };
+
+        public static float Cooldown(SkillId id) => id switch
+        {
+            SkillId.Repulse => 4, SkillId.ArrowRain => 8, SkillId.Snipe => 10,
+            SkillId.Whirlwind => 5, SkillId.ComboSlash => 6, SkillId.Excalibur => 10,
+            SkillId.HealingZone => 15, SkillId.Cleanse => 10, SkillId.Judgment => 10,
+            SkillId.BossBlast => 20, _ => 0
         };
     }
 

@@ -15,7 +15,7 @@ namespace PersistentWorld.World
         [SerializeField] private bool showHealthBar = true;
         [SerializeField] private bool showDeathBurst = true;
         [SerializeField] private Color damageNumberColor = Color.white;
-        [SerializeField] private float flashTime = .08f;
+        [SerializeField] private float flashTime = .16f;
         [SerializeField] private float healthBarWidth = .9f;
         [SerializeField] private float healthBarHeight = .1f;
         [SerializeField] private float healthBarGap = .2f;
@@ -155,7 +155,7 @@ namespace PersistentWorld.World
             flashObject.transform.SetParent(transform, false);
             flash = flashObject.AddComponent<SpriteRenderer>();
             flash.sprite = body.sprite;
-            flash.color = new Color(1f, 1f, 1f, .9f);
+            flash.color = new Color(1f, 0f, 0f, .5f);
             // 그림 스프라이트도 흰 실루엣으로 번쩍이게 텍스처 알파만 쓰는 셰이더를 쓴다 (없으면 기본 셰이더)
             if (SilhouetteMaterial != null) flash.sharedMaterial = SilhouetteMaterial;
             flash.enabled = false;

@@ -32,6 +32,7 @@ namespace PersistentWorld.Player
         private bool isDashing;
         private bool itemUiWasOpen;
         private bool synchronizingClass;
+        private int baseMaximumHealth;
         private Collider2D[] colliders;
         private bool[] colliderStates;
         private SpriteRenderer visual;
@@ -65,6 +66,7 @@ namespace PersistentWorld.Player
         private void Awake()
         {
             body = GetComponent<Rigidbody2D>(); health = GetComponent<Health>();
+            baseMaximumHealth = health.Maximum;
             health.KeepOnDeath();
             Mana = GetComponent<PlayerMana>() ?? gameObject.AddComponent<PlayerMana>();
             loadout = GetComponent<SkillLoadout>() ?? gameObject.AddComponent<SkillLoadout>();
@@ -75,6 +77,8 @@ namespace PersistentWorld.Player
             colliderStates = new bool[colliders.Length];
             health.Died += OnDeath;
             loadout.Changed += SynchronizeEquipmentClass;
+            loadout.Changed += SynchronizeMaximumHealth;
+            SynchronizeMaximumHealth();
         }
 
         private void Start()
@@ -87,7 +91,11 @@ namespace PersistentWorld.Player
         {
             if (health != null) health.Died -= OnDeath;
             if (loadout != null) loadout.Changed -= SynchronizeEquipmentClass;
+            if (loadout != null) loadout.Changed -= SynchronizeMaximumHealth;
         }
+
+        private void SynchronizeMaximumHealth() =>
+            health.SetMaximum(loadout.Class == CharacterClass.Warrior ? 200 : baseMaximumHealth);
 
         private void SynchronizeEquipmentClass()
         {

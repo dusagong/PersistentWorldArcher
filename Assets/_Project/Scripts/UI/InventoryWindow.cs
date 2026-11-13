@@ -27,9 +27,10 @@ namespace PersistentWorld.UI
         private Font font;
         private VisualElement screen, menu, panel, grid, questList, selectionPanel;
         private ScrollView bagScroll;
-        private Label capacity, title, description, message, setStatus;
+        private Label capacity, title, description, message, setStatus, hoverHint;
         private Image preview;
         private Button action;
+        private readonly Button[] potionButtons = new Button[2];
         private readonly List<Button> tabs = new List<Button>();
         private GameObject actor;
         private ItemCategory category;
@@ -72,6 +73,13 @@ namespace PersistentWorld.UI
             document.rootVisualElement.AddToClassList("inventory-document");
             document.rootVisualElement.style.unityFont = font;
             screen = document.rootVisualElement.Q("inventory-screen");
+            hoverHint = new Label { pickingMode = PickingMode.Ignore };
+            hoverHint.style.position = Position.Absolute; hoverHint.style.width = 290;
+            hoverHint.style.paddingLeft = hoverHint.style.paddingRight = hoverHint.style.paddingTop = hoverHint.style.paddingBottom = 10;
+            hoverHint.style.backgroundColor = new Color(.035f, .05f, .07f, .98f);
+            hoverHint.style.color = Color.white; hoverHint.style.whiteSpace = WhiteSpace.Normal;
+            hoverHint.style.display = DisplayStyle.None;
+            document.rootVisualElement.Add(hoverHint);
             menu = screen.Q("pause-menu");
             panel = screen.Q("inventory-panel");
             grid = screen.Q("bag-grid");
@@ -91,6 +99,18 @@ namespace PersistentWorld.UI
             preview.scaleMode = ScaleMode.ScaleToFit;
             action = screen.Q<Button>("equipment-action");
             action.clicked += ApplySelection;
+            for (int i = 0; i < potionButtons.Length; i++)
+            {
+                int slot = i;
+                var button = new Button(() =>
+                {
+                    if (NetworkGameWorld.IsPotion(selectedId))
+                        NetworkSandboxPlayer.LocalPlayer?.ItemRpc((byte)ItemCommand.AssignPotion, selectedId, slot);
+                });
+                button.AddToClassList("hidden");
+                action.parent.Add(button);
+                potionButtons[i] = button;
+            }
             screen.Q<Button>("open-inventory").clicked += () => Open(actor);
             screen.Q<Button>("resume-game").clicked += Close;
             screen.Q<Button>("close-inventory").clicked += Close;
@@ -103,6 +123,7 @@ namespace PersistentWorld.UI
                 button.Add(new Label(SlotName(slot)) { pickingMode = PickingMode.Ignore });
                 screen.Q(SlotsIndex(slot) < 3 ? "equipment-left" : "equipment-right").Add(button);
                 equipmentButtons.Add(slot, button);
+                BindTooltip(button);
             }
             for (int i = 0; i < Categories.Length; i++)
             {
@@ -135,8 +156,9 @@ namespace PersistentWorld.UI
             {
                 var health = actor != null ? actor.GetComponent<Health>() : null;
                 bool alive = network != null ? network.Local?.hp > 0 : health != null && !health.IsDead;
-                if (!alive || Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+                if (!alive || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.I)) { hoverHint.style.display = DisplayStyle.None; Close(); return; }
                 if (network != null) message.text = network.Frame.message;
+                if (network != null && NetworkGameWorld.IsPotion(selectedId)) RefreshPotionButtons();
                 if (dirty) Refresh();
                 return;
             }
@@ -228,7 +250,7 @@ namespace PersistentWorld.UI
                 ItemCatalog.TryGet(profile.GetEquipped(pair.Key), out ItemDefinition equipped);
                 pair.Value.Q<UpgradeItemIcon>().SetItem(equipped == null ? null : Icon(equipped), equipped == null ? 0 : profile.GetUpgradeLevel(equipped.Id));
                 pair.Value.Q<Label>().text = SlotName(pair.Key) + (equipped != null && profile.GetUpgradeLevel(equipped.Id) > 0 ? " +" + profile.GetUpgradeLevel(equipped.Id) : "");
-                pair.Value.tooltip = equipped == null ? SlotName(pair.Key) + " · 비어 있음" : profile.DisplayName(equipped);
+                pair.Value.tooltip = equipped == null ? SlotName(pair.Key) + " · 비어 있음" : ItemHint(equipped);
                 pair.Value.EnableInClassList("selected", selectedSlot == pair.Key);
             }
             int pieces = profile.GetBonuses().SetPieces;
@@ -251,7 +273,8 @@ namespace PersistentWorld.UI
                     int quantity = System.Math.Min(remaining, limit);
                     var cell = new Button(() => { selectedId = item.Id; selectedSlot = EquipmentSlot.None; Refresh(); });
                     cell.AddToClassList("bag-cell");
-                    cell.tooltip = profile.DisplayName(item);
+                    cell.tooltip = ItemHint(item);
+                    BindTooltip(cell);
                     var icon = new UpgradeItemIcon();
                     icon.SetItem(Icon(item), profile.GetUpgradeLevel(item.Id));
                     cell.Add(icon);
@@ -296,9 +319,31 @@ namespace PersistentWorld.UI
             }
         }
 
+        private void BindTooltip(VisualElement element)
+        {
+            element.RegisterCallback<PointerEnterEvent>(evt =>
+            {
+                if (!visible || string.IsNullOrEmpty(element.tooltip)) return;
+                hoverHint.text = element.tooltip; hoverHint.style.display = DisplayStyle.Flex;
+                hoverHint.style.left = Mathf.Clamp(evt.position.x + 12, 4, screen.worldBound.width - 300);
+                hoverHint.style.top = Mathf.Clamp(evt.position.y - 100, 4, screen.worldBound.height - 150);
+                hoverHint.BringToFront();
+            });
+            element.RegisterCallback<PointerLeaveEvent>(_ => hoverHint.style.display = DisplayStyle.None);
+        }
+        private string ItemHint(ItemDefinition item)
+        {
+            if (NetworkGameWorld.IsPotion(item.Id)) return Profile.DisplayName(item) +
+                (item.Id == PersistentWorld.World.MonsterDropTable.HealthPotion ? "\nHP 30 회복" : "\nMP 30 회복") +
+                "\n1·2번에 장착 후 사용 · 재사용 10초 · 마나 소모 없음";
+            if (item.IsEquipment) return Profile.DisplayName(item) +
+                $"\n공격력 +{item.Attack + Profile.GetUpgradeLevel(item.Id)} · 방어력 +{item.Defense}\n이동속도 +{item.MoveSpeed:0.0}";
+            return Profile.DisplayName(item) + "\n장비 제작·강화에 사용하는 재료";
+        }
         private void RefreshSelection()
         {
             action.AddToClassList("hidden");
+            foreach (Button button in potionButtons) button.AddToClassList("hidden");
             if (!ItemCatalog.TryGet(selectedId, out ItemDefinition item))
             {
                 title.text = selectedSlot == EquipmentSlot.None ? "선택한 아이템 없음" : SlotName(selectedSlot) + " · 비어 있음";
@@ -310,11 +355,11 @@ namespace PersistentWorld.UI
             if (!item.IsEquipment)
             {
                 description.text = Categories[(int)item.Category] + $" · 총 보유 {Profile.Inventory.GetCount(item.Id)}개";
-                if (network != null && (item.Id == PersistentWorld.World.MonsterDropTable.HealthPotion || item.Id == PersistentWorld.World.MonsterDropTable.ManaPotion))
+                if (network != null && NetworkGameWorld.IsPotion(item.Id))
                 {
-                    action.text = "사용";
-                    action.SetEnabled(true);
-                    action.RemoveFromClassList("hidden");
+                    description.text += "\n1·2번에 장착한 뒤 전투 중 해당 키를 눌러 사용하세요.";
+                    RefreshPotionButtons();
+                    foreach (Button button in potionButtons) button.RemoveFromClassList("hidden");
                 }
                 return;
             }
@@ -330,6 +375,13 @@ namespace PersistentWorld.UI
             bool sameEquipped = !equipped && Profile.GetEquipped(item.Slot) == item.Id;
             action.SetEnabled(allowed && !sameEquipped);
             if (sameEquipped) description.text += "\n같은 장비를 이미 장착하고 있습니다.";
+        }
+
+        private void RefreshPotionButtons()
+        {
+            string[] assigned = network.Frame?.potionSlots;
+            for (int i = 0; i < potionButtons.Length; i++)
+                potionButtons[i].text = $"{i + 1}번 " + (assigned != null && i < assigned.Length && assigned[i] == selectedId ? "해제" : "장착");
         }
 
         private void ApplySelection()

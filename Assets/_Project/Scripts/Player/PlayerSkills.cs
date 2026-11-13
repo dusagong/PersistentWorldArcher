@@ -35,6 +35,7 @@ namespace PersistentWorld.Player
         private Vector2 heldAim;
         private float attackReadyAt;
         private float specialEndsAt;
+        private Vector2 parryDirection;
         private int combo;
         private float comboEndsAt;
         private bool busy;
@@ -65,6 +66,11 @@ namespace PersistentWorld.Player
         }
 
         private void OnDestroy() { if (loadout != null) loadout.Changed -= OnLoadoutChanged; }
+        internal void ResetPractice()
+        {
+            Cancel(); Ready.Clear(); HudCooldownDurations.Clear();
+            attackReadyAt = specialEndsAt = comboEndsAt = 0; combo = 0;
+        }
         private void OnDisable() => Cancel();
         private string Key(SkillId id) => loadout.Class + ":" + id;
         public float Cooldown(SkillId id) => Ready.TryGetValue(Key(id), out float ready) ? Mathf.Max(0, ready - Time.time) : 0;
@@ -74,7 +80,9 @@ namespace PersistentWorld.Player
             HudCooldownDurations[Key(id)] = seconds;
         }
         private bool CanAct => isActiveAndEnabled && controller.isActiveAndEnabled && health != null && !health.IsDead && !controller.IsDashing && !controller.MenuOpen && !ItemWindows.BlocksGameplay;
-        private int Damage(float value) => Mathf.RoundToInt((value + controller.EquipmentBonuses.Attack) * (GetComponent<CombatStatus>()?.OutgoingMultiplier ?? 1));
+        private const float ParryDuration = 1.2f;
+        private int Damage(float value) => Mathf.RoundToInt((value + controller.EquipmentBonuses.Attack) *
+            (GetComponent<CombatStatus>()?.OutgoingMultiplier ?? 1) * (loadout.Class == CharacterClass.Warrior ? 1.5f : 1f));
         private void OnLoadoutChanged()
         {
             if (combo > 0)
@@ -99,13 +107,13 @@ namespace PersistentWorld.Player
                 else if (heldArt != null) heldArt.SetAimPose((Vector2)transform.position + Vector2.up * .35f + heldAim * .4f, heldAim);
                 if (Time.time - heldAt >= maximumCharge) ReleaseSkill(heldSlot);
             }
-            else if (held == SkillId.ArrowRain && preview != null) preview.Circle(target, 1.3f, .45f);
+            else if (held == SkillId.ArrowRain && preview != null) preview.Circle(target, ArrowRainEffect.RadiusX, ArrowRainEffect.RadiusY);
             else if (held == SkillId.Judgment && Time.time - heldAt >= 5) ReleaseSkill(heldSlot);
         }
 
         public void UpdateTarget(Vector2 mouseWorld)
         {
-            target = (Vector2)transform.position + Vector2.ClampMagnitude(mouseWorld - (Vector2)transform.position, skillRange);
+            target = (Vector2)transform.position + Vector2.ClampMagnitude(mouseWorld - (Vector2)transform.position, held == SkillId.ArrowRain ? ArrowRainEffect.Range : skillRange);
         }
 
         public bool BeginSkill(int slot, Vector2 mouseWorld)
@@ -132,6 +140,7 @@ namespace PersistentWorld.Player
                 case SkillId.Judgment:
                     if (id == SkillId.Judgment && !controller.Mana.TrySpend(manaCost)) return false;
                     held = id; heldSlot = slot; heldAt = Time.time; heldAim = direction;
+                    UpdateTarget(mouseWorld);
                     if (id != SkillId.Excalibur) preview = SkillIndicator.Create(id == SkillId.ArrowRain ? Color.yellow : Color.cyan);
                     if (id == SkillId.Excalibur)
                         heldArt = ClassSheetEffect.Play(ClassArtEffect.WarriorCharge, (Vector2)transform.position + Vector2.up * .35f + direction * .4f, repeat: true, owner: transform, aim: direction);
@@ -273,7 +282,7 @@ namespace PersistentWorld.Player
             {
                 attackReadyAt = Time.time + .55f / 1.5f;
                 SwordSwingEffect.Play(controller, direction);
-                SectorDamage(transform.position, direction, 2.7f, 120, Damage(12), showRange: false);
+                SectorDamage(transform.position, direction, 2.7f, 120, Damage(12), .22f, false, true);
             }
             else if (loadout.Class == CharacterClass.Healer)
             {
@@ -331,12 +340,13 @@ namespace PersistentWorld.Player
             {
                 if (!controller.Mana.TrySpend(manaCost)) return false;
                 Ready[loadout.Class + ":Special"] = Time.time + (loadout.Class == CharacterClass.Warrior ? 4 : 10);
-                specialEndsAt = Time.time + (loadout.Class == CharacterClass.Warrior ? .7f : 5);
+                specialEndsAt = Time.time + (loadout.Class == CharacterClass.Warrior ? ParryDuration : 5);
                 SpecialActiveDuration = specialEndsAt - Time.time;
                 if (loadout.Class == CharacterClass.Warrior)
                 {
-                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, .7f, true, transform, controller.AimDirection, true, scale: 1.5f) == null)
-                        SkillIndicator.Create(Color.cyan, .7f).Sector(transform.position, controller.AimDirection, 1.7f, 140);
+                    parryDirection = controller.AimDirection;
+                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, ParryDuration, true, transform, parryDirection, true, scale: 1.5f) == null)
+                        SkillIndicator.Create(Color.cyan, ParryDuration).Sector(transform.position, parryDirection, 1.7f, 140);
                 }
                 else ClassSheetEffect.Play(ClassArtEffect.ArcherSpecial, transform.position, 5, true, transform);
             }
@@ -348,12 +358,12 @@ namespace PersistentWorld.Player
         {
             if (loadout.Class != CharacterClass.Warrior || !SpecialActive || health.IsDead || projectile.SourceFaction != Faction.Enemy) return false;
             Vector2 delta = projectile.transform.position - transform.position;
-            if (Vector2.Angle(controller.AimDirection, delta) > 70) return false;
+            if (Vector2.Angle(parryDirection, delta) > 70) return false;
             projectile.Reflect(gameObject);
             return true;
         }
 
-        private void SectorDamage(Vector2 center, Vector2 direction, float radius, float angle, int damage, float knockback = 0, bool showRange = true)
+        private void SectorDamage(Vector2 center, Vector2 direction, float radius, float angle, int damage, float knockback = 0, bool showRange = true, bool normalOnly = false)
         {
             if (showRange) SkillIndicator.Create(loadout.Class == CharacterClass.Warrior ? Color.yellow : Color.magenta, .22f).Sector(center, direction, radius, angle);
             HashSet<Health> seen = new HashSet<Health>();
@@ -365,6 +375,7 @@ namespace PersistentWorld.Player
                 if (angle < 360 && delta.sqrMagnitude > .01f && Vector2.Angle(direction, delta) > angle / 2) continue;
                 seen.Add(enemy);
                 if (!enemy.TryDamage(damage, Faction.Player, gameObject) || knockback <= 0) continue;
+                if (normalOnly && enemy.GetComponent<BossController>() != null) continue;
                 CombatStatus status = enemy.GetComponent<CombatStatus>() ?? enemy.gameObject.AddComponent<CombatStatus>();
                 status.Knockback(((Vector2)enemy.transform.position - center).normalized, knockback);
             }

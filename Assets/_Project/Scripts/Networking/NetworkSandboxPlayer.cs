@@ -7,7 +7,7 @@ namespace PersistentWorld.Networking
     public sealed class NetworkSandboxPlayer : NetworkBehaviour
     {
         public NetworkVariable<Vector2> Position = new NetworkVariable<Vector2>();
-        private Vector2 input;
+        private Vector2 input, pendingMovement;
         private float receivedAt, nextSendAt;
         private int pending;
         public static NetworkSandboxPlayer LocalPlayer;
@@ -37,25 +37,33 @@ namespace PersistentWorld.Networking
             if (!IsSpawned) return;
             if (!IsServer) transform.position = Vector2.Lerp(transform.position, Position.Value, 1 - Mathf.Exp(-18 * Time.deltaTime));
             if (!IsOwner) return;
-            bool blocked = PersistentWorld.UI.ItemWindows.BlocksGameplay ||
-                (NetworkPartyHud.Instance != null && NetworkPartyHud.Instance.BlocksInput);
+            NetworkPartyHud hud = NetworkPartyHud.Instance;
+            bool blocked = PersistentWorld.UI.ItemWindows.BlocksGameplay || (hud != null && hud.BlocksKeyboard);
+            bool pointerBlocked = blocked || (hud != null && hud.BlocksPointer);
             Vector2 aim = Vector2.right, target = Position.Value + aim;
             if (Camera.main != null) { target = Camera.main.ScreenToWorldPoint(Input.mousePosition); aim = target - Position.Value; }
             if (!blocked)
             {
-                if (Input.GetMouseButtonDown(0)) pending |= 2;
+                if (!pointerBlocked && Input.GetMouseButtonDown(0)) pending |= 2;
+                if (!pointerBlocked && Input.GetMouseButtonDown(1)) pending |= 1;
                 if (Input.GetKeyDown(KeyCode.Space)) pending |= 4;
                 if (Input.GetKeyDown(KeyCode.Q)) pending |= 8;
                 if (Input.GetKeyDown(KeyCode.E)) pending |= 16;
                 if (Input.GetKeyDown(KeyCode.LeftShift)) pending |= 32;
                 if (Input.GetKeyDown(KeyCode.F)) pending |= 512;
+                if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) pending |= 1024;
+                if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) pending |= 2048;
             }
             if (Input.GetKeyUp(KeyCode.Q)) pending |= 64;
             if (Input.GetKeyUp(KeyCode.E)) pending |= 128;
             if (Input.GetKeyUp(KeyCode.LeftShift)) pending |= 256;
-            if (Time.unscaledTime < nextSendAt) return;
             Vector2 value = blocked ? Vector2.zero : new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-            if (!blocked && Input.GetMouseButton(1)) pending |= 1;
+            if (blocked) { pendingMovement = Vector2.zero; pending &= 64 | 128 | 256; }
+            else if (value != Vector2.zero) pendingMovement = value;
+            if (Time.unscaledTime < nextSendAt) return;
+            if (value == Vector2.zero) value = pendingMovement;
+            pendingMovement = Vector2.zero;
+            if (!pointerBlocked && Input.GetMouseButton(1)) pending |= 1;
             if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-probe") && !NetworkSandbox.HasArgument("-pwa-party-probe"))
                 value = NetworkSandbox.Argument("-pwa-test-move", "right") == "up" ? Vector2.up : Vector2.right;
             if (Application.isBatchMode && NetworkGameWorld.Instance != null &&
@@ -71,17 +79,17 @@ namespace PersistentWorld.Networking
             if (float.IsNaN(value.x) || float.IsNaN(value.y) || float.IsInfinity(value.x) || float.IsInfinity(value.y)) return;
             input = Vector2.ClampMagnitude(value, 1);
             receivedAt = Time.unscaledTime;
-            NetworkGameWorld.Instance?.Input(OwnerClientId, input, aim, target, buttons & 1023);
+            NetworkGameWorld.Instance?.Input(OwnerClientId, input, aim, target, buttons & 4095);
         }
         [Rpc(SendTo.Server, RequireOwnership = true)]
         public void CommandRpc(byte command, ulong target, int first, int second)
         {
-            if (command <= (byte)PartyCommand.LearnBossSkill) NetworkGameWorld.Instance?.Command(OwnerClientId, (PartyCommand)command, target, first, second);
+            if (command <= (byte)PartyCommand.ResetPractice) NetworkGameWorld.Instance?.Command(OwnerClientId, (PartyCommand)command, target, first, second);
         }
         [Rpc(SendTo.Server, RequireOwnership = true)]
         public void ItemRpc(byte command, string item, int slot)
         {
-            if (command <= (byte)ItemCommand.Use && item != null && item.Length <= 80)
+            if (command <= (byte)ItemCommand.UsePotion && item != null && item.Length <= 80)
                 NetworkGameWorld.Instance?.ItemAction(OwnerClientId, (ItemCommand)command, item, slot);
         }
         private void FixedUpdate()

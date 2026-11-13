@@ -1,7 +1,7 @@
-param([switch]$Capture, [switch]$LinuxServer)
+param([switch]$Capture, [switch]$LinuxServer, [string]$Client = 'Builds/CooperativeWindows/PwaCoop.exe')
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$binary = Join-Path $repoRoot 'Builds/CooperativeWindows/PwaCoop.exe'
+$binary = if ([IO.Path]::IsPathRooted($Client)) { $Client } else { Join-Path $repoRoot $Client }
 $logs = Join-Path $repoRoot ('Library/Validation/Party-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
 $children = [Collections.Generic.List[Diagnostics.Process]]::new()
@@ -49,6 +49,7 @@ try {
         if (-not $child.WaitForExit(10000) -or $child.ExitCode -ne 0) { throw 'Party client validation failed.' }
     }
     if (-not (Select-String -Path (Join-Path $logs 'server.log') -Pattern 'PWA_PARTY_INTEGRATION_OK' -Quiet)) { throw 'Missing party validation marker.' }
+    if (-not (Select-String -Path (Join-Path $logs 'Leader.log') -Pattern 'PWA_HEALER_PRACTICE_CLIENT_OK' -Quiet)) { throw 'Healer practice targets were not verified by the client.' }
     foreach ($role in @('Leader', 'Member', 'Outsider', 'Healer')) {
         if (-not (Select-String -Path (Join-Path $logs ($role + '.log')) -Pattern 'PWA_PARTY_CLIENT_OK' -Quiet)) { throw "$role did not finish." }
     }

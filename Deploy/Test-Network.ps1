@@ -1,7 +1,7 @@
-param([string]$Endpoint = '')
+param([string]$Endpoint = '', [string]$Client = 'Builds/CooperativeWindows/PwaCoop.exe')
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$binary = Join-Path $repoRoot 'Builds/CooperativeWindows/PwaCoop.exe'
+$binary = if ([IO.Path]::IsPathRooted($Client)) { $Client } else { Join-Path $repoRoot $Client }
 $logs = Join-Path $repoRoot ('Library/Validation/Network-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
 if (-not (Test-Path -LiteralPath $binary)) { throw 'Build the Windows test client first.' }
@@ -11,7 +11,7 @@ $previousCode = $env:PWA_JOIN_CODE
 $previousLimit = $env:PWA_MAX_PLAYERS
 function Start-Probe([string]$name, [string[]]$extra) {
     $log = Join-Path $logs ($name + '.log')
-    $child = Start-Process -FilePath $binary -ArgumentList (@('-batchmode', '-nographics', '-logFile', "`"$log`"") + $extra) -WindowStyle Hidden -PassThru
+    $child = Start-Process -FilePath $binary -ArgumentList (@('-batchmode', '-nographics', '-logFile', "`"$log`"", '-pwa-account-mode', 'demo') + $extra) -WindowStyle Hidden -PassThru
     $children.Add($child)
     return $child
 }

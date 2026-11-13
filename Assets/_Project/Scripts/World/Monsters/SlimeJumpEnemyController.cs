@@ -166,6 +166,7 @@ namespace PersistentWorld.World
 
         private void TickAirborne()
         {
+            stateStartedAt += Time.fixedDeltaTime * (1 - (GetComponent<CombatStatus>()?.MovementMultiplier ?? 1));
             float t = Mathf.Clamp01(Elapsed / jumpDuration);
             Vector2 ground = Vector2.Lerp(jumpStart, jumpEnd, t);
             float height = 4f * jumpHeight * t * (1f - t);
@@ -252,7 +253,7 @@ namespace PersistentWorld.World
             return renderer;
         }
 
-        private static Sprite CircleSprite
+        internal static Sprite CircleSprite
         {
             get
             {
@@ -269,6 +270,7 @@ namespace PersistentWorld.World
                 }
                 texture.Apply();
                 circleSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(.5f, .5f), size);
+                circleSprite.name = "Jump Warning Circle";
                 return circleSprite;
             }
         }

@@ -201,7 +201,7 @@ MonoBehaviour:
   phaseTwoSpread: 30
   homingDamage: 15
   homingSpeed: 4
-  homingLifetime: 5
+  homingLifetime: 4.25
   homingExplosionRadius: 1
   quakeRadius: 4.5
   quakeTriggerDistance: 5

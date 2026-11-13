@@ -20,6 +20,8 @@ namespace PersistentWorld.Editor
         private static Health ally;
         private static Health outside;
         private static float startedAt;
+        private static bool slowed;
+        private static int expectedHealth;
 
         static SkillTwoValidation()
         {
@@ -54,13 +56,15 @@ namespace PersistentWorld.Editor
             player = UnityEngine.Object.FindFirstObjectByType<ArcherController>();
             if (player == null) throw new InvalidOperationException("No archer in scene.");
             Vector2 origin = player.transform.position;
-            Vector2 center = origin + Vector2.up * 6f;
+            Vector2 center = origin + Vector2.up * ArrowRainEffect.Range;
             enemy = MakeTarget(center, Faction.Enemy);
             enemy.gameObject.AddComponent<BoxCollider2D>().size = Vector2.one * .2f;
             ally = MakeTarget(center + Vector2.right * .3f, Faction.Player);
             outside = MakeTarget(center + Vector2.up * 2f, Faction.Enemy);
             Physics2D.SyncTransforms();
             Frames.Clear();
+            slowed = false;
+            expectedHealth = 100 - Mathf.RoundToInt((30 + player.EquipmentBonuses.Attack) / 3f) * 6;
             startedAt = Time.time;
             if (!player.TryArrowRain(origin + Vector2.up * 100f)) throw new InvalidOperationException("R was not ready.");
             if (player.TryArrowRain(center)) throw new InvalidOperationException("R ignored cooldown.");
@@ -90,9 +94,11 @@ namespace PersistentWorld.Editor
                 return;
             }
             if (effect != null) Frames.Add(effect.GetComponent<SpriteRenderer>().sprite.name);
-            if (Time.time - startedAt < .9f) return;
+            slowed |= enemy.GetComponent<CombatStatus>()?.MovementMultiplier == .5f;
+            if (Time.time - startedAt < ArrowRainEffect.Duration + .8f) return;
             EditorApplication.update -= Tick;
-            bool passed = Frames.Count == 9 && effect == null && enemy.Current == 70 && ally.Current == 100 && outside.Current == 100 && player.ArrowRainRemaining > 0;
+            bool passed = Frames.Count == 9 && effect == null && enemy.Current == expectedHealth && ally.Current == 100 && outside.Current == 100 && player.ArrowRainRemaining > 0 &&
+                slowed && enemy.GetComponent<CombatStatus>().MovementMultiplier == 1;
             string result = $"frames={Frames.Count}/9, enemyHP={enemy.Current}, allyHP={ally.Current}, outsideHP={outside.Current}, cleanup={effect == null}";
             if (passed) Debug.Log("SKILL_TWO_VALIDATION_OK " + result);
             else Debug.LogError("SKILL_TWO_VALIDATION_FAILED " + result);

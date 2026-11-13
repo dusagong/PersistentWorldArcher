@@ -23,6 +23,7 @@ namespace PersistentWorld.Editor
         [MenuItem("Tools/Persistent World/Multiplayer/Prepare Cooperative World")]
         public static void Prepare()
         {
+            GameAudioBuilder.Generate();
             const string materials = "Assets/Cainos/Pixel Art Top Down - Basic/Material/";
             foreach (string name in new[] { "MT Tileset", "MT Shadow" })
             {
@@ -37,13 +38,15 @@ namespace PersistentWorld.Editor
             NetworkGameWorld world = sandbox.gameObject.AddComponent<NetworkGameWorld>();
             sandbox.gameObject.AddComponent<NetworkCoopValidation>();
             world.manager = sandbox.Manager; world.gameCamera = Camera.main; world.gameCamera.orthographicSize = 6;
-            world.maps = new Transform[3];
-            world.mapBackgrounds = new Color[3];
-            world.mapCameraSizes = new float[3];
-            world.mapSpawns = new Vector2[3];
+            int areaCount = Enum.GetValues(typeof(GameArea)).Length;
+            world.maps = new Transform[areaCount];
+            world.mapBackgrounds = new Color[areaCount];
+            world.mapCameraSizes = new float[areaCount];
+            world.mapSpawns = new Vector2[areaCount];
             foreach (GameArea area in Enum.GetValues(typeof(GameArea)))
             {
-                Scene source = EditorSceneManager.OpenScene("Assets/_Project/Scenes/" + area + ".unity", OpenSceneMode.Additive);
+                GameArea template = area == GameArea.Field2 || area == GameArea.Tutorial ? GameArea.Field : area;
+                Scene source = EditorSceneManager.OpenScene("Assets/_Project/Scenes/" + template + ".unity", OpenSceneMode.Additive);
                 GameObject map = new GameObject(area + " World"); SceneManager.MoveGameObjectToScene(map, destination);
                 world.maps[(int)area] = map.transform;
                 foreach (GameObject root in source.GetRootGameObjects())
@@ -78,6 +81,7 @@ namespace PersistentWorld.Editor
                     {
                         SerializedObject serialized = new SerializedObject(boss);
                         serialized.FindProperty("arenaCenter").vector2Value += NetworkGameWorld.Origin(area);
+                        serialized.FindProperty("homingLifetime").floatValue = 4.25f;
                         serialized.ApplyModifiedPropertiesWithoutUndo();
                     }
                     if (root.GetComponentsInChildren<Health>(true).Length > 0)
@@ -90,6 +94,7 @@ namespace PersistentWorld.Editor
                     root.transform.SetParent(map.transform, true);
                 }
                 EditorSceneManager.CloseScene(source, true);
+                CooperativeMapLayouts.Configure(world, area);
             }
             string registryPath = Folder + "/NetworkGameAssets.asset";
             NetworkGameAssets registry = AssetDatabase.LoadAssetAtPath<NetworkGameAssets>(registryPath);

@@ -508,6 +508,7 @@ namespace Unity.Networking.Transport
                                 // can do is abort and tell the user what they can do to avoid this
                                 // problem in the future.
                                 Warn("Insufficient space in receive queue, consider increasing receiveQueueCapacity.");
+                                UnityEngine.Debug.LogWarning($"PWA_WEBSOCKET_BACKPRESSURE buffered={connectionData.RecvBuffer.Length} incoming={packetProcessor.Length} packets={ReceiveQueue.Count}");
                                 ConnectionList.StartDisconnecting(ref connectionId, Error.DisconnectReason.ProtocolError);
                                 connectionData.WebSocketState = WebSocket.State.Closed;
                             }

@@ -484,7 +484,10 @@ namespace Unity.Networking.Transport
                     ErrorState error = default;
                     // Read data from the connection if we can. Receive should return chunks of up to MTU.
                     // Close the connection in case of a receive error.
-                    while (true)
+                    // Bound coalesced TCP bursts per peer. One TCP chunk can expand into many
+                    // WebSocket frames, so the receive queue must retain room for decoded packets.
+                    int readPackets = 0;
+                    while (readPackets++ < 3)
                     {
                         // This is SUPER hacky, but we can't just enqueue packets until the receive
                         // queue is filled. We need to stop when we're halfway there. The reason is

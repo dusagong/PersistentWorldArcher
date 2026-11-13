@@ -12,6 +12,7 @@ namespace PersistentWorld.Combat
 
         public event Action<int, int> Changed;
         public event Action<Health> Died;
+        public static event Action<Health, int> DamageApplied;
 
         public Faction Faction => faction;
         public int Current { get; private set; }
@@ -56,8 +57,10 @@ namespace PersistentWorld.Combat
             if (status != null && status.Vulnerable) amount = Mathf.RoundToInt(amount * 2f);
             PlayerEquipment equipment = GetComponent<PlayerEquipment>();
             amount = EquipmentDamage.Resolve(amount, source, MonsterIdentity.Resolve(gameObject), equipment != null ? equipment.Bonuses : default);
+            int actual = Mathf.Min(Current, amount);
             Current = Mathf.Max(0, Current - amount);
             Changed?.Invoke(Current, maxHealth);
+            DamageApplied?.Invoke(this, actual);
             if (Current == 0)
             {
                 Died?.Invoke(this);
@@ -71,6 +74,14 @@ namespace PersistentWorld.Combat
         }
 
         public void KeepOnDeath() => destroyOnDeath = false;
+
+        public void SetMaximum(int maximum)
+        {
+            if (maximum == maxHealth) return;
+            Current = IsDead ? 0 : Mathf.Clamp(Mathf.RoundToInt(Current / (float)maxHealth * maximum), 1, maximum);
+            maxHealth = maximum;
+            Changed?.Invoke(Current, maxHealth);
+        }
 
         public bool Heal(int amount)
         {

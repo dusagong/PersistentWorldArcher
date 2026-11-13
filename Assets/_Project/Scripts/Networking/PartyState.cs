@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace PersistentWorld.Networking
 {
-    public enum GameArea { Town, Field, BossArena }
+    public enum GameArea { Town, Field, BossArena, Field2, Tutorial }
     public sealed class PartyMember
     {
         public ulong Id;
@@ -79,12 +79,13 @@ namespace PersistentWorld.Networking
         public bool EnterBoss(ulong id, out ulong[] entering, out string reason)
         {
             entering = Array.Empty<ulong>(); reason = "필드의 보스 입구에서 입장해주세요.";
-            if (!Members.TryGetValue(id, out PartyMember requester) || requester.Area != GameArea.Field || !requester.Alive) return false;
+            if (!Members.TryGetValue(id, out PartyMember requester) ||
+                (requester.Area != GameArea.Field && requester.Area != GameArea.Field2) || !requester.Alive) return false;
             if (BossParty != 0) { reason = "다른 파티가 보스 룸을 사용 중입니다."; return false; }
             if (requester.Party == 0) { reason = "파티에 가입하거나 1인 파티를 먼저 만들어주세요."; return false; }
             if (Leader(requester.Party) != id) { reason = "파티장만 보스 입장을 요청할 수 있습니다."; return false; }
             PartyMember[] group = Group(requester.Party);
-            if (group.Any(p => p.Area != GameArea.Field || !p.Alive)) { reason = "파티원 전원이 같은 필드에 살아 있어야 합니다."; return false; }
+            if (group.Any(p => p.Area != requester.Area || !p.Alive)) { reason = "파티원 전원이 같은 필드에 살아 있어야 합니다."; return false; }
             BossParty = requester.Party;
             entering = group.Select(p => p.Id).ToArray();
             foreach (PartyMember player in group) { player.Area = GameArea.BossArena; CancelInvites(player.Id); }

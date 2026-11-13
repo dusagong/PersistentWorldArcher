@@ -1,6 +1,6 @@
 # Railway 멀티플레이 인프라
 
-협동 빌드는 실제 Town/Field/BossArena 전투와 파티를 실행한다. [협동 플레이 안내](../../Docs/COOPERATIVE_PLAY.md)를 먼저 참고한다. 운영 서버가 새 협동 빌드로 배포되기 전에는 기존 접속 테스트만 가능하다.
+협동 빌드는 Town/Field/Field2/BossArena/Tutorial과 실제 전투·파티를 실행한다. [협동 플레이 안내](../../Docs/COOPERATIVE_PLAY.md)와 [피드백별 체크리스트](../../Docs/FEEDBACK_CHECKLIST_2026-11-13.md)를 참고한다.
 Netcode for GameObjects 2.4.4 + Unity Transport 2.6.0을 Unity 6000.0.60f1에 고정했다.
 
 ## 현재 서버
@@ -30,7 +30,7 @@ Unity가 접속을 받고 메인 스레드 heartbeat가 정상일 때만 200을 
 - 참가 코드 및 프로토콜 확인 후 플레이어를 생성한다. 공개 계정 인증을 대신하는 코드는 아니며 팀 테스트용이다.
 - 외부 접속에는 `wss://`를 사용하고 인증서는 OS 신뢰 저장소로 검증한다. 인증서 검증을 끄지 않는다.
 - 배포용 실행 파일은 Linux Dedicated Server/Mono 빌드다. Railway에서 Unity Editor를 실행하지 않는다.
-- 재배포 시 접속이 끊긴다. 현재 자동 재접속은 없고 접속 버튼으로 다시 연결한다.
+- 재배포 시 연결이 잠시 끊긴다. 클라이언트가 같은 코드로 자동 재접속한다. 재배포·서버 재시작을 넘는 데모 진행 복구는 보장하지 않는다.
 
 ## 최초 1회
 
@@ -53,8 +53,7 @@ Unity가 접속을 받고 메인 스레드 heartbeat가 정상일 때만 200을 
 7. 배포 완료 후 Public Networking에서 도메인을 만들고 대상 포트를 8080으로 지정한다.
 8. `https://생성된도메인/health`에서 `ready: true`를 확인한다.
 
-`/data`는 저장 경로만 준비한 것이다. **캐릭터/스킬/인벤토리/월드의 서버 저장은 아직 구현하지 않았다.**
-재배포/재시작 후에도 계속되는 실제 월드 상태를 보장하지 않는다.
+영구 플레이어의 직업별 장비·인벤토리·강화·스킬·포션 장착과 재사용 대기시간은 `/data/characters-v1`에 저장한다. 기존 Volume을 유지하며 배포한다. 필드 드롭·몬스터 위치·진행 중인 보스전은 서버 재시작 시 초기화한다. 데모 계정은 디스크에 저장하지 않는다.
 
 ## 빌드와 배포
 
@@ -77,7 +76,11 @@ GitHub에 소스만 푸시하는 것으로 자동 Unity 빌드가 되지 않는�
 
 Unity 메뉴 `Tools > Persistent World > Multiplayer > Build Cooperative Windows Client`로 빌드한다.
 `Builds/CooperativeWindows/PwaCoop.exe` 실행 → 서버 주소 `wss://생성된도메인` → 참가 코드 → 접속.
-WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 마을 개편 빌드는 서버와 클라이언트 모두 프로토콜 5를 사용한다.
+피드백 반영 빌드는 서버와 클라이언트 모두 **프로토콜 6**이다. 서버 업데이트 시 팀원에게 새 Windows 폴더 전체를 배포한다.
+
+새 플레이어는 닉네임과 팀 참가 코드를 입력하고 직업을 선택한다. ESC 메뉴의 플레이어 코드 복사로 복구 코드를 보관한다.
+다른 PC에서는 동일한 서버의 플레이어 코드로 로그인한다. 팀 참가 코드와 개인 플레이어 코드는 별개다.
+데모 계정은 디스크에 저장하지 않으며 명시적으로 로그아웃하면 삭제한다. 전송 끊김의 자동 재접속만 90초 동안 메모리에서 복구한다.
 
 ## 검증
 
@@ -92,8 +95,10 @@ WASD 이동. 실제 캐릭터와 파티 창이 표시된다. 마을 개편 빌�
 검증 로그는 `Library/Validation/Network-*`에 보관한다. 게임 플레이어의 개인 저장 파일을 사용하지 않는다.
 Windows 두 프로세스 접속 통과는 실제 두 PC/인터넷/지연 환경 검증을 대신하지 않는다.
 
-## 다음 연결 작업
+## 저장 및 배포 설정
 
 캐릭터별 저장은 Railway 볼륨의 `/data/characters-v1`에 기록된다. 재배포할 때 기존 볼륨을 연결한다.
+
+설정 파일은 배포 시의 값일 뿐 대시보드 설정을 수정하지 않는다. 배포 목록의 실제 `serviceManifest`에서 싱가포르 단일 복제본, 절전 해제, `/health`, 재시작 정책과 `/data` 마운트를 확인한다. 새 서비스의 기본 리전은 운영 서비스와 다를 수 있다. [Railway 설정 문서](https://docs.railway.com/config-as-code/reference), [리전 문서](https://docs.railway.com/deployments/regions).
 
 협동 서버는 시각 상태 전송에 Renderer 메타데이터를 사용하므로 추가 Dedicated Server Optimizations를 끄고 빌드한다. 클라이언트 화면을 서버에서 렌더링하지 않는다.

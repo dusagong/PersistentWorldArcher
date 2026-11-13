@@ -7,6 +7,7 @@ namespace PersistentWorld.Combat
     public sealed class HealingZone : MonoBehaviour
     {
         private Health caster;
+        public Health Caster => caster;
         private float endsAt;
         private float nextTick;
         public static HealingZone Spawn(Vector2 position, Health source, float seconds)

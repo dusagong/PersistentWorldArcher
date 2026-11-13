@@ -15,6 +15,7 @@ namespace PersistentWorld.Combat
         private Vector2 direction;
         private float startedAt;
         public Transform Owner => owner;
+        public Vector2 Aim => direction;
         public float SwingAngle { get; private set; }
 
         public static SwordSwingEffect Play(ArcherController caster, Vector2 aim)

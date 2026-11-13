@@ -14,6 +14,8 @@ namespace PersistentWorld.Networking
         private float soakDuration, soakStartedAt = -1, lastFrameAt, maxFrameGap, nextSampleAt;
         private GameFrame lastFrame;
         private int fieldFrames, frames;
+        private int hitSequence, enemyHits, playerHits, ownHits, attacks;
+        private float accountReadyAt = -1;
         private readonly List<ulong> rttSamples = new List<ulong>();
         private void Start()
         {
@@ -24,6 +26,21 @@ namespace PersistentWorld.Networking
         }
         private void Update()
         {
+            if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-account-probe"))
+            {
+                NetworkGameWorld world = NetworkGameWorld.Instance;
+                int.TryParse(NetworkSandbox.Argument("-pwa-expect-class", "0"), out int expected);
+                if (world?.Local != null)
+                {
+                    if (world.Local.character != expected) { Fail("restored account class"); return; }
+                    if (accountReadyAt < 0) accountReadyAt = Time.realtimeSinceStartup;
+                    if (Time.realtimeSinceStartup - accountReadyAt > 2) sandbox.Logout();
+                }
+                else if (accountReadyAt >= 0 && !sandbox.Manager.IsListening)
+                { Debug.Log("PWA_ACCOUNT_OK class=" + expected); Application.Quit(0); }
+                if (Time.realtimeSinceStartup - startedAt > 20) Fail("account login/logout timeout");
+                return;
+            }
             if (soakDuration > 0) { ObserveSoak(); return; }
             if (!Application.isBatchMode || !NetworkSandbox.HasArgument("-pwa-probe")) return;
             if (NetworkSandbox.HasArgument("-pwa-party-probe")) return;
@@ -74,16 +91,21 @@ namespace PersistentWorld.Networking
                     break;
                 }
             }
-            else if (player.area == (int)GameArea.Field)
+            else if (player.area == (int)GameArea.Field || player.area == (int)GameArea.Field2)
             {
                 float phase = Time.realtimeSinceStartup * .9f;
-                movement = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
-                aim = movement;
-                target = player.position + aim * 2;
+                Vector2 center = NetworkGameWorld.Origin((GameArea)player.area) +
+                    (player.area == (int)GameArea.Field2 ? new Vector2(-1, 1) : Vector2.zero);
+                Vector2 orbit = center + new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * 1.3f;
+                movement = Vector2.ClampMagnitude(orbit - player.position, 1);
+                aim = (center - player.position).normalized;
+                if (aim.sqrMagnitude < .01f) aim = Vector2.right;
+                target = center;
                 buttons = 1;
                 int cycle = (int)(Time.realtimeSinceStartup * 10) % 40;
                 if (cycle == 0) buttons |= 2 | 8;
                 if (cycle == 1) buttons |= 64;
+                if (cycle == 10) buttons |= 4;
                 if (cycle == 20) buttons |= 16;
                 if (cycle == 21) buttons |= 128;
             }
@@ -105,7 +127,16 @@ namespace PersistentWorld.Networking
                 lastFrameAt = now;
                 lastFrame = frame;
                 frames++;
-                if (NetworkGameWorld.Instance.Local?.area == (int)GameArea.Field) fieldFrames++;
+                if (NetworkGameWorld.Instance.Local?.area == (int)GameArea.Field || NetworkGameWorld.Instance.Local?.area == (int)GameArea.Field2) fieldFrames++;
+                PlayerFrame local = NetworkGameWorld.Instance.Local;
+                if (local != null) attacks = Mathf.Max(attacks, local.attacks);
+                if (frame.hits != null) foreach (HitFrame hit in frame.hits)
+                {
+                    if (hit.sequence <= hitSequence) continue;
+                    hitSequence = hit.sequence;
+                    if (hit.player) { playerHits++; if (local != null && hit.visual == local.visual) ownHits++; }
+                    else enemyHits++;
+                }
             }
             if (now - lastFrameAt > 2) { Fail("soak game frames stalled for two seconds"); return; }
             if (now >= nextSampleAt)
@@ -115,10 +146,12 @@ namespace PersistentWorld.Networking
                 if (rtt > 0) rttSamples.Add(rtt);
             }
             if (now - soakStartedAt < soakDuration) return;
-            if (fieldFrames < 20) { Fail("soak client did not receive enough Field frames"); return; }
+            if (fieldFrames < soakDuration * 3) { Fail("soak client did not spend enough time in actual field combat"); return; }
+            if (attacks < 10 || enemyHits == 0 || playerHits == 0)
+            { Fail("soak did not observe actual attacks, monster damage and player damage"); return; }
             rttSamples.Sort();
             string p95 = rttSamples.Count == 0 ? "unavailable" : rttSamples[Mathf.CeilToInt(rttSamples.Count * .95f) - 1].ToString();
-            Debug.Log($"PWA_SOAK_OK seconds={soakDuration} frames={frames} fieldFrames={fieldFrames} maxFrameGapMs={maxFrameGap * 1000:F0} rttP95Ms={p95}");
+            Debug.Log($"PWA_SOAK_OK seconds={soakDuration} frames={frames} fieldFrames={fieldFrames} attacks={attacks} enemyHits={enemyHits} playerHits={playerHits} ownHits={ownHits} maxFrameGapMs={maxFrameGap * 1000:F0} rttP95Ms={p95}");
             Application.Quit(0);
         }
         private static void Fail(string reason) { Debug.LogError("PWA_NETWORK_PROBE_FAILED " + reason); Application.Quit(1); }

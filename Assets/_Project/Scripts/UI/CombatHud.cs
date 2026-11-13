@@ -1,4 +1,5 @@
 using PersistentWorld.Items;
+using PersistentWorld.Networking;
 using PersistentWorld.Player;
 using PersistentWorld.World;
 using UnityEngine;
@@ -10,19 +11,33 @@ namespace PersistentWorld.UI
     public sealed class CombatHud : MonoBehaviour
     {
         private ArcherController player;
+        private NetworkGameWorld onlineWorld;
+        private NetworkPartyHud onlineMenu;
         private PanelSettings settings;
         private UIDocument document;
         private Font font;
         private VisualElement screen, panel, vitals, skillRow, hpFill, mpFill;
         private Label hpText, mpText, skillTooltip;
         private readonly SkillView[] slots = new SkillView[5];
+        private VisualElement potionRow;
+        private readonly Image[] potionIcons = new Image[2];
+        private readonly Label[] potionTimers = new Label[2], potionCounts = new Label[2];
+        private readonly string[] shownPotions = new string[2];
         private IManaSource manaSource;
 
         public void BindManaSource(IManaSource source) => manaSource = source;
+        internal void BindOnline(NetworkGameWorld world, NetworkPartyHud menu)
+        {
+            onlineWorld = world;
+            onlineMenu = menu;
+            menu.BindCombatHud(this);
+            if (skillRow != null) AddPotionRow();
+        }
 
         public float TopScreenY => panel != null && screen.resolvedStyle.display != DisplayStyle.None &&
             document.rootVisualElement.worldBound.height > 0
-            ? panel.worldBound.y / document.rootVisualElement.worldBound.height * Screen.height : Screen.height;
+            ? Mathf.Min(panel.worldBound.y, potionRow?.worldBound.y ?? panel.worldBound.y) /
+                document.rootVisualElement.worldBound.height * Screen.height : Screen.height;
 
         public void GetGuideRects(Vector2 viewport, out Rect charge, out Rect interaction, out Rect dialogue)
         {
@@ -78,6 +93,30 @@ namespace PersistentWorld.UI
             root.pickingMode = PickingMode.Ignore;
             root.focusable = false;
             screen.style.display = DisplayStyle.None;
+            if (onlineWorld != null) AddPotionRow();
+        }
+
+        private void AddPotionRow()
+        {
+            potionRow = new VisualElement { pickingMode = PickingMode.Ignore };
+            potionRow.AddToClassList("combat-potions");
+            skillRow.Add(potionRow);
+            for (int i = 0; i < potionIcons.Length; i++)
+            {
+                var cell = new VisualElement { pickingMode = PickingMode.Ignore };
+                cell.AddToClassList("combat-potion");
+                var key = new Label((i + 1).ToString()) { pickingMode = PickingMode.Ignore };
+                key.AddToClassList("combat-key");
+                potionIcons[i] = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
+                potionIcons[i].AddToClassList("combat-skill-art");
+                potionTimers[i] = new Label { pickingMode = PickingMode.Ignore };
+                potionTimers[i].AddToClassList("combat-cooldown");
+                potionCounts[i] = new Label { pickingMode = PickingMode.Ignore };
+                potionCounts[i].AddToClassList("combat-potion-count");
+                cell.Add(potionIcons[i]); cell.Add(key); cell.Add(potionTimers[i]); cell.Add(potionCounts[i]);
+                potionRow.Add(cell);
+                shownPotions[i] = null;
+            }
         }
 
         private void LateUpdate()
@@ -85,11 +124,14 @@ namespace PersistentWorld.UI
             if (screen == null) return;
             int width = settings.targetTexture != null ? settings.targetTexture.width : Screen.width;
             int height = settings.targetTexture != null ? settings.targetTexture.height : Screen.height;
-            if (player == null) player = FindFirstObjectByType<ArcherController>();
-            bool visible = player != null && !player.MenuOpen && !ItemWindows.BlocksGameplay;
+            PlayerFrame local = onlineWorld != null ? onlineWorld.Local : null;
+            if (onlineWorld == null && player == null) player = FindFirstObjectByType<ArcherController>();
+            bool visible = !ItemWindows.BlocksGameplay && (onlineWorld != null
+                ? local != null && !onlineMenu.MenuOpen
+                : player != null && !player.MenuOpen);
             screen.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
             if (!visible) { skillTooltip.style.display = DisplayStyle.None; return; }
-            float preferredScale = Mathf.Clamp(Mathf.Min(width / 1280f, height / 720f), 1, 1.5f);
+            float preferredScale = Mathf.Max(.5f, Mathf.Min(width / 1280f, height / 720f));
             settings.scale = Mathf.Max(.1f, Mathf.Min(preferredScale, width / 688f, (height - 24) / 154f));
             float viewportWidth = width / settings.scale;
             int columns = viewportWidth >= 960 ? 5 : 3;
@@ -103,6 +145,15 @@ namespace PersistentWorld.UI
                 slots[i].Root.style.left = i % columns * 68;
                 slots[i].Root.style.top = i / columns * 80;
             }
+            if (local != null) DrawOnline(local);
+            else DrawOffline();
+            Vector3 mouse = Input.mousePosition;
+            UpdateSkillTooltip(new Vector2(mouse.x * screen.worldBound.width / Mathf.Max(1, Screen.width),
+                (Screen.height - mouse.y) * screen.worldBound.height / Mathf.Max(1, Screen.height)));
+        }
+
+        private void DrawOffline()
+        {
             hpText.text = $"{player.Health.Current}/{player.Health.Maximum}";
             SetFill(hpFill, player.Health.Current, player.Health.Maximum);
             if (manaSource is Object owner && owner == null) manaSource = null;
@@ -117,37 +168,91 @@ namespace PersistentWorld.UI
             bool alive = !player.Health.IsDead;
             slots[0].Set(SkillGlyph.Dodge, "회피", player.BackstepRemaining, player.BackstepCooldown,
                 player.IsDashing, alive && (player.IsDashing || player.Mana.CanAfford(PrototypeManaBalance.DodgeCost)), false, false);
+            slots[0].Details = $"공격을 피하며 이동합니다.\n쿨타임 {player.BackstepCooldown:0.#}초 · MP {PrototypeManaBalance.DodgeCost}";
             SetSkill(1, loadout.Slots[0], false);
             SetSkill(2, loadout.Slots[1], false);
-            SkillGlyph special = loadout.Class == CharacterClass.Warrior ? SkillGlyph.Parry :
-                loadout.Class == CharacterClass.Healer ? SkillGlyph.Revive : SkillGlyph.DoubleShot;
-            string specialName = loadout.Class == CharacterClass.Warrior ? "패링" :
-                loadout.Class == CharacterClass.Healer ? "부활" : "일석이조";
-            slots[3].Set(special, specialName, skills.SpecialRemaining, skills.SpecialCooldownDuration,
+            DrawSpecial(loadout.Class, skills.SpecialRemaining, skills.SpecialCooldownDuration,
                 skills.SpecialActive, alive && PlayerSkills.SpecialSkillsEnabled &&
                 (skills.SpecialActive || player.Mana.CanAfford(PrototypeManaBalance.SpecialCost(loadout.Class))) &&
-                (loadout.Class != CharacterClass.Warrior || player.HasWeapon), false, false);
-            slots[3].SetMouseSequence(loadout.Class == CharacterClass.Archer, skills.SpecialActive);
-            slots[3].SetEffect(skills.SpecialActiveRemaining, skills.SpecialActiveDuration);
+                (loadout.Class != CharacterClass.Warrior || player.HasWeapon), skills.SpecialActiveRemaining, skills.SpecialActiveDuration);
             SetSkill(4, loadout.Slots[2], !loadout.BossLearned);
-            Vector3 mouse = Input.mousePosition;
-            UpdateSkillTooltip(new Vector2(mouse.x * screen.worldBound.width / Mathf.Max(1, Screen.width),
-                (Screen.height - mouse.y) * screen.worldBound.height / Mathf.Max(1, Screen.height)));
+        }
+
+        private void DrawOnline(PlayerFrame local)
+        {
+            DrawPotions();
+            hpText.text = $"{local.hp}/{local.maximum}";
+            SetFill(hpFill, local.hp, local.maximum);
+            mpText.text = $"{local.mp:0.#}/{PrototypeManaBalance.Maximum:0.#}";
+            SetFill(mpFill, local.mp, PrototypeManaBalance.Maximum);
+            bool alive = local.hp > 0;
+            CharacterClass type = (CharacterClass)local.character;
+            slots[0].Set(SkillGlyph.Dodge, "회피", local.dodge, local.dodgeDuration, local.dodging,
+                alive && (local.dodging || local.mp >= PrototypeManaBalance.DodgeCost), false, false);
+            slots[0].Details = $"공격을 피하며 이동합니다.\n쿨타임 {local.dodgeDuration:0.#}초 · MP {PrototypeManaBalance.DodgeCost}";
+            for (int i = 0; i < 3; i++)
+            {
+                SkillId id = (SkillId)At(local.slots, i);
+                bool active = At(local.activeSkills, i);
+                bool available = alive && (local.hasWeapon || id == SkillId.HealingZone || id == SkillId.Cleanse) &&
+                    (active || local.mp >= PrototypeManaBalance.Cost(id));
+                DrawSkill(i == 2 ? 4 : i + 1, id, i == 2 && !local.bossLearned,
+                    At(local.cooldowns, i), At(local.cooldownDurations, i), active, available);
+            }
+            DrawSpecial(type, local.special, local.specialDuration, local.specialActive,
+                alive && local.specialEnabled && (local.specialActive || local.mp >= PrototypeManaBalance.SpecialCost(type)) &&
+                (type != CharacterClass.Warrior || local.hasWeapon), local.specialEffect, local.specialEffectDuration);
+        }
+
+        private void DrawPotions()
+        {
+            if (potionRow == null) return;
+            GameFrame frame = onlineWorld.Frame;
+            for (int i = 0; i < potionIcons.Length; i++)
+            {
+                string id = At(frame.potionSlots, i);
+                if (shownPotions[i] != id)
+                {
+                    shownPotions[i] = id;
+                    potionIcons[i].sprite = ItemCatalog.TryGet(id, out var item) ? Resources.Load<Sprite>(item.IconPath) : null;
+                }
+                float remaining = At(frame.potionCooldowns, i);
+                int count = string.IsNullOrEmpty(id) ? 0 : onlineWorld.ClientInventory?.Inventory.GetCount(id) ?? 0;
+                potionIcons[i].style.opacity = remaining > 0 || count == 0 ? .45f : 1f;
+                potionTimers[i].text = remaining > 0 ? Mathf.CeilToInt(remaining).ToString() : "";
+                potionCounts[i].text = string.IsNullOrEmpty(id) ? "" : count.ToString();
+            }
+        }
+
+        private static T At<T>(T[] values, int index) => values != null && index < values.Length ? values[index] : default;
+
+        private void DrawSpecial(CharacterClass type, float remaining, float duration, bool active, bool available,
+            float effectRemaining, float effectDuration)
+        {
+            SkillGlyph glyph = type == CharacterClass.Warrior ? SkillGlyph.Parry :
+                type == CharacterClass.Healer ? SkillGlyph.Revive : SkillGlyph.DoubleShot;
+            string name = type == CharacterClass.Warrior ? "패링" : type == CharacterClass.Healer ? "부활" : "일석이조";
+            slots[3].Set(glyph, name, remaining, duration, active, available, false, false);
+            slots[3].SetMouseSequence(type == CharacterClass.Archer, active);
+            slots[3].SetEffect(effectRemaining, effectDuration);
+            string description = type == CharacterClass.Warrior ? "전방 탄환을 1.2초간 반사합니다." :
+                type == CharacterClass.Healer ? "가까운 사망 아군을 부활시킵니다." : "5초간 기본 화살을 두 발씩 발사합니다.";
+            slots[3].Details = description + $"\n쿨타임 {(duration > 0 ? duration : type == CharacterClass.Healer ? 180 : type == CharacterClass.Warrior ? 4 : 10):0.#}초 · MP {PrototypeManaBalance.SpecialCost(type)}";
         }
 
         private void UpdateSkillTooltip(Vector2 position)
         {
             skillTooltip.style.display = DisplayStyle.None;
-            if (player == null || screen.style.display == DisplayStyle.None || screen.resolvedStyle.display == DisplayStyle.None) return;
+            if (screen.style.display == DisplayStyle.None || screen.resolvedStyle.display == DisplayStyle.None) return;
             foreach (SkillView slot in slots)
             {
                 if (!slot.Root.worldBound.Contains(position)) continue;
                 skillTooltip.text = slot.Hint;
-                float height = slot.Hint.Contains("\n") ? 48 : 32;
+                float height = 116;
                 skillTooltip.style.height = height;
                 skillTooltip.style.left = Mathf.Clamp(slot.Root.worldBound.center.x - 110, 8, Mathf.Max(8, screen.worldBound.width - 228));
-                float top = panel.worldBound.yMin;
-                if (!player.Health.IsDead)
+                float top = Mathf.Min(panel.worldBound.yMin, potionRow?.worldBound.yMin ?? panel.worldBound.yMin);
+                if (player != null && !player.Health.IsDead)
                 {
                     Vector2 viewport = settings.targetTexture != null ?
                         new Vector2(settings.targetTexture.width, settings.targetTexture.height) : new Vector2(Screen.width, Screen.height);
@@ -161,15 +266,35 @@ namespace PersistentWorld.UI
                 skillTooltip.style.display = DisplayStyle.Flex;
                 return;
             }
+            if (onlineWorld == null || potionRow == null) return;
+            for (int i = 0; potionIcons != null && i < potionIcons.Length; i++)
+            {
+                VisualElement element = potionIcons[i].parent;
+                if (!element.worldBound.Contains(position)) continue;
+                string id = At(onlineWorld.Frame.potionSlots, i);
+                skillTooltip.text = string.IsNullOrEmpty(id) ? "인벤토리(I)에서 포션을 장착하세요." :
+                    (id == PersistentWorld.World.MonsterDropTable.HealthPotion ? "체력 포션 · HP 30 회복" : "마나 포션 · MP 30 회복") + "\n재사용 10초 · MP 소모 없음";
+                skillTooltip.style.height = 72;
+                skillTooltip.style.left = Mathf.Clamp(element.worldBound.x - 160, 8, Mathf.Max(8, screen.worldBound.width - 228));
+                skillTooltip.style.top = Mathf.Max(8, element.worldBound.y - 80);
+                skillTooltip.style.display = DisplayStyle.Flex; return;
+            }
         }
 
         private void SetSkill(int index, SkillId id, bool locked)
         {
             bool available = !player.Health.IsDead && (player.HasWeapon || id == SkillId.HealingZone || id == SkillId.Cleanse);
             available &= player.Skills.IsUsingSkill(id) || player.Mana.CanAfford(PrototypeManaBalance.Cost(id));
+            DrawSkill(index, id, locked, player.Skills.Cooldown(id), player.Skills.CooldownDuration(id),
+                player.Skills.IsUsingSkill(id), available);
+        }
+
+        private void DrawSkill(int index, SkillId id, bool locked, float remaining, float duration, bool active, bool available)
+        {
             string title = locked ? "보스 스킬" : id == SkillId.None ? "미장착" : id == SkillId.BossBlast ? "전장 심판" : SkillCatalog.Name(id);
-            slots[index].Set(Glyph(id), title, player.Skills.Cooldown(id),
-                player.Skills.CooldownDuration(id), player.Skills.IsUsingSkill(id), available, locked, id == SkillId.None);
+            slots[index].Set(Glyph(id), title, remaining, duration, active, available, locked, id == SkillId.None);
+            slots[index].Details = id == SkillId.None ? "마을에서 K키로 스킬을 장착하세요." :
+                SkillCatalog.Description(id) + $"\n쿨타임 {(duration > 0 ? duration : SkillCatalog.Cooldown(id)):0.#}초 · MP {PrototypeManaBalance.Cost(id)}";
         }
 
         private static SkillGlyph Glyph(SkillId id) => id switch
@@ -202,7 +327,8 @@ namespace PersistentWorld.UI
             private readonly SkillCooldownIcon icon = new SkillCooldownIcon();
             private readonly Label countdown = new Label();
             private string title, usage = "";
-            public string Hint => title + usage;
+            public string Details = "";
+            public string Hint => title + usage + "\n" + Details;
             private readonly VisualElement mouseShortcut;
             private readonly MouseButtonIcon leftMouse, rightMouse;
             private readonly Label sequence;

@@ -20,6 +20,7 @@ try {
         $key = [Guid]::NewGuid().ToString('N')
         $argsForClient = @('-batchmode', '-nographics', '-logFile', "`"$log`"", '-pwa-connect', $Endpoint,
             '-pwa-code', $env:PWA_JOIN_CODE, '-pwa-name', $role, '-pwa-character-key', $key)
+        if (-not $Party) { $argsForClient += @('-pwa-class', $(if ($role -eq 'Healer') { 2 } elseif ($role -eq 'Leader') { 1 } else { 0 })) }
         if ($Party) { $argsForClient += @('-pwa-probe', '-pwa-party-probe') }
         else { $argsForClient += @('-pwa-soak-seconds', $Seconds) }
         $children.Add((Start-Process -FilePath $binary -ArgumentList $argsForClient -WindowStyle Hidden -PassThru))

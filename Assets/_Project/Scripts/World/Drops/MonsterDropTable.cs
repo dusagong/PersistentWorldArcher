@@ -71,13 +71,15 @@ namespace PersistentWorld.World
             Vector2 origin = transform.position;
             foreach (DropEntry entry in drops)
             {
-                if (entry.quantity < 1 || UnityEngine.Random.value >= entry.chance) continue;
-                if (!ItemCatalog.TryGet(entry.itemId, out _))
+                if (!ItemCatalog.TryGet(entry.itemId, out ItemDefinition item))
                 {
                     Debug.LogWarning($"드롭 표에 없는 아이템 ID: '{entry.itemId}' ({name})", this);
                     continue;
                 }
-                DroppedItem.Spawn(origin + UnityEngine.Random.insideUnitCircle * scatterRadius, entry.itemId, entry.quantity, origin);
+                float chance = item.Category == ItemCategory.Material ? Mathf.Min(1, entry.chance * 1.5f) : entry.chance;
+                if (entry.quantity < 1 || UnityEngine.Random.value >= chance) continue;
+                int quantity = item.Category == ItemCategory.Material ? entry.quantity * 3 : entry.quantity;
+                DroppedItem.Spawn(origin + UnityEngine.Random.insideUnitCircle * scatterRadius, entry.itemId, quantity, origin);
             }
         }
 

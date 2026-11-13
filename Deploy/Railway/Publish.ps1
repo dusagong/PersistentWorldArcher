@@ -10,6 +10,10 @@ $bundleRoot = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path 'B
 & npx.cmd --yes @railway/cli whoami
 if ($LASTEXITCODE -ne 0) { throw 'Run npx @railway/cli login first.' }
 # Explicit project/service and upload root prevent deploying unrelated coursework or credentials.
-& npx.cmd --yes @railway/cli up $bundleRoot --path-as-root --no-gitignore --project $ProjectId --environment $DeploymentEnvironment --service $Service --detach
-if ($LASTEXITCODE -ne 0) { throw 'Railway upload failed.' }
+Push-Location -LiteralPath $bundleRoot
+try {
+    # Keep the upload contents and the CLI deployment context rooted in the same bundle.
+    & npx.cmd --yes @railway/cli up . --path-as-root --no-gitignore --project $ProjectId --environment $DeploymentEnvironment --service $Service --detach
+    if ($LASTEXITCODE -ne 0) { throw 'Railway upload failed.' }
+} finally { Pop-Location }
 Write-Output 'Upload accepted. Check Railway deployment status and /health before distributing the server address.'

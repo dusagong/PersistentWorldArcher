@@ -8,21 +8,21 @@ namespace PersistentWorld.Combat
     {
         public const int FrameCount = 9;
         public const float FrameDuration = .08f;
-        private const float RadiusX = 1.3f;
-        private const float RadiusY = .45f;
+        public const float RadiusX = 2f, RadiusY = .8f, Duration = 3f, Range = 8f;
         private static Texture2D cachedTexture;
         private static Sprite[] frames;
         private SpriteRenderer spriteRenderer;
         private float startedAt;
         private int damage;
         private DamageContext damageContext;
-        private bool impacted;
+        private float nextImpact = FrameDuration * 3;
 
         public static ArrowRainEffect Spawn(Vector2 position, int damage, GameObject source = null)
         {
             if (!LoadFrames()) return null;
             GameObject obj = new GameObject("Skill 2 - Arrow Rain");
             obj.transform.position = position;
+            obj.transform.localScale = new Vector3(RadiusX / 1.3f, RadiusY / .45f, 1);
             SpriteRenderer renderer = obj.AddComponent<SpriteRenderer>();
             renderer.sprite = frames[0];
             renderer.sortingOrder = 1100 - Mathf.RoundToInt(position.y * 100f);
@@ -36,14 +36,14 @@ namespace PersistentWorld.Combat
 
         private void Update()
         {
-            int frame = Mathf.FloorToInt((Time.time - startedAt) / FrameDuration);
-            // Frame 3 is the first ground impact. Damage is applied once per target.
-            if (frame >= 3 && !impacted)
+            float elapsed = Time.time - startedAt;
+            int frame = Mathf.FloorToInt(elapsed / FrameDuration) % FrameCount;
+            if (elapsed >= nextImpact && elapsed < Duration)
             {
-                impacted = true;
+                nextImpact += .5f;
                 ApplyImpact();
             }
-            if (frame >= FrameCount)
+            if (elapsed >= Duration)
             {
                 Destroy(gameObject);
                 return;
@@ -62,7 +62,9 @@ namespace PersistentWorld.Combat
                 Vector2 offset = collider.ClosestPoint(center) - center;
                 if (offset.x * offset.x / (RadiusX * RadiusX) + offset.y * offset.y / (RadiusY * RadiusY) > 1f) continue;
                 damaged.Add(health);
-                health.TryDamage(damage, damageContext);
+                health.TryDamage(Mathf.Max(1, Mathf.RoundToInt(damage / 3f)), damageContext);
+                if (health.GetComponent<PersistentWorld.World.BossController>() == null && !health.IsDead)
+                    (health.GetComponent<CombatStatus>() ?? health.gameObject.AddComponent<CombatStatus>()).ApplySlow(.65f);
             }
         }
 

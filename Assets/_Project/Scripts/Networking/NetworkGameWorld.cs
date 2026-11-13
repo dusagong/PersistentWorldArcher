@@ -40,18 +40,25 @@ namespace PersistentWorld.Networking
         private readonly Dictionary<ulong, float> messageTimes = new Dictionary<ulong, float>();
         private ServerWorldEntity boss;
         private NetworkGameView view;
+        public Vector3 RenderedPosition(int visual, Vector3 fallback) => view != null ? view.Position(visual, fallback) : fallback;
         private NetworkPartyHud hud;
         private float nextFrame;
+        private int hitSequence;
+        private readonly List<HitFrame> recentHits = new List<HitFrame>();
+        private int lastHit;
+        private readonly Dictionary<ulong, int> tutorialProgress = new Dictionary<ulong, int>();
+        private readonly Dictionary<ulong, int> attackSequences = new Dictionary<ulong, int>();
         private int previousBossParty;
         private int viewedArea = -1;
         public static Vector2 Origin(GameArea area) => Vector2.right * ((int)area * 1000);
-        public static GameArea AreaAt(Vector2 position) => (GameArea)Mathf.Clamp(Mathf.RoundToInt(position.x / 1000), 0, 2);
+        public static GameArea AreaAt(Vector2 position) => (GameArea)Mathf.Clamp(Mathf.RoundToInt(position.x / 1000), 0, 4);
         public static bool SameArea(Vector2 a, Vector2 b) => Instance == null || AreaAt(a) == AreaAt(b);
 
         private void Awake()
         {
             Debug.Log("PWA_WORLD_INITIALIZING");
             Instance = this;
+            Health.DamageApplied += RecordHit;
             Application.runInBackground = true;
             for (int i = 0; i < assets.textures.Length; i++) if (assets.textures[i] != null) textureIds[assets.textures[i]] = i;
             bool server = NetworkSandbox.HasArgument("-pwa-server");
@@ -81,6 +88,8 @@ namespace PersistentWorld.Networking
                 for (int i = 1; i < maps.Length; i++) maps[i].gameObject.SetActive(false);
                 view = new NetworkGameView(assets, new GameObject("Server Render Proxies").transform);
                 hud = gameObject.AddComponent<NetworkPartyHud>();
+                if (!Application.isBatchMode || NetworkSandbox.HasArgument("-pwa-capture"))
+                    gameObject.AddComponent<PersistentWorld.UI.CombatHud>().BindOnline(this, hud);
             }
             Debug.Log("PWA_WORLD_INITIALIZED server=" + server);
         }
@@ -89,7 +98,7 @@ namespace PersistentWorld.Networking
             CurrentBoss.GetComponent<Health>().Died += AwardBoss;
             foreach (ServerWorldEntity entity in FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None))
             {
-                if (entity.area == GameArea.Field) PrepareFieldEnemy(entity);
+                if (entity.area == GameArea.Field || entity.area == GameArea.Field2) PrepareFieldEnemy(entity);
                 if (entity.area != GameArea.BossArena) entity.SetSimulation(true);
             }
         }
@@ -117,14 +126,20 @@ namespace PersistentWorld.Networking
             Actors[pawn.OwnerClientId] = actor;
             Parties.Add(pawn.OwnerClientId, manager.GetComponent<NetworkSandbox>().PlayerName(pawn.OwnerClientId));
             if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-field-soak-validation"))
-                Teleport(pawn.OwnerClientId, GameArea.Field, mapSpawns[(int)GameArea.Field]);
+            {
+                GameArea validationArea = NetworkSandbox.Argument("-pwa-validation-area") == "Field2" ? GameArea.Field2 : GameArea.Field;
+                Teleport(pawn.OwnerClientId, validationArea, mapSpawns[(int)validationArea]);
+            }
             pawn.Position.Value = actor.transform.position;
         }
         public void Remove(ulong id)
         {
+            ClearPractice(id);
             Parties.Remove(id);
             if (Actors.TryGetValue(id, out ArcherController actor)) Destroy(actor.gameObject);
             Actors.Remove(id); messages.Remove(id); messageTimes.Remove(id);
+            tutorialProgress.Remove(id);
+            attackSequences.Remove(id);
             ReleaseCharacter(id);
         }
         public Transform NearestLivingPlayer(Vector2 position)
@@ -139,15 +154,19 @@ namespace PersistentWorld.Networking
             actor.SetExternalMovement(movement, aim);
             actor.Skills.UpdateTarget(target);
             if (actor.Health.IsDead) return;
-            if ((buttons & 4) != 0) actor.TryBackstep();
-            if ((buttons & 8) != 0) actor.Skills.BeginSkill(0, target);
-            if ((buttons & 16) != 0) actor.Skills.BeginSkill(1, target);
-            if ((buttons & 32) != 0) actor.Skills.BeginSkill(2, target);
+            if (movement.sqrMagnitude > .01f) RecordPractice(id, 1);
+            if ((buttons & 1024) != 0) ItemAction(id, ItemCommand.UsePotion, "", 0);
+            if ((buttons & 2048) != 0) ItemAction(id, ItemCommand.UsePotion, "", 1);
+            if ((buttons & 4) != 0 && actor.TryBackstep()) RecordPractice(id, 4);
+            if ((buttons & 8) != 0 && actor.Skills.BeginSkill(0, target)) RecordPractice(id, 8);
+            if ((buttons & 16) != 0 && actor.Skills.BeginSkill(1, target)) RecordPractice(id, 8);
+            if ((buttons & 32) != 0 && actor.Skills.BeginSkill(2, target)) RecordPractice(id, 8);
             if ((buttons & 64) != 0) actor.Skills.ReleaseSkill(0);
             if ((buttons & 128) != 0) actor.Skills.ReleaseSkill(1);
             if ((buttons & 256) != 0) actor.Skills.ReleaseSkill(2);
-            if ((buttons & 2) != 0) actor.Skills.TrySpecial();
-            if ((buttons & 1) != 0) actor.TryBasicAttack();
+            if ((buttons & 2) != 0 && actor.Skills.TrySpecial()) RecordPractice(id, 16);
+            if ((buttons & 1) != 0 && actor.TryBasicAttack())
+            { attackSequences.TryGetValue(id, out int sequence); attackSequences[id] = sequence + 1; RecordPractice(id, 2); }
             if ((buttons & 512) != 0 && !actor.Skills.IsHolding) Interact(id);
         }
         public static bool Finite(Vector2 value) => !float.IsNaN(value.x) && !float.IsNaN(value.y) && !float.IsInfinity(value.x) && !float.IsInfinity(value.y);
@@ -179,6 +198,23 @@ namespace PersistentWorld.Networking
                         reason = "보스 스킬을 배웠습니다.";
                     break;
                 case PartyCommand.Menu: actor.SetMenuOpen(first != 0); break;
+                case PartyCommand.Tutorial:
+                    if (Parties.Members[id].Area == GameArea.BossArena || actor.Health.IsDead)
+                    { reason = "보스전 또는 사망 중에는 연습장에 입장할 수 없습니다."; break; }
+                    if (Parties.Members[id].Area == GameArea.Tutorial) ReturnToTown(id);
+                    else
+                    {
+                        Teleport(id, GameArea.Tutorial, PracticeSpawn(id));
+                        ResetPractice(id);
+                    }
+                    break;
+                case PartyCommand.ResetPractice:
+                    if (Parties.Members[id].Area == GameArea.Tutorial && !actor.Health.IsDead) ResetPractice(id);
+                    break;
+                case PartyCommand.Logout:
+                    characters[id].Forget = true;
+                    manager.DisconnectClient(id, "로그아웃했습니다.");
+                    return;
             }
             if (!string.IsNullOrEmpty(reason)) Message(id, reason);
         }
@@ -224,6 +260,7 @@ namespace PersistentWorld.Networking
                 }
             }
             else if (portal.Destination == "Field") Teleport(id, GameArea.Field, mapSpawns[(int)GameArea.Field]);
+            else if (portal.Destination == "Field2") Teleport(id, GameArea.Field2, mapSpawns[(int)GameArea.Field2]);
             else if (portal.Destination == "Town") ReturnToTown(id);
         }
         public void ReturnToTown(ulong id)
@@ -237,9 +274,11 @@ namespace PersistentWorld.Networking
         public void Teleport(ulong id, GameArea area, Vector2 local)
         {
             if (!Actors.TryGetValue(id, out ArcherController actor)) return;
+            if (area != GameArea.Tutorial) ClearPractice(id);
             actor.Skills.Cancel(); actor.SetMenuOpen(false); actor.SetExternalMovement(Vector2.zero, Vector2.right);
             actor.GetComponent<Rigidbody2D>().linearVelocity = Vector2.zero;
             actor.transform.position = Origin(area) + local; actor.GetComponent<NetworkActorContext>().Area = area;
+            actor.Health.Invulnerable = area == GameArea.Tutorial;
             Parties.Move(id, area); Physics2D.SyncTransforms();
         }
         private void SyncMembers()
@@ -263,6 +302,13 @@ namespace PersistentWorld.Networking
                 nextSave = Time.unscaledTime + 1;
                 SaveProgress();
             }
+            if (Application.isBatchMode && NetworkSandbox.HasArgument("-pwa-field-soak-validation"))
+                foreach (var pair in Actors)
+                    if (Parties.Members[pair.Key].Area == GameArea.Town && !pair.Value.Health.IsDead)
+                    {
+                        GameArea area = NetworkSandbox.Argument("-pwa-validation-area") == "Field2" ? GameArea.Field2 : GameArea.Field;
+                        Teleport(pair.Key, area, mapSpawns[(int)area]);
+                    }
             SyncMembers(); Parties.Expire(Time.unscaledTime);
             if (Parties.BossParty != 0)
             {
@@ -273,6 +319,7 @@ namespace PersistentWorld.Networking
             previousBossParty = Parties.BossParty;
             if (Time.unscaledTime < nextFrame) return;
             nextFrame = Time.unscaledTime + .1f;
+            recentHits.RemoveAll(hit => Time.unscaledTimeAsDouble - hit.time > 1);
             var renderers = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
             var lineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None);
             var frames = new GameFrame[maps.Length];
@@ -285,7 +332,13 @@ namespace PersistentWorld.Networking
                 frame.inviteRemaining = 0;
                 frame.inviter = ulong.MaxValue;
                 frame.inviterName = null;
-                frame.inventory = characters[recipient].Encode(Actors[recipient].Loadout.Class);
+                Character character = characters[recipient];
+                frame.inventory = character.Encode(Actors[recipient].Loadout.Class);
+                frame.potionSlots = character.PotionSlots;
+                frame.potionCooldowns = new[] { character.PotionRemaining(0), character.PotionRemaining(1) };
+                frame.prompt = NearbyPrompt(Actors[recipient]);
+                frame.tutorial = tutorialProgress.TryGetValue(recipient, out int progress) ? progress : 0;
+                frame.practice = PracticeTargets(recipient);
                 smithRequests.TryGetValue(recipient, out frame.smithRequest);
                 if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
                 {
@@ -316,13 +369,26 @@ namespace PersistentWorld.Networking
             List<SpriteFrame> visuals = new List<SpriteFrame>();
             foreach (SpriteRenderer renderer in renderers)
             {
-                if (!renderer.enabled || renderer.sprite == null || scenery.Contains(renderer) || AreaAt(renderer.transform.position) != area || renderer.GetComponent<NetworkSandboxPlayer>() != null) continue;
+                if (!renderer.enabled || renderer.sprite == null || renderer.name == "Hit Flash" || scenery.Contains(renderer) || AreaAt(renderer.transform.position) != area || renderer.GetComponent<NetworkSandboxPlayer>() != null) continue;
                 Sprite sprite = renderer.sprite;
                 int texture = -1;
                 if (textureIds.TryGetValue(sprite.texture, out int index)) texture = index;
                 else if (renderer.GetComponent<ActorShadow>() != null) texture = -2;
                 else if (sprite.name == GroundBurst.CircleSpriteName) texture = -3;
+                else if (sprite.name == "Jump Warning Circle") texture = -6;
+                else if (sprite.name == "Boss Telegraph Circle") texture = -4;
+                else if (sprite.name == "Boss Telegraph Frame") texture = -5;
+                Transform follow = renderer.GetComponent<ActorShadow>()?.Target;
+                SwordSwingEffect swing = renderer.GetComponent<SwordSwingEffect>();
+                if (swing != null) follow = swing.Owner;
+                if (follow == null && renderer.transform.parent != null && renderer.GetComponentInParent<Health>() != null)
+                    follow = renderer.GetComponentInParent<Health>().transform;
+                SpriteRenderer parent = follow != null ? follow.GetComponent<SpriteRenderer>() : null;
                 visuals.Add(new SpriteFrame { id = renderer.GetInstanceID(), texture = texture, rect = sprite.rect, layer = renderer.sortingLayerID,
+                    drawMode = (int)renderer.drawMode, size = renderer.size,
+                    swordSwing = swing != null, aim = swing != null ? swing.Aim : Vector2.zero,
+                    follow = parent != null && parent != renderer ? parent.GetInstanceID() : 0,
+                    followOffset = renderer.GetComponent<ActorShadow>() is ActorShadow shadow ? shadow.Offset : follow != null ? renderer.transform.position - follow.position : Vector3.zero,
                     pivot = new Vector2(sprite.pivot.x / sprite.rect.width, sprite.pivot.y / sprite.rect.height), ppu = sprite.pixelsPerUnit, order = renderer.sortingOrder,
                     position = renderer.transform.position, scale = renderer.transform.lossyScale, angle = renderer.transform.eulerAngles.z,
                     color = renderer.color, flipX = renderer.flipX, flipY = renderer.flipY });
@@ -346,10 +412,20 @@ namespace PersistentWorld.Networking
                     character = (int)actor.Loadout.Class, slots = actor.Loadout.Slots.Select(s => (int)s).ToArray(),
                     cooldowns = actor.Loadout.Slots.Select(s => actor.Skills.Cooldown(s)).ToArray(), charge = actor.Skills.Charge,
                     held = (int)actor.Skills.HoldingSkill, special = actor.Skills.SpecialRemaining,
+                    dodge = actor.BackstepRemaining, dodgeDuration = actor.BackstepCooldown, dodging = actor.IsDashing,
+                    specialDuration = actor.Skills.SpecialCooldownDuration, specialActive = actor.Skills.SpecialActive,
+                    specialEffect = actor.Skills.SpecialActiveRemaining, specialEffectDuration = actor.Skills.SpecialActiveDuration,
+                    specialEnabled = PlayerSkills.SpecialSkillsEnabled, hasWeapon = actor.HasWeapon,
+                    cooldownDurations = actor.Loadout.Slots.Select(actor.Skills.CooldownDuration).ToArray(),
+                    activeSkills = actor.Loadout.Slots.Select(actor.Skills.IsUsingSkill).ToArray(),
                     position = actor.transform.position, leader = Parties.Leader(member.Party) == pair.Key,
+                    visual = actor.GetComponent<SpriteRenderer>().GetInstanceID(),
+                    attacks = attackSequences.TryGetValue(pair.Key, out int attacks) ? attacks : 0,
                     bossLearned = actor.Loadout.BossLearned, books = actor.Loadout.BossSkillBooks };
             }).ToArray();
-            GameFrame frame = new GameFrame { players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
+            GameFrame frame = new GameFrame { time = Time.unscaledTimeAsDouble,
+                hits = recentHits.Where(hit => AreaAt(hit.position) == area).ToArray(),
+                players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
                 bossHp = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Current : 0, bossMax = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Maximum : 0,
                 bossPhaseTwo = CurrentBoss != null && CurrentBoss.IsPhaseTwo };
             if (area == GameArea.BossArena)
@@ -364,9 +440,16 @@ namespace PersistentWorld.Networking
             byte[] data = new byte[size]; reader.ReadBytesSafe(ref data, size);
             try
             {
+                GameFrame previous = Frame;
                 Frame = JsonUtility.FromJson<GameFrame>(Decompress(data));
+                foreach (PlayerFrame player in Frame.players)
+                {
+                    PlayerFrame old = previous?.players?.FirstOrDefault(p => p.id == player.id && p.area == player.area && p.hp > 0);
+                    player.renderedPosition = old != null ? old.renderedPosition : (Vector3)player.position;
+                }
                 PlayerFrame local = Local;
                 if (local == null) return;
+                GameAudio.SetArea((GameArea)local.area);
                 ApplyInventory(Frame.inventory);
                 if (Frame.smithRequest != clientSmithRequest)
                 {
@@ -383,6 +466,24 @@ namespace PersistentWorld.Networking
                     for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == viewedArea);
                 }
                 view.Apply(Frame);
+                PlayerFrame oldLocal = previous?.players?.FirstOrDefault(p => p.id == local.id);
+                if (oldLocal != null && oldLocal.area == local.area)
+                {
+                    if (local.attacks > oldLocal.attacks) GameAudio.Attack((CharacterClass)local.character);
+                    if (oldLocal.hp > 0 && local.hp == 0) GameAudio.Death();
+                    if (local.special > oldLocal.special + .5f || local.dodge > oldLocal.dodge + .5f ||
+                        local.cooldowns.Where((value, i) => value > oldLocal.cooldowns[i] + .5f).Any()) GameAudio.Action(true);
+                    if (Frame.potionCooldowns != null && previous.potionCooldowns != null &&
+                        Frame.potionCooldowns.Where((value, i) => value > previous.potionCooldowns[i] + .5f).Any()) GameAudio.Action(isPotion: true);
+                }
+                if (Frame.hits != null) foreach (HitFrame hit in Frame.hits)
+                {
+                    if (hit.sequence <= lastHit) continue;
+                    lastHit = hit.sequence;
+                    DamageNumber.Spawn(hit.position, hit.amount.ToString(), hit.player ? new Color(1, .5f, .4f) : Color.white);
+                    view.Flash(hit.visual);
+                    GameAudio.Hit(hit.player);
+                }
             }
             catch (Exception error) { Debug.LogWarning("Game frame rejected: " + error.Message); }
         }
@@ -392,7 +493,9 @@ namespace PersistentWorld.Networking
             if (view == null || Local is not PlayerFrame local) return;
             float blend = 1 - Mathf.Exp(-20 * Time.unscaledDeltaTime);
             view.Animate(blend);
-            Vector3 target = CameraTarget(local);
+            foreach (PlayerFrame player in Frame.players)
+                player.renderedPosition = view.Position(player.visual, player.position);
+            Vector3 target = new Vector3(local.renderedPosition.x, local.renderedPosition.y + .4f, -10);
             Transform cameraBody = gameCamera.transform;
             cameraBody.position = Vector3.Lerp(cameraBody.position, target, (cameraBody.position - target).sqrMagnitude > 25 ? 1 : blend);
         }
@@ -411,8 +514,34 @@ namespace PersistentWorld.Networking
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            Health.DamageApplied -= RecordHit;
             if (manager != null) { manager.OnServerStarted -= ServerStarted; manager.OnClientConnectedCallback -= ClientConnected; }
             view?.Clear();
+        }
+
+        private void RecordHit(Health target, int amount)
+        {
+            if (!manager.IsServer) return;
+            if (target.GetComponent<TrainingCompanion>() is TrainingCompanion companion && companion.Initializing) return;
+            SpriteRenderer visual = target.GetComponent<SpriteRenderer>();
+            recentHits.Add(new HitFrame { sequence = ++hitSequence, visual = visual != null ? visual.GetInstanceID() : 0,
+                amount = amount, player = target.Faction == Faction.Player,
+                position = target.transform.position + Vector3.up * .9f, time = Time.unscaledTimeAsDouble });
+        }
+
+        private string NearbyPrompt(ArcherController actor)
+        {
+            if (actor.Health.IsDead) return "";
+            if (Parties.Members.TryGetValue(actor.GetComponent<NetworkActorContext>().ClientId, out PartyMember member) &&
+                member.Area == GameArea.Town && Vector2.Distance(actor.transform.position, onlineBlacksmith.transform.position) <= 1.3f)
+                return "F · 대장장이 제작 / 강화";
+            ScenePortal portal = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None)
+                .Where(p => Vector2.Distance(p.transform.position, actor.transform.position) <= 1.3f)
+                .OrderBy(p => Vector2.Distance(p.transform.position, actor.transform.position)).FirstOrDefault();
+            if (portal != null) return "F · " + portal.Prompt;
+            NpcDialogue npc = FindObjectsByType<NpcDialogue>(FindObjectsSortMode.None)
+                .FirstOrDefault(p => Vector2.Distance(p.transform.position, actor.transform.position) <= 1.3f);
+            return npc != null ? "F · 대화하기" : "";
         }
     }
 }

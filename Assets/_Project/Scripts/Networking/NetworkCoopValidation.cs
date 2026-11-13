@@ -28,9 +28,10 @@ namespace PersistentWorld.Networking
             if (!Application.isBatchMode && !NetworkSandbox.HasArgument("-pwa-party-probe")) return;
             if (NetworkSandbox.HasArgument("-pwa-party-validation"))
             {
-                if (world.manager.IsServer && !started && world.Actors.Count == 4) { started = true; pauseAi = true; StartCoroutine(ServerSteps()); }
+                if (world.manager.IsServer && !started && world.Actors.Count == 4)
+                { started = true; pauseAi = true; deadline = Time.realtimeSinceStartup + 90; StartCoroutine(ServerSteps()); }
                 if (pauseAi) foreach (ServerWorldEntity entity in FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None)) entity.SetSimulation(false);
-                if (Time.realtimeSinceStartup > deadline) Fail("server validation timeout");
+                if (started && Time.realtimeSinceStartup > deadline) Fail("server validation timeout");
             }
             if (!NetworkSandbox.HasArgument("-pwa-party-probe")) return;
             if (Time.realtimeSinceStartup > deadline) { Fail("client validation timeout"); return; }
@@ -102,6 +103,14 @@ namespace PersistentWorld.Networking
                         { Fail("restored inventory reaches the client"); return; }
                     }
                     Debug.Log("PWA_PARTY_CLIENT_OK " + role); Application.Quit(0); break;
+                case 31:
+                    if (role == "Leader")
+                    {
+                        if (frame.practice == null || frame.practice.Length != 3 || frame.practice.Any(t => !t.complete))
+                            Fail("healer practice target replication");
+                        else Debug.Log("PWA_HEALER_PRACTICE_CLIENT_OK");
+                    }
+                    break;
             }
         }
         private void LateUpdate()
@@ -161,15 +170,22 @@ namespace PersistentWorld.Networking
             yield return Step(12, () => actors[member].Loadout.Slots[0] == SkillId.Snipe && actors[healer].Loadout.Class == CharacterClass.Healer && actors[leader].Loadout.Class == CharacterClass.Warrior);
             ServerWorldEntity lootEnemy = FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).First(e =>
                 e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null);
+            int RangedEnemyCount() => FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).Count(e =>
+                e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null && !e.GetComponent<Health>().IsDead);
+            int rangedBeforeKill = RangedEnemyCount();
             MonsterDropTable lootTable = lootEnemy.GetComponent<MonsterDropTable>();
-            lootTable.Configure(new[] { new DropEntry(ItemCatalog.MaterialTwo, 5, 1) });
+            lootTable.Configure(new[] { new DropEntry(ItemCatalog.MaterialTwo, 5, 1),
+                new DropEntry(MonsterDropTable.HealthPotion, 1, 1) });
             lootTable.enabled = true;
             Vector2 lootPosition = lootEnemy.transform.position;
             Require(lootEnemy.GetComponent<Health>().TryDamage(100000, Faction.Player), "field enemy killed");
             Require(FindObjectsByType<DroppedItem>(FindObjectsSortMode.None).Any(item =>
-                item.ItemId == ItemCatalog.MaterialTwo && item.Quantity == 5 && Vector2.Distance(item.transform.position, lootPosition) < 1),
-                "field death drops items through its server drop table");
-            ScenePortal entrance = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p => p.Destination == "BossArena");
+                item.ItemId == ItemCatalog.MaterialTwo && item.Quantity == 15 && Vector2.Distance(item.transform.position, lootPosition) < 1),
+                "field death triples material quantity");
+            Require(FindObjectsByType<DroppedItem>(FindObjectsSortMode.None).Any(item =>
+                item.ItemId == MonsterDropTable.HealthPotion && item.Quantity == 1 && Vector2.Distance(item.transform.position, lootPosition) < 1),
+                "field death leaves potion quantity unchanged");
+            ScenePortal entrance = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p => p.Destination == "BossArena" && NetworkGameWorld.AreaAt(p.transform.position) == GameArea.Field);
             foreach (ulong id in actors.Keys.ToArray()) world.Teleport(id, GameArea.Field, (Vector2)entrance.transform.position - NetworkGameWorld.Origin(GameArea.Field) + Vector2.left * .3f);
             yield return Step(13, () => world.Parties.Members[healer].Area == GameArea.Field && world.Parties.Members[healer].Party == 0 && MessageContains(healer, "파티"));
             yield return Step(14, () => actors[member].Loadout.Slots[0] == SkillId.Snipe && MessageContains(member, "마을"));
@@ -195,12 +211,27 @@ namespace PersistentWorld.Networking
             yield return Step(23, () => world.Parties.BossParty == 0 && world.Parties.Members[outsider].Area == GameArea.Town);
             world.ReturnToTown(healer); world.ReturnToTown(member);
             ArcherController warrior = actors[leader]; warrior.SetAim(Vector2.right);
+            Require(warrior.Health.Maximum == 200 && warrior.Health.Current == 200, "warrior maximum health is 200");
             Projectile shot = Projectile.Spawn((Vector2)warrior.transform.position + Vector2.right * .3f, Vector2.left, 20, Faction.Enemy, null, Color.red, 5, 2);
             Require(warrior.Skills.TrySpecial() && warrior.Skills.TryParry(shot) && shot.Damage == 100, "500 percent reflection");
             GameObject target = new GameObject("Parry target"); target.transform.position = warrior.transform.position + Vector3.right * 1.5f;
             target.AddComponent<CircleCollider2D>().radius = .2f; Health health = target.AddComponent<Health>(); health.Configure(Faction.Enemy, 300, false);
             Physics2D.SyncTransforms(); yield return new WaitForSeconds(.5f);
             Require(health.Current == 200, "reflected projectile deals actual fivefold damage"); Destroy(target);
+            yield return new WaitForSeconds(.35f);
+            Projectile lateShot = Projectile.Spawn((Vector2)warrior.transform.position + Vector2.right * .3f, Vector2.left, 20, Faction.Enemy, null, Color.red);
+            Require(warrior.Skills.TryParry(lateShot), "parry still works after the previous .7 second window");
+            Destroy(lateShot.gameObject);
+            var meleeTarget = new GameObject("Warrior damage target");
+            meleeTarget.transform.position = warrior.transform.position + Vector3.right;
+            meleeTarget.AddComponent<CircleCollider2D>().radius = .2f;
+            Health meleeHealth = meleeTarget.AddComponent<Health>();
+            meleeHealth.Configure(Faction.Enemy, 100, false);
+            Physics2D.SyncTransforms();
+            warrior.SetAim(Vector2.right);
+            Require(warrior.Skills.TryBasicAttack() &&
+                meleeHealth.Current == 100 - Mathf.RoundToInt((12 + warrior.EquipmentBonuses.Attack) * 1.5f), "warrior attack deals 150 percent damage");
+            Destroy(meleeTarget);
             yield return new WaitForSeconds(Mathf.Max(0, actors[member].Health.InvulnerableUntil - Time.time) + .1f);
             world.Teleport(member, GameArea.Field, Vector2.left * 5);
             Require(actors[member].Health.TryDamage(1000, Faction.Enemy) && actors[member].Health.IsDead, "field death occurs after revival immunity expires");
@@ -235,12 +266,12 @@ namespace PersistentWorld.Networking
             actors[leader].Health.TryDamage(10000, Faction.Enemy);
             yield return new WaitForSeconds(.5f);
             Require(world.Parties.BossParty == 0 && world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.IsDead, "solo party wipe releases boss room and returns to town");
-            bool LootEnemyRespawned() => FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None).Any(e =>
-                e.area == GameArea.Field && e.GetComponent<RangedEnemyController>() != null &&
-                !e.GetComponent<Health>().IsDead && Vector2.Distance(e.transform.position, lootPosition) < 1.5f);
+            // A respawn can already have chased a player during the AI checks above.
+            // Require replacement of the killed instance and restoration of the live population.
+            bool LootEnemyRespawned() => lootEnemy == null && RangedEnemyCount() >= rangedBeforeKill;
             float respawnDeadline = Time.realtimeSinceStartup + 10;
             while (!LootEnemyRespawned() && Time.realtimeSinceStartup < respawnDeadline) yield return null;
-            Require(LootEnemyRespawned(), "field enemy respawns at its spawn point");
+            Require(LootEnemyRespawned(), "field enemy is replaced after death and restores live population");
             world.Teleport(member, GameArea.Field, Vector2.left * 5);
             Vector2 drop = actors[member].transform.position;
             PlayerInventoryProfile profile = actors[member].GetComponent<PlayerEquipment>().Profile;
@@ -248,6 +279,23 @@ namespace PersistentWorld.Networking
             DroppedItem.Spawn(drop, ItemCatalog.MaterialTwo, 5, drop);
             yield return new WaitForSeconds(.85f);
             Require(profile.Inventory.GetCount(ItemCatalog.MaterialOne) == 10 && profile.Inventory.GetCount(ItemCatalog.MaterialTwo) == 5, "field drops collected exactly once into owning inventory");
+            profile.Inventory.AddItem(MonsterDropTable.HealthPotion, 2);
+            profile.Inventory.AddItem(MonsterDropTable.ManaPotion, 2);
+            world.ItemAction(member, ItemCommand.AssignPotion, MonsterDropTable.HealthPotion, 0);
+            world.ItemAction(member, ItemCommand.AssignPotion, MonsterDropTable.ManaPotion, 1);
+            ArcherController potionUser = actors[member];
+            potionUser.Health.Invulnerable = false;
+            Require(potionUser.Health.TryDamage(60, Faction.Enemy) && potionUser.Mana.TrySpend(60), "prepare depleted potion stats");
+            int expectedHealth = potionUser.Health.Current + 30;
+            float expectedMana = potionUser.Mana.Current + 30;
+            int healthStock = profile.Inventory.GetCount(MonsterDropTable.HealthPotion);
+            int manaStock = profile.Inventory.GetCount(MonsterDropTable.ManaPotion);
+            world.Input(member, Vector2.zero, Vector2.right, potionUser.transform.position, 1024);
+            Require(potionUser.Health.Current == expectedHealth && profile.Inventory.GetCount(MonsterDropTable.HealthPotion) == healthStock - 1, "slot one consumes and restores health");
+            world.Input(member, Vector2.zero, Vector2.right, potionUser.transform.position, 1024 | 2048);
+            Require(potionUser.Health.Current == expectedHealth && profile.Inventory.GetCount(MonsterDropTable.HealthPotion) == healthStock - 1 &&
+                Mathf.Approximately(potionUser.Mana.Current, expectedMana) && profile.Inventory.GetCount(MonsterDropTable.ManaPotion) == manaStock - 1,
+                "slot one cooldown blocks reuse while slot two restores mana independently");
             world.Teleport(member, GameArea.Town, world.BlacksmithPosition - NetworkGameWorld.Origin(GameArea.Town));
             yield return Step(27, () => profile.Inventory.HasItem(TestArmor, 1));
             ItemCatalog.TryGet(TestArmor, out ItemDefinition crafted);
@@ -259,6 +307,49 @@ namespace PersistentWorld.Networking
             Require(restored.GetEquipped(crafted.Slot) == TestArmor && restored.WeaponUpgradeLevel == 1 &&
                 restored.Inventory.GetCount(ItemCatalog.MaterialOne) == 0 && restored.Inventory.GetCount(ItemCatalog.MaterialTwo) == 0 &&
                 returned.Loadout.Slots[0] == SkillId.Snipe, "reconnect restores crafted gear, upgrade, spent materials and skill");
+            world.ReturnToTown(leader);
+            world.ChangeOnlineClass(leader, actors[leader], CharacterClass.Healer);
+            Require(actors[leader].Loadout.Class == CharacterClass.Healer, "healer is selected in town before entering practice");
+            ScenePortal forest = FindObjectsByType<ScenePortal>(FindObjectsSortMode.None).First(p => p.Destination == "Field2");
+            world.Teleport(leader, GameArea.Field, (Vector2)forest.transform.position - NetworkGameWorld.Origin(GameArea.Field));
+            world.UsePortal(leader, forest);
+            Require(world.Parties.Members[leader].Area == GameArea.Field2 &&
+                NetworkGameWorld.AreaAt(actors[leader].transform.position) == GameArea.Field2, "second field portal moves server actor and party area");
+            Require(!actors[leader].Loadout.Equip(0, SkillId.Whirlwind), "skill switching is blocked in second field");
+            world.Command(leader, PartyCommand.Tutorial, 0, 0, 0);
+            Require(world.Parties.Members[leader].Area == GameArea.Tutorial &&
+                !actors[leader].Health.TryDamage(999, Faction.Enemy), "tutorial is playable and safe from damage");
+            ulong rejoined = Id("Member");
+            world.Command(rejoined, PartyCommand.Tutorial, 0, 0, 0);
+            Require(Vector2.Distance(actors[leader].transform.position, actors[rejoined].transform.position) >= 10,
+                "reconnected clients receive distinct practice lanes");
+            world.ReturnToTown(rejoined);
+            world.Command(leader, PartyCommand.ResetPractice, 0, 0, 0);
+            yield return null;
+            TrainingCompanion[] practice = FindObjectsByType<TrainingCompanion>(FindObjectsSortMode.None).Where(c => c.Owner == leader).ToArray();
+            Require(practice.Length == 3, "healer has separate healing cleanse and revive targets");
+            TrainingCompanion healing = practice.First(c => c.Purpose == TrainingPurpose.Healing);
+            TrainingCompanion cleansing = practice.First(c => c.Purpose == TrainingPurpose.Cleanse);
+            TrainingCompanion reviving = practice.First(c => c.Purpose == TrainingPurpose.Revive);
+            Require(healing.GetComponent<Health>().Current == 30 && cleansing.GetComponent<CombatStatus>().Vulnerable && reviving.GetComponent<Health>().IsDead,
+                "practice starts with actual wounded debuffed and dead allies");
+            Require(actors[leader].Skills.BeginSkill(0, healing.transform.position), "cast actual healing zone at practice ally");
+            yield return new WaitForSeconds(1.15f);
+            Require(healing.Completed && healing.GetComponent<Health>().Current >= 50, "healing practice completes only on real recovery");
+            Require(actors[leader].Skills.BeginSkill(1, cleansing.transform.position), "cast actual cleanse in practice");
+            yield return new WaitForSeconds(.1f);
+            Require(cleansing.Completed && !cleansing.GetComponent<CombatStatus>().Vulnerable && cleansing.GetComponent<CombatStatus>().MovementMultiplier == 1,
+                "cleanse removes actual slow and vulnerability");
+            Require(actors[leader].Skills.TrySpecial() && reviving.Completed && !reviving.GetComponent<Health>().IsDead && actors[leader].Skills.SpecialRemaining > 179,
+                "actual healer revival completes practice and starts three minute cooldown");
+            world.ValidationStage = 31; yield return new WaitForSeconds(.6f);
+            world.Command(leader, PartyCommand.ResetPractice, 0, 0, 0);
+            Require(actors[leader].Skills.SpecialRemaining == 0 && actors[leader].Mana.Current == 100, "practice reset restores cooldowns and mana");
+            world.Input(leader, Vector2.right, Vector2.right, actors[leader].transform.position + Vector3.up * 2, 1);
+            world.Command(leader, PartyCommand.Tutorial, 0, 0, 0);
+            Require(world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.Invulnerable, "tutorial exits to town and restores normal damage rules");
+            yield return null;
+            Require(!FindObjectsByType<TrainingCompanion>(FindObjectsSortMode.None).Any(c => c.Owner == leader), "practice targets are removed on exit");
             world.ValidationStage = 25;
             float until = Time.realtimeSinceStartup + 8;
             while (actors.Count != 0 && Time.realtimeSinceStartup < until) yield return null;

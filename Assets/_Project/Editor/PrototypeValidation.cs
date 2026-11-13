@@ -18,7 +18,7 @@ namespace PersistentWorld.Editor
             ValidateBuildSettings();
             ValidatePlayerArt();
             ValidateScene("Town", expectedEnemies: 0, expectedBosses: 0, expectedNpcs: 1, expectedPortals: 1);
-            ValidateScene("Field", expectedEnemies: 6, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
+            ValidateScene("Field", expectedEnemies: 18, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
             ValidateScene("BossArena", expectedEnemies: 0, expectedBosses: 1, expectedNpcs: 0, expectedPortals: 1);
             ValidateDamageRules();
             Debug.Log("PERSISTENT_WORLD_VALIDATION_OK");

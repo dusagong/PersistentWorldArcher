@@ -14,6 +14,8 @@ namespace PersistentWorld.World
         private static Sprite blob;
 
         private Transform target;
+        public Transform Target => target;
+        public Vector3 Offset => Vector3.down * footOffset + LightOffset;
         private Health health;
         private SlimeJumpEnemyController jumper;
         private SpriteRenderer visual;

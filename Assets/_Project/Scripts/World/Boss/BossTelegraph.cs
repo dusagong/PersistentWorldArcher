@@ -149,7 +149,7 @@ namespace PersistentWorld.World
         }
 
         // 테두리 3px은 진하고 안쪽은 옅은 9-slice 사각형 (테두리 두께 약 0.08 유닛)
-        private static Sprite FramedSquareSprite
+        internal static Sprite FramedSquareSprite
         {
             get
             {
@@ -166,11 +166,12 @@ namespace PersistentWorld.World
                 texture.Apply();
                 framedSquare = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(.5f, .5f), 38f, 0,
                     SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+                framedSquare.name = "Boss Telegraph Frame";
                 return framedSquare;
             }
         }
 
-        private static Sprite CircleSprite
+        internal static Sprite CircleSprite
         {
             get
             {
@@ -189,6 +190,7 @@ namespace PersistentWorld.World
                 }
                 texture.Apply();
                 circle = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(.5f, .5f), size);
+                circle.name = "Boss Telegraph Circle";
                 return circle;
             }
         }

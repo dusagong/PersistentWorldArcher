@@ -22,6 +22,12 @@ The TLS receive layer reserves enough space for a complete plaintext record and 
 It continues parsing when a TLS control record consumes bytes without producing plaintext.
 Disconnect diagnostics distinguish TLS errors, WebSocket close status, and remote TCP closes.
 
+Coalesced TCP reads are limited to three MTU chunks per peer per update, reserving queue space
+for the WebSocket messages expanded from those chunks. WebSocket structs keep their original
+buffer sizes to respect Mono's native argument limit. Queue saturation has its own diagnostic marker.
+The cooperative game uses a 1024-packet queue and 10 Hz visual snapshots, with client-side
+timestamp interpolation rather than increasing reliable snapshot traffic to smooth movement.
+
 NetworkSandbox separately resolves DNS before starting NGO because NGO 2.4.4 enables its native
 hostname resolution only for Unity 6000.1+, whereas this project uses 6000.0.60f1.
 
