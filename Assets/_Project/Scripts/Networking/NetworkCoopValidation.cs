@@ -222,6 +222,12 @@ namespace PersistentWorld.Networking
             Projectile lateShot = Projectile.Spawn((Vector2)warrior.transform.position + Vector2.right * .3f, Vector2.left, 20, Faction.Enemy, null, Color.red);
             Require(warrior.Skills.TryParry(lateShot), "parry still works after the previous .7 second window");
             Destroy(lateShot.gameObject);
+            warrior.SetAim(Vector2.up);
+            Projectile sideShot = Projectile.Spawn((Vector2)warrior.transform.position + Vector2.right * .3f, Vector2.left, 20, Faction.Enemy, null, Color.red);
+            Projectile turnedShot = Projectile.Spawn((Vector2)warrior.transform.position + Vector2.up * .3f, Vector2.down, 20, Faction.Enemy, null, Color.red);
+            Require(!warrior.Skills.TryParry(sideShot) && warrior.Skills.TryParry(turnedShot) && turnedShot.Damage == 100,
+                "turning during parry keeps reflection direction aligned with the live effect aim");
+            Destroy(sideShot.gameObject); Destroy(turnedShot.gameObject);
             var meleeTarget = new GameObject("Warrior damage target");
             meleeTarget.transform.position = warrior.transform.position + Vector3.right;
             meleeTarget.AddComponent<CircleCollider2D>().radius = .2f;
@@ -343,8 +349,12 @@ namespace PersistentWorld.Networking
             Require(actors[leader].Skills.TrySpecial() && reviving.Completed && !reviving.GetComponent<Health>().IsDead && actors[leader].Skills.SpecialRemaining > 179,
                 "actual healer revival completes practice and starts three minute cooldown");
             world.ValidationStage = 31; yield return new WaitForSeconds(.6f);
+            actors[leader].Mana.Restore(100);
+            Require(actors[leader].TryBackstep() && actors[leader].BackstepRemaining > 0,
+                "practice starts a real dodge and its cooldown before reset");
             world.Command(leader, PartyCommand.ResetPractice, 0, 0, 0);
-            Require(actors[leader].Skills.SpecialRemaining == 0 && actors[leader].Mana.Current == 100, "practice reset restores cooldowns and mana");
+            Require(actors[leader].Skills.SpecialRemaining == 0 && actors[leader].BackstepRemaining == 0 &&
+                !actors[leader].IsDashing && actors[leader].Mana.Current == 100, "practice reset restores skill and dodge cooldowns, cancels dashing and restores mana");
             world.Input(leader, Vector2.right, Vector2.right, actors[leader].transform.position + Vector3.up * 2, 1);
             world.Command(leader, PartyCommand.Tutorial, 0, 0, 0);
             Require(world.Parties.Members[leader].Area == GameArea.Town && !actors[leader].Health.Invulnerable, "tutorial exits to town and restores normal damage rules");

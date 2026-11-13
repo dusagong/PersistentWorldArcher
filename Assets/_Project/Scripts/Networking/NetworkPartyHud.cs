@@ -37,6 +37,7 @@ namespace PersistentWorld.Networking
             {
                 Vector2 point = Pointer;
                 return BlocksKeyboard || PartyRect.Contains(point) ||
+                    (world.Local?.area == (int)GameArea.Tutorial && new Rect(12, 220, 300, 330).Contains(point)) ||
                     (world.Frame != null && world.Frame.inviteRemaining > 0 && InviteRect.Contains(point));
             }
         }

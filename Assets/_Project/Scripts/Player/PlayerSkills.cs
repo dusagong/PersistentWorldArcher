@@ -35,7 +35,6 @@ namespace PersistentWorld.Player
         private Vector2 heldAim;
         private float attackReadyAt;
         private float specialEndsAt;
-        private Vector2 parryDirection;
         private int combo;
         private float comboEndsAt;
         private bool busy;
@@ -344,9 +343,8 @@ namespace PersistentWorld.Player
                 SpecialActiveDuration = specialEndsAt - Time.time;
                 if (loadout.Class == CharacterClass.Warrior)
                 {
-                    parryDirection = controller.AimDirection;
-                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, ParryDuration, true, transform, parryDirection, true, scale: 1.5f) == null)
-                        SkillIndicator.Create(Color.cyan, ParryDuration).Sector(transform.position, parryDirection, 1.7f, 140);
+                    if (ClassSheetEffect.Play(ClassArtEffect.WarriorParry, (Vector2)transform.position + Vector2.up * .35f, ParryDuration, true, transform, controller.AimDirection, true, scale: 1.5f) == null)
+                        SkillIndicator.Create(Color.cyan, ParryDuration).Sector(transform.position, controller.AimDirection, 1.7f, 140);
                 }
                 else ClassSheetEffect.Play(ClassArtEffect.ArcherSpecial, transform.position, 5, true, transform);
             }
@@ -358,7 +356,7 @@ namespace PersistentWorld.Player
         {
             if (loadout.Class != CharacterClass.Warrior || !SpecialActive || health.IsDead || projectile.SourceFaction != Faction.Enemy) return false;
             Vector2 delta = projectile.transform.position - transform.position;
-            if (Vector2.Angle(parryDirection, delta) > 70) return false;
+            if (Vector2.Angle(controller.AimDirection, delta) > 70) return false;
             projectile.Reflect(gameObject);
             return true;
         }

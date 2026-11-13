@@ -53,6 +53,12 @@ namespace PersistentWorld.Player
         public string NearbyPrompt { get; private set; }
         public float BackstepRemaining => Mathf.Max(0, backstepReadyAt - Time.time);
         public float BackstepCooldown => backstepCooldown;
+        internal void ResetPractice()
+        {
+            StopAllCoroutines(); isDashing = false; backstepReadyAt = 0;
+            moveInput = Vector2.zero; body.linearVelocity = Vector2.zero;
+            skills.ResetPractice();
+        }
         public float DoubleShotRemaining => skills.Cooldown(SkillId.Repulse);
         public float ArrowRainRemaining => skills.Cooldown(SkillId.ArrowRain);
         public float PowerShotRemaining => skills.Cooldown(SkillId.Snipe);

@@ -11,7 +11,7 @@ namespace PersistentWorld.Networking
         private NetworkSandbox sandbox;
         private float startedAt, pairedAt = -1;
         private readonly Dictionary<ulong, Vector2> initial = new Dictionary<ulong, Vector2>();
-        private float soakDuration, soakStartedAt = -1, lastFrameAt, maxFrameGap, nextSampleAt;
+        private float soakDuration, soakStartedAt = -1, lastFrameAt, maxFrameGap, steadyFrameGap, nextSampleAt;
         private GameFrame lastFrame;
         private int fieldFrames, frames;
         private int hitSequence, enemyHits, playerHits, ownHits, attacks;
@@ -123,7 +123,10 @@ namespace PersistentWorld.Networking
             if (soakStartedAt < 0) soakStartedAt = lastFrameAt = now;
             if (frame != lastFrame)
             {
-                maxFrameGap = Mathf.Max(maxFrameGap, now - lastFrameAt);
+                float gap = now - lastFrameAt;
+                maxFrameGap = Mathf.Max(maxFrameGap, gap);
+                if (now - soakStartedAt > 10) steadyFrameGap = Mathf.Max(steadyFrameGap, gap);
+                if (gap > .35f) Debug.Log($"PWA_SOAK_FRAME_GAP elapsed={now - soakStartedAt:F1} clientGapMs={gap * 1000:F0} serverGapMs={(frame.time - (lastFrame?.time ?? frame.time)) * 1000:F0} localDeltaMs={Time.unscaledDeltaTime * 1000:F0} sprites={frame.sprites.Length}");
                 lastFrameAt = now;
                 lastFrame = frame;
                 frames++;
@@ -149,9 +152,10 @@ namespace PersistentWorld.Networking
             if (fieldFrames < soakDuration * 3) { Fail("soak client did not spend enough time in actual field combat"); return; }
             if (attacks < 10 || enemyHits == 0 || playerHits == 0)
             { Fail("soak did not observe actual attacks, monster damage and player damage"); return; }
+            if (steadyFrameGap > 1) { Fail("soak observed a gameplay frame gap longer than one second after initial loading"); return; }
             rttSamples.Sort();
             string p95 = rttSamples.Count == 0 ? "unavailable" : rttSamples[Mathf.CeilToInt(rttSamples.Count * .95f) - 1].ToString();
-            Debug.Log($"PWA_SOAK_OK seconds={soakDuration} frames={frames} fieldFrames={fieldFrames} attacks={attacks} enemyHits={enemyHits} playerHits={playerHits} ownHits={ownHits} maxFrameGapMs={maxFrameGap * 1000:F0} rttP95Ms={p95}");
+            Debug.Log($"PWA_SOAK_OK seconds={soakDuration} frames={frames} fieldFrames={fieldFrames} attacks={attacks} enemyHits={enemyHits} playerHits={playerHits} ownHits={ownHits} maxFrameGapMs={maxFrameGap * 1000:F0} steadyFrameGapMs={steadyFrameGap * 1000:F0} rttP95Ms={p95}");
             Application.Quit(0);
         }
         private static void Fail(string reason) { Debug.LogError("PWA_NETWORK_PROBE_FAILED " + reason); Application.Quit(1); }

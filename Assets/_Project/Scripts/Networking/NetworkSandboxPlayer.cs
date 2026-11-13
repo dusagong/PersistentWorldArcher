@@ -37,6 +37,9 @@ namespace PersistentWorld.Networking
             if (!IsSpawned) return;
             if (!IsServer) transform.position = Vector2.Lerp(transform.position, Position.Value, 1 - Mathf.Exp(-18 * Time.deltaTime));
             if (!IsOwner) return;
+            // The party harness sends its own scripted RPCs and server actions.
+            // Sampling the desktop cursor here would overwrite the aim being tested.
+            if (NetworkSandbox.HasArgument("-pwa-party-probe")) return;
             NetworkPartyHud hud = NetworkPartyHud.Instance;
             bool blocked = PersistentWorld.UI.ItemWindows.BlocksGameplay || (hud != null && hud.BlocksKeyboard);
             bool pointerBlocked = blocked || (hud != null && hud.BlocksPointer);

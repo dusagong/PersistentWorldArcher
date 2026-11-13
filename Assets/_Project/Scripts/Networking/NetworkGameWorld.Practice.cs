@@ -37,7 +37,7 @@ namespace PersistentWorld.Networking
             actor.SetExternalMovement(Vector2.zero, Vector2.up);
             actor.GetComponent<Rigidbody2D>().linearVelocity = Vector2.zero;
             actor.transform.position = Origin(GameArea.Tutorial) + PracticeSpawn(id);
-            actor.Skills.ResetPractice(); actor.Mana.Restore(100); actor.Health.Heal(actor.Health.Maximum);
+            actor.ResetPractice(); actor.Mana.Restore(100); actor.Health.Heal(actor.Health.Maximum);
             tutorialProgress[id] = 0;
             Sprite[] frames = ArcherSpriteAnimator.RunFrames(CharacterClass.Healer);
             var targets = new TrainingCompanion[3];
