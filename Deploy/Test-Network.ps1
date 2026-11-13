@@ -11,7 +11,7 @@ $previousCode = $env:PWA_JOIN_CODE
 $previousLimit = $env:PWA_MAX_PLAYERS
 function Start-Probe([string]$name, [string[]]$extra) {
     $log = Join-Path $logs ($name + '.log')
-    $child = Start-Process -FilePath $binary -ArgumentList (@('-batchmode', '-nographics', '-logFile', "`"$log`"", '-pwa-account-mode', 'demo') + $extra) -WindowStyle Hidden -PassThru
+    $child = Start-Process -FilePath $binary -ArgumentList (@('-batchmode', '-nographics', '-logFile', "`"$log`"", '-pwa-account-mode', 'demo', '-pwa-name', $name) + $extra) -WindowStyle Hidden -PassThru
     $children.Add($child)
     return $child
 }
