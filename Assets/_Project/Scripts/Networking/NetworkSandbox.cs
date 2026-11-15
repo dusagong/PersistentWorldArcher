@@ -23,6 +23,8 @@ namespace PersistentWorld.Networking
         private bool connecting;
         private int connectionGeneration;
         private bool demo, selectClass, loggingOut;
+        private readonly RpgGuiTheme connectionTheme = new RpgGuiTheme();
+        private Vector2 connectionScroll;
         private float logoutAt;
         private string loginMode = "resume";
         private int selectedClass;
@@ -34,6 +36,7 @@ namespace PersistentWorld.Networking
         private readonly Dictionary<ulong, string> names = new Dictionary<ulong, string>();
         private string displayName = "";
         private string recoveryKey = "";
+        private string newCharacterKey;
         private string pendingCharacterKey;
         private string pendingCharacterPreference;
         private Uri lastServer;
@@ -79,10 +82,15 @@ namespace PersistentWorld.Networking
             if (!Application.isBatchMode) GameAudio.StartMusic();
             recoveryKey = Argument("-pwa-character-key", "");
             loginMode = Argument("-pwa-account-mode", "resume"); demo = loginMode == "demo";
+            if (loginMode == "create" || demo)
+            { newCharacterKey = string.IsNullOrWhiteSpace(recoveryKey) ? null : recoveryKey.Trim(); recoveryKey = ""; }
             int.TryParse(Argument("-pwa-class", "0"), out selectedClass);
             displayName = Argument("-pwa-name", PlayerPrefs.GetString("pwa-display-name", ""));
             if (NetworkGameWorld.Instance != null && !HasArgument("-pwa-server") && !Application.isBatchMode)
+            {
                 endpoint = "wss://pwa-game-server-production.up.railway.app";
+                password = "cfc699b0083145e9a4520df9a44ee707";
+            }
             // NGO registers its message table during startup; starting in Awake is too early.
             bool server = HasArgument("-pwa-server");
 #if UNITY_SERVER && !UNITY_EDITOR
@@ -142,7 +150,7 @@ namespace PersistentWorld.Networking
                 retryIndex = 0;
                 loggingOut = false;
                 lastServer = uri;
-                lastCode = code ?? "";
+                lastCode = (code ?? "").Trim();
                 lastCharacterKey = NetworkGameWorld.Instance == null ? null : CharacterKey(uri);
                 StartConnection();
                 return true;
@@ -286,6 +294,7 @@ namespace PersistentWorld.Networking
         }
         private void OnDestroy()
         {
+            connectionTheme.Dispose();
             connectionGeneration++;
             readiness?.Dispose();
             if (manager == null) return;
@@ -302,19 +311,37 @@ namespace PersistentWorld.Networking
         private void FinishLogout()
         {
             loggingOut = false; demo = false; selectClass = false; loginMode = "resume";
-            pendingCharacterKey = lastCharacterKey = null; recoveryKey = "";
-            status = "로그아웃했습니다. 데모 계정의 진행 내용은 삭제됩니다.";
+            pendingCharacterKey = lastCharacterKey = newCharacterKey = null; recoveryKey = "";
+            status = "";
+        }
+
+        private void BeginNewPlayer(bool isDemo)
+        {
+            displayName = new string(Array.FindAll(displayName.Trim().ToCharArray(), value => !char.IsControl(value)));
+            if (displayName.Length == 0) { status = "닉네임을 입력해주세요."; return; }
+            demo = isDemo; loginMode = isDemo ? "demo" : "create";
+            newCharacterKey = Guid.NewGuid().ToString("N");
+            selectClass = true; connectionScroll = Vector2.zero;
+            status = "직업을 선택하면 입력한 닉네임으로 접속합니다.";
         }
         private void OnGUI()
         {
             if (NetworkGameWorld.Instance != null && manager.IsConnectedClient) return;
             if (Application.isBatchMode || manager.IsServer) return;
-            float scale = Mathf.Max(.5f, Mathf.Min(Screen.width / 1280f, Screen.height / 720f));
+            float scale = RpgGuiTheme.ScaleFor(Screen.width, Screen.height);
             Matrix4x4 previous = GUI.matrix; GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
-            float width = Screen.width / scale, height = Screen.height / scale;
-            GUILayout.BeginArea(new Rect((width - 680) / 2, (height - 600) / 2, 680, 600), GUI.skin.box);
-            GUILayout.Space(16);
-            GUILayout.Label("PERSISTENT WORLD · 4인 협동", new GUIStyle(GUI.skin.label) { fontSize = 26, alignment = TextAnchor.MiddleCenter });
+            connectionTheme.Ensure();
+            GUISkin previousSkin = GUI.skin; bool previousEnabled = GUI.enabled;
+            GUI.skin = connectionTheme.Skin;
+            Rect bounds = RpgGuiTheme.Bounds(Screen.width, Screen.height, selectClass ? 720 : 540, 660);
+            try
+            {
+            RpgGuiTheme.Fill(new Rect(0, 0, Screen.width / scale, Screen.height / scale), new Color(0, 0, 0, .3f));
+            RpgGuiTheme.Panel(bounds, RpgGuiTheme.Gold);
+            GUI.Label(new Rect(bounds.x + 18, bounds.y + 14, bounds.width - 36, 40), "PERSISTENT WORLD", connectionTheme.Heading);
+            GUI.Label(new Rect(bounds.x + 18, bounds.y + 57, bounds.width - 36, 24), "4인 협동 · 모험의 시작", connectionTheme.Muted);
+            GUILayout.BeginArea(new Rect(bounds.x + 24, bounds.y + 94, bounds.width - 48, bounds.height - 158));
+            connectionScroll = GUILayout.BeginScrollView(connectionScroll, false, false);
             GUILayout.Label(status);
             GUILayout.Space(12);
             if (!manager.IsListening)
@@ -325,53 +352,56 @@ namespace PersistentWorld.Networking
                     GUILayout.BeginHorizontal();
                     foreach (PersistentWorld.Player.CharacterClass type in Enum.GetValues(typeof(PersistentWorld.Player.CharacterClass)))
                     {
-                        GUILayout.BeginVertical(GUI.skin.box, GUILayout.Width(208));
-                        GUILayout.Label(PersistentWorld.Player.SkillCatalog.ClassName(type), new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20 });
+                        GUILayout.BeginVertical(connectionTheme.Card, GUILayout.Width((bounds.width - 72) / 3));
+                        GUILayout.Label(PersistentWorld.Player.SkillCatalog.ClassName(type), connectionTheme.Center);
                         Texture2D portrait = Resources.Load<Texture2D>("Characters/" + type + "InventoryIdle");
-                        Rect picture = GUILayoutUtility.GetRect(190, 210);
+                        Rect picture = GUILayoutUtility.GetRect(1, 186, GUILayout.ExpandWidth(true));
                         if (portrait != null) GUI.DrawTexture(picture, portrait, ScaleMode.ScaleToFit, true);
                         GUI.enabled = !connecting && !manager.ShutdownInProgress;
-                        if (GUI.Button(picture, GUIContent.none, GUIStyle.none) || GUILayout.Button("선택 · 플레이 시작", GUILayout.Height(38)))
+                        if (GUI.Button(picture, GUIContent.none, GUIStyle.none) || GUILayout.Button("선택 · 시작", GUILayout.Height(38)))
                         { selectedClass = (int)type; selectClass = false; Connect(endpoint.Trim(), password); }
                         GUI.enabled = true; GUILayout.EndVertical();
                     }
                     GUILayout.EndHorizontal();
-                    if (GUILayout.Button("뒤로")) selectClass = false;
+                    if (GUILayout.Button("뒤로")) { selectClass = false; connectionScroll = Vector2.zero; }
                 }
                 else
                 {
                     GUILayout.Label("서버 주소"); endpoint = GUILayout.TextField(endpoint, 200);
                     GUILayout.Label("닉네임"); displayName = GUILayout.TextField(displayName, 16);
                     GUILayout.Label("팀 참가 코드"); password = GUILayout.PasswordField(password, '*', 64);
-                    GUILayout.Label("플레이어 코드 · 다른 PC에서도 같은 코드를 입력하면 진행 내용을 복구합니다.");
+                    GUILayout.Label("플레이어 코드 · 기존 계정 로그인 시 반드시 입력하세요.");
                     recoveryKey = GUILayout.PasswordField(recoveryKey, '*', 32);
                     GUI.enabled = !connecting && !manager.ShutdownInProgress && retryAt < 0;
                     if (GUILayout.Button("플레이어 코드로 로그인", GUILayout.Height(36)))
                     {
-                        demo = false; loginMode = "restore";
-                        if (recoveryKey.Trim().Length == 0 && Uri.TryCreate(endpoint.Trim(), UriKind.Absolute, out Uri savedServer))
-                            recoveryKey = PlayerPrefs.GetString(CharacterPreference(savedServer), "");
-                        if (recoveryKey.Trim().Length == 0) status = "저장된 플레이어 코드가 없습니다. 새 계정을 만들어주세요.";
+                        demo = false; loginMode = "restore"; newCharacterKey = null;
+                        if (string.IsNullOrWhiteSpace(recoveryKey)) status = "로그인할 계정의 플레이어 코드를 입력해주세요.";
+                        else if (!Guid.TryParseExact(recoveryKey.Trim(), "N", out Guid enteredKey) || enteredKey == Guid.Empty)
+                            status = "플레이어 코드가 올바르지 않습니다. 발급받은 32자리 코드를 확인해주세요.";
                         else Connect(endpoint.Trim(), password);
                     }
                     if (GUILayout.Button("새 플레이어 만들기", GUILayout.Height(36)))
-                    { demo = false; loginMode = "create"; recoveryKey = Guid.NewGuid().ToString("N"); selectClass = true; }
+                        BeginNewPlayer(false);
                     if (GUILayout.Button("데모 계정으로 플레이 · 로그아웃 시 삭제", GUILayout.Height(36)))
-                    { demo = true; loginMode = "demo"; recoveryKey = Guid.NewGuid().ToString("N"); selectClass = true; }
+                        BeginNewPlayer(true);
                     GUI.enabled = true;
                     if (retryAt >= 0 && GUILayout.Button("자동 재접속 취소")) Logout();
-                    GUILayout.Label("플레이어 코드는 비밀번호 역할을 합니다. 게임 메뉴에서 복사해 보관하세요.");
+                    GUILayout.Label("새 계정은 고유 코드를 자동 발급합니다. ESC 메뉴에서 복사해 보관하세요.\n기존 계정은 해당 코드로 로그인하며, 데모 계정은 코드 입력 없이 시작합니다.");
                 }
             }
             else if (GUILayout.Button("접속 취소")) Logout();
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("게임 종료", GUILayout.Height(34))) Application.Quit();
-            GUILayout.EndArea();
-            GUI.matrix = previous;
+            GUILayout.EndScrollView(); GUILayout.EndArea();
+            if (GUI.Button(new Rect(bounds.x + 24, bounds.yMax - 52, bounds.width - 48, 34), "게임 종료", connectionTheme.SmallButton)) Application.Quit();
+            }
+            finally { GUI.enabled = previousEnabled; GUI.skin = previousSkin; GUI.matrix = previous; }
         }
 
         private string CharacterKey(Uri server)
         {
+            if (loginMode == "create" || loginMode == "demo")
+                return newCharacterKey ??= Guid.NewGuid().ToString("N");
+            if (loginMode == "restore") return recoveryKey.Trim();
             if (recoveryKey.Length != 0) return recoveryKey.Trim();
             if (Application.isBatchMode || HasArgument("-pwa-probe")) return Guid.NewGuid().ToString("N");
             string preference = CharacterPreference(server);

@@ -1,0 +1,16 @@
+Use case: ui-mockup, editing a provided game screenshot into a high quality ESC menu design PREVIEW.
+Edit target: provided screenshot of the user's 2D pixel art top-down fantasy RPG. Produce ONE wide full game screenshot, same framing and approximately same aspect ratio as source, with redesigned centered ESC menu.
+Keep the surrounding town map, fountain, stalls, character positions, upper-left party overlay and upper-right control hints in their existing positions and visual style. Do not add new gameplay HUD, characters or game objects. Remove the old wide translucent central menu and its residual outlines/text, reconstruct only the map behind that removed UI as needed.
+Design a tasteful, SHIP-READY, readable fantasy RPG menu, consistent with the pixel art world. Main panel centered, about 560 pixels wide and 760 pixels tall relative to 1920x1080 viewport (about 29% of viewport width, 70% of viewport height). No giant panel filling most of screen. Deep opaque charcoal/slate panel, restrained warm aged brass double border with tiny pixel-cut corner accents, subtle inset dividers, minimal ornament. Background dimmed modestly uniformly while menu open, no blur. Flat crisp game UI, not web dashboard, not glassmorphism, not plastic glossy buttons, not ornate gaudy fantasy scrollwork. Consistent comfortable spacing throughout.
+Text must be accurate Korean, beautifully legible, cream white high contrast. Title around 32 px, main button labels 24 px, secondary text around 20 px at 1920x1080 scale. All four primary buttons have exactly same height about 56 px and same width with 10-12 px gap. Clean shallow bevel on button surfaces, never transparent enough to see scenery through them. Single restrained gold diamond ornament beside title, no new illustrative skill icons.
+Layout top to bottom, all content fully inside panel:
+1 Header title centered: "메뉴", with understated small corner close X.
+2 Four full-width equal primary navigation buttons, these exact labels:
+"장비 · 인벤토리"
+"스킬"
+"직업 선택"
+"튜토리얼 · 조작 연습"
+3 Divider, small left-aligned section label "사운드". Two aligned volume slider rows. Each row has label left, percentage right, track below. First row "BGM" with "30%", second row "효과음" with "65%". Warm brass fill on dark tracks, sturdy modest square slider handles.
+4 Separate subtle account notice area, center aligned two lines: "일회성 데모 계정" and "로그아웃 시 진행 내용이 삭제됩니다."
+5 Bottom two buttons side by side: narrower muted "로그아웃", wider gold-accented primary "게임으로 돌아가기". Footer tiny but readable "ESC 닫기".
+Make visual hierarchy intentional and polished, buttons visually distinct from panel, no excessive empty bottom space. This is a design concept image, not proof of live game implementation. No watermark or additional captions outside menu. Preserve map aesthetics, do not redesign the rest of the UI.

@@ -13,15 +13,17 @@
                 <ui:Button name="close-inventory" text="닫기 (ESC)" />
             </ui:VisualElement>
             <ui:VisualElement class="inventory-body">
-                <ui:ScrollView name="equipment-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden" class="equipment-pane equipment-scroll">
+                <ui:VisualElement class="equipment-pane">
                     <ui:Label name="class-label" class="section-title" />
-                    <ui:VisualElement class="equipment-layout">
-                        <ui:VisualElement name="equipment-left" class="equipment-column" />
-                        <ui:Image name="character-preview" class="character-preview" picking-mode="Ignore" />
-                        <ui:VisualElement name="equipment-right" class="equipment-column" />
+                    <ui:VisualElement name="equipment-scroll" class="equipment-scroll">
+                        <ui:VisualElement class="equipment-layout">
+                            <ui:VisualElement name="equipment-left" class="equipment-column" />
+                            <ui:Image name="character-preview" class="character-preview" picking-mode="Ignore" />
+                            <ui:VisualElement name="equipment-right" class="equipment-column" />
+                        </ui:VisualElement>
                     </ui:VisualElement>
                     <ui:Label name="set-status" class="set-status" />
-                </ui:ScrollView>
+                </ui:VisualElement>
                 <ui:VisualElement class="bag-pane">
                     <ui:VisualElement name="category-tabs" class="category-tabs" />
                     <ui:Label name="bag-capacity" class="bag-capacity" />

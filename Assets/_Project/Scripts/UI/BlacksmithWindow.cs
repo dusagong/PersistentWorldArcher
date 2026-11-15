@@ -18,6 +18,7 @@ namespace PersistentWorld.UI
         private UIDocument document;
         private PanelSettings settings;
         private Font font;
+        private bool ownsFont;
         private VisualElement screen;
         private ScrollView recipes;
         private Label materials;
@@ -50,6 +51,7 @@ namespace PersistentWorld.UI
             PanelSettings template = Resources.Load<PanelSettings>("UI/BlacksmithPanel");
             if (template == null) { Debug.LogError("Blacksmith panel settings are missing."); return; }
             settings = Instantiate(template);
+            settings.screenMatchMode = PanelScreenMatchMode.Expand;
             GameObject ui = new GameObject("Blacksmith UI");
             ui.transform.SetParent(transform, false);
             ui.SetActive(false);
@@ -57,8 +59,9 @@ namespace PersistentWorld.UI
             document.panelSettings = settings;
             document.visualTreeAsset = tree;
             ui.SetActive(true);
-            // The Windows target supplies this CJK font; no new art/font package is required.
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
+            font = Resources.Load<Font>("UI/Fonts/NanumGothic-Regular");
+            ownsFont = font == null;
+            if (ownsFont) font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
             VisualElement root = document.rootVisualElement;
             root.style.position = Position.Absolute;
             root.style.left = 0;
@@ -67,10 +70,12 @@ namespace PersistentWorld.UI
             root.style.bottom = 0;
             root.style.unityFont = font;
             screen = document.rootVisualElement.Q<VisualElement>("blacksmith-screen");
+            RpgUiSurface.AddTo(screen.Q(className: "blacksmith-panel"), RpgUiSurface.Finish.Window);
             recipes = screen.Q<ScrollView>("recipe-list");
             materials = screen.Q<Label>("materials");
             message = screen.Q<Label>("message");
             screen.Q<Button>("close-button").clicked += Close;
+            RpgUiSurface.AddTo(screen.Q<Button>("close-button"), RpgUiSurface.Finish.Button);
             if (session != null) session.ProfileChanged += BindProfile;
             if (network != null) network.ClientInventoryChanged += BindProfile;
             BindProfile();
@@ -150,6 +155,7 @@ namespace PersistentWorld.UI
                 if (!weapon && recipe == null) continue;
                 var row = new VisualElement { name = "recipe-" + item.Id };
                 row.AddToClassList("recipe-row");
+                RpgUiSurface.AddTo(row, RpgUiSurface.Finish.Row);
                 var icon = new UpgradeItemIcon();
                 icon.SetItem(Resources.Load<Sprite>(item.IconPath), profile.GetUpgradeLevel(item.Id));
                 icon.AddToClassList("item-icon");
@@ -157,6 +163,7 @@ namespace PersistentWorld.UI
                 var description = new VisualElement();
                 description.AddToClassList("recipe-description");
                 bool equipped = profile.GetEquipped(item.Slot) == item.Id;
+                row.EnableInClassList("equipped-row", equipped);
                 bool owned = profile.OwnsEquipment(item.Id);
                 var nameLabel = new Label(profile.DisplayName(item) + (equipped ? "  [장착 중]" : owned ? "  [보유]" : "  [미보유]"));
                 nameLabel.AddToClassList("item-name");
@@ -201,12 +208,16 @@ namespace PersistentWorld.UI
                 bool canMake = weapon ? profile.CanUpgradeWeapon(out string reason) : EquipmentCrafting.CanCraft(inventory, item.Id, out reason);
                 craft.SetEnabled(canMake);
                 craft.tooltip = canMake ? (weapon ? "100% 성공 · 추가 공격력 +1" : "방어구 제작") : reason;
+                RpgUiSurface.AddTo(craft, RpgUiSurface.Finish.Button);
                 row.Add(craft);
                 var equip = new Button(() => ToggleEquipment(item)) { text = equipped ? "해제" : "장착" };
                 equip.SetEnabled(equipped || inventory.HasItem(item.Id, 1));
+                RpgUiSurface.AddTo(equip, RpgUiSurface.Finish.Button);
                 row.Add(equip);
                 recipes.Add(row);
             }
+            if (recipes.childCount > 0) recipes[recipes.childCount - 1].style.marginBottom = 0;
+            recipes.style.height = Mathf.Max(0, recipes.childCount * 80 - 8);
             if (!string.IsNullOrEmpty(session?.SaveError)) message.text = "현재 진행 상태를 저장할 수 없습니다. 저장 위치를 확인해주세요.";
         }
 
@@ -251,7 +262,7 @@ namespace PersistentWorld.UI
             if (active == this) active = null;
             if (document != null) Destroy(document.gameObject);
             if (settings != null) Destroy(settings);
-            if (font != null) Destroy(font);
+            if (font != null && ownsFont) Destroy(font);
             document = null;
             settings = null;
             font = null;

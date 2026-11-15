@@ -248,9 +248,6 @@ namespace PersistentWorld.UI
             {
                 if (!slot.Root.worldBound.Contains(position)) continue;
                 skillTooltip.text = slot.Hint;
-                float height = 116;
-                skillTooltip.style.height = height;
-                skillTooltip.style.left = Mathf.Clamp(slot.Root.worldBound.center.x - 110, 8, Mathf.Max(8, screen.worldBound.width - 228));
                 float top = Mathf.Min(panel.worldBound.yMin, potionRow?.worldBound.yMin ?? panel.worldBound.yMin);
                 if (player != null && !player.Health.IsDead)
                 {
@@ -262,8 +259,8 @@ namespace PersistentWorld.UI
                     if (!string.IsNullOrEmpty(player.NearbyPrompt)) top = Mathf.Min(top, interaction.yMin * ratio);
                     if (!string.IsNullOrEmpty(DialogueState.Line)) top = Mathf.Min(top, dialogue.yMin * ratio);
                 }
-                skillTooltip.style.top = Mathf.Max(8, top - height - 8);
-                skillTooltip.style.display = DisplayStyle.Flex;
+                TooltipLayout.Show(skillTooltip, Mathf.Min(220, screen.worldBound.width - 16),
+                    new Vector2(slot.Root.worldBound.center.x, top - 8), screen.worldBound, .5f);
                 return;
             }
             if (onlineWorld == null || potionRow == null) return;
@@ -274,10 +271,9 @@ namespace PersistentWorld.UI
                 string id = At(onlineWorld.Frame.potionSlots, i);
                 skillTooltip.text = string.IsNullOrEmpty(id) ? "인벤토리(I)에서 포션을 장착하세요." :
                     (id == PersistentWorld.World.MonsterDropTable.HealthPotion ? "체력 포션 · HP 30 회복" : "마나 포션 · MP 30 회복") + "\n재사용 10초 · MP 소모 없음";
-                skillTooltip.style.height = 72;
-                skillTooltip.style.left = Mathf.Clamp(element.worldBound.x - 160, 8, Mathf.Max(8, screen.worldBound.width - 228));
-                skillTooltip.style.top = Mathf.Max(8, element.worldBound.y - 80);
-                skillTooltip.style.display = DisplayStyle.Flex; return;
+                TooltipLayout.Show(skillTooltip, Mathf.Min(220, screen.worldBound.width - 16),
+                    new Vector2(element.worldBound.xMax, element.worldBound.y - 8), screen.worldBound, 1);
+                return;
             }
         }
 

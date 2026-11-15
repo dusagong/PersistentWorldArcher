@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace PersistentWorld.UI
 {
     [DefaultExecutionOrder(-100)]
-    public sealed class InventoryWindow : MonoBehaviour
+    public sealed partial class InventoryWindow : MonoBehaviour
     {
         private static InventoryWindow active;
         public static bool IsOpen => active != null && active.visible;
@@ -25,6 +25,7 @@ namespace PersistentWorld.UI
         private PanelSettings settings;
         private UIDocument document;
         private Font font;
+        private bool ownsFont;
         private VisualElement screen, menu, panel, grid, questList, selectionPanel;
         private ScrollView bagScroll;
         private Label capacity, title, description, message, setStatus, hoverHint;
@@ -69,10 +70,13 @@ namespace PersistentWorld.UI
             document.panelSettings = settings;
             document.visualTreeAsset = tree;
             ui.SetActive(true);
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
+            font = Resources.Load<Font>("UI/Fonts/NanumGothic-Regular");
+            ownsFont = font == null;
+            if (ownsFont) font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
             document.rootVisualElement.AddToClassList("inventory-document");
             document.rootVisualElement.style.unityFont = font;
             screen = document.rootVisualElement.Q("inventory-screen");
+            InitializeEquipmentDrag();
             hoverHint = new Label { pickingMode = PickingMode.Ignore };
             hoverHint.style.position = Position.Absolute; hoverHint.style.width = 290;
             hoverHint.style.paddingLeft = hoverHint.style.paddingRight = hoverHint.style.paddingTop = hoverHint.style.paddingBottom = 10;
@@ -82,6 +86,9 @@ namespace PersistentWorld.UI
             document.rootVisualElement.Add(hoverHint);
             menu = screen.Q("pause-menu");
             panel = screen.Q("inventory-panel");
+            RpgUiSurface.AddTo(panel, RpgUiSurface.Finish.Window);
+            RpgUiSurface.AddTo(screen.Q(className: "equipment-pane"), RpgUiSurface.Finish.Section);
+            RpgUiSurface.AddTo(screen.Q("selection-panel"), RpgUiSurface.Finish.Section);
             grid = screen.Q("bag-grid");
             grid.RegisterCallback<GeometryChangedEvent>(evt =>
             {
@@ -98,6 +105,7 @@ namespace PersistentWorld.UI
             preview = screen.Q<Image>("character-preview");
             preview.scaleMode = ScaleMode.ScaleToFit;
             action = screen.Q<Button>("equipment-action");
+            RpgUiSurface.AddTo(action, RpgUiSurface.Finish.Button);
             action.clicked += ApplySelection;
             for (int i = 0; i < potionButtons.Length; i++)
             {
@@ -114,15 +122,18 @@ namespace PersistentWorld.UI
             screen.Q<Button>("open-inventory").clicked += () => Open(actor);
             screen.Q<Button>("resume-game").clicked += Close;
             screen.Q<Button>("close-inventory").clicked += Close;
+            RpgUiSurface.AddTo(screen.Q<Button>("close-inventory"), RpgUiSurface.Finish.Button);
             foreach (EquipmentSlot slot in Slots)
             {
                 var button = new Button(() => SelectEquipped(slot));
                 button.name = "equipment-" + slot.ToString().ToLowerInvariant();
                 button.AddToClassList("equipment-slot");
+                RpgUiSurface.AddTo(button, RpgUiSurface.Finish.Slot);
                 button.Add(new UpgradeItemIcon());
                 button.Add(new Label(SlotName(slot)) { pickingMode = PickingMode.Ignore });
                 screen.Q(SlotsIndex(slot) < 3 ? "equipment-left" : "equipment-right").Add(button);
                 equipmentButtons.Add(slot, button);
+                BindEquipmentDrag(button, () => Profile?.GetEquipped(slot), slot);
                 BindTooltip(button);
             }
             for (int i = 0; i < Categories.Length; i++)
@@ -130,6 +141,7 @@ namespace PersistentWorld.UI
                 var value = (ItemCategory)i;
                 var button = new Button(() => SelectCategory(value)) { text = Categories[i] };
                 button.AddToClassList("category-tab");
+                RpgUiSurface.AddTo(button, RpgUiSurface.Finish.Button);
                 screen.Q("category-tabs").Add(button);
                 tabs.Add(button);
             }
@@ -140,6 +152,7 @@ namespace PersistentWorld.UI
 
         private void BindProfile()
         {
+            CancelEquipmentDrag();
             if (observedProfile != null) observedProfile.Changed -= MarkDirty;
             observedProfile = Profile;
             if (observedProfile != null) observedProfile.Changed += MarkDirty;
@@ -200,6 +213,7 @@ namespace PersistentWorld.UI
 
         public void Close()
         {
+            CancelEquipmentDrag();
             if (!visible) return;
             visible = false;
             ItemWindows.ConsumeClose();
@@ -232,6 +246,7 @@ namespace PersistentWorld.UI
 
         private void Refresh()
         {
+            CancelEquipmentDrag();
             dirty = false;
             var profile = Profile;
             var inventory = profile.Inventory;
@@ -239,12 +254,18 @@ namespace PersistentWorld.UI
             bagScroll.EnableInClassList("hidden", showingQuests);
             capacity.EnableInClassList("hidden", showingQuests);
             questList.EnableInClassList("hidden", !showingQuests);
-            selectionPanel.EnableInClassList("hidden", showingQuests && selectedSlot == EquipmentSlot.None);
-            message.EnableInClassList("hidden", showingQuests && string.IsNullOrEmpty(session?.SaveError));
+            selectionPanel.RemoveFromClassList("hidden");
+            selectionPanel.style.visibility = showingQuests && selectedSlot == EquipmentSlot.None ? Visibility.Hidden : Visibility.Visible;
+            message.RemoveFromClassList("hidden");
+            message.style.visibility = showingQuests && string.IsNullOrEmpty(session?.SaveError) ? Visibility.Hidden : Visibility.Visible;
             if (selectedSlot != EquipmentSlot.None) selectedId = profile.GetEquipped(selectedSlot);
             else if (selectedId != null && inventory.GetCount(selectedId) == 0) selectedId = null;
             capacity.text = $"전체 가방 {inventory.UsedSlots} / {inventory.Capacity}칸 · 장착 장비 제외";
-            for (int i = 0; i < tabs.Count; i++) tabs[i].EnableInClassList("selected", i == (int)category);
+            for (int i = 0; i < tabs.Count; i++)
+            {
+                tabs[i].EnableInClassList("selected", i == (int)category);
+                RpgUiSurface.Repaint(tabs[i]);
+            }
             foreach (var pair in equipmentButtons)
             {
                 ItemCatalog.TryGet(profile.GetEquipped(pair.Key), out ItemDefinition equipped);
@@ -252,6 +273,7 @@ namespace PersistentWorld.UI
                 pair.Value.Q<Label>().text = SlotName(pair.Key) + (equipped != null && profile.GetUpgradeLevel(equipped.Id) > 0 ? " +" + profile.GetUpgradeLevel(equipped.Id) : "");
                 pair.Value.tooltip = equipped == null ? SlotName(pair.Key) + " · 비어 있음" : ItemHint(equipped);
                 pair.Value.EnableInClassList("selected", selectedSlot == pair.Key);
+                RpgUiSurface.Repaint(pair.Value);
             }
             int pieces = profile.GetBonuses().SetPieces;
             setStatus.text = $"세트 {pieces}/6\n" +
@@ -273,6 +295,8 @@ namespace PersistentWorld.UI
                     int quantity = System.Math.Min(remaining, limit);
                     var cell = new Button(() => { selectedId = item.Id; selectedSlot = EquipmentSlot.None; Refresh(); });
                     cell.AddToClassList("bag-cell");
+                    RpgUiSurface.AddTo(cell, RpgUiSurface.Finish.Slot);
+                    if (item.IsEquipment) BindEquipmentDrag(cell, () => item.Id, EquipmentSlot.None);
                     cell.tooltip = ItemHint(item);
                     BindTooltip(cell);
                     var icon = new UpgradeItemIcon();
@@ -300,6 +324,7 @@ namespace PersistentWorld.UI
             {
                 var empty = new Button(() => { selectedId = null; selectedSlot = EquipmentSlot.None; Refresh(); });
                 empty.AddToClassList("bag-cell");
+                RpgUiSurface.AddTo(empty, RpgUiSurface.Finish.Slot);
                 grid.Add(empty);
             }
             ResizeBagCells();
@@ -323,10 +348,10 @@ namespace PersistentWorld.UI
         {
             element.RegisterCallback<PointerEnterEvent>(evt =>
             {
-                if (!visible || string.IsNullOrEmpty(element.tooltip)) return;
+                if (!visible || draggingEquipment || string.IsNullOrEmpty(element.tooltip)) return;
                 hoverHint.text = element.tooltip; hoverHint.style.display = DisplayStyle.Flex;
-                hoverHint.style.left = Mathf.Clamp(evt.position.x + 12, 4, screen.worldBound.width - 300);
-                hoverHint.style.top = Mathf.Clamp(evt.position.y - 100, 4, screen.worldBound.height - 150);
+                TooltipLayout.Show(hoverHint, Mathf.Min(290, screen.worldBound.width - 8),
+                    new Vector2(evt.position.x + 12, evt.position.y - 8), document.rootVisualElement.worldBound);
                 hoverHint.BringToFront();
             });
             element.RegisterCallback<PointerLeaveEvent>(_ => hoverHint.style.display = DisplayStyle.None);
@@ -428,10 +453,13 @@ namespace PersistentWorld.UI
             if (active == this) active = null;
             if (document != null) Destroy(document.gameObject);
             if (settings != null) Destroy(settings);
-            if (font != null) Destroy(font);
+            if (font != null && ownsFont) Destroy(font);
             document = null;
             settings = null;
             font = null;
+            ownsFont = false;
+            dragGhost = null;
+            dragIcon = null;
             screen = null;
             menu = null;
             panel = null;

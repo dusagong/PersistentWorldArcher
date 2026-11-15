@@ -1,0 +1,93 @@
+<div id="hud-layout-review">
+  <style>
+    #hud-layout-review { font-family: "Malgun Gothic", "Segoe UI", sans-serif; color: #f5f4ee; }
+    #hud-layout-review * { box-sizing: border-box; }
+    #hud-layout-review .scene { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #36523e; isolation: isolate; }
+    #hud-layout-review .land { position: absolute; inset: 0; background: radial-gradient(ellipse at 14% 24%, #48674a 0%, transparent 34%), radial-gradient(ellipse at 87% 22%, #203c35 0%, transparent 37%), linear-gradient(155deg, #38563d, #314d3c 65%, #253f33); }
+    #hud-layout-review .path { position: absolute; width: 180%; height: 12%; top: 47%; left: -35%; background: #748069; opacity: .35; transform: rotate(-24deg); }
+    #hud-layout-review .shade { position: absolute; inset: 50% 0 0; background: linear-gradient(transparent, #14241c70); }
+    #hud-layout-review .actor { position: absolute; left: 50%; top: 46%; width: 80px; height: 110px; transform: translate(-50%, -50%); object-fit: contain; image-rendering: pixelated; }
+    #hud-layout-review .vitals { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: 230px; }
+    #hud-layout-review .vital-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; color: #f3f3e9df; font-size: 10px; letter-spacing: .4px; text-shadow: 0 1px 3px #16251c; }
+    #hud-layout-review .hp-track, #hud-layout-review .mp-track { background: #0718137d; height: 5px; border-radius: 2px; }
+    #hud-layout-review .hp { width: 82%; height: 100%; background: #da5258; border-radius: inherit; }
+    #hud-layout-review .mp-track { height: 3px; margin-top: 5px; background: #356fafa6; }
+    #hud-layout-review .skills { position: absolute; right: 26px; bottom: 34px; width: 222px; height: 142px; }
+    #hud-layout-review .skill { position: absolute; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: #13221b63; color: #f5f4ed; appearance: none; }
+    #hud-layout-review .skill:focus-visible { outline: 1px solid #f5f4ed; outline-offset: 4px; }
+    #hud-layout-review .skill .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+    #hud-layout-review .track { fill: none; stroke: #f5f4ed30; stroke-width: 1.4; }
+    #hud-layout-review .fill { fill: none; stroke: #f5f4ed; stroke-width: 1.8; stroke-linecap: butt; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--charge)); }
+    #hud-layout-review .symbol { position: absolute; inset: 11px; width: 22px; height: 22px; opacity: var(--ink, 1); }
+    #hud-layout-review .key { position: absolute; top: 47px; left: -10px; right: -10px; font-size: 10px; letter-spacing: .3px; color: #f3f3e9da; text-align: center; text-shadow: 0 1px 3px #14251c; }
+    #hud-layout-review .q { left: 0; bottom: 16px; }
+    #hud-layout-review .e { left: 46px; bottom: 68px; }
+    #hud-layout-review .special { left: 94px; bottom: 27px; }
+    #hud-layout-review .boss { left: 150px; bottom: 83px; }
+    #hud-layout-review .dodge { left: 176px; bottom: 0; width: 36px; height: 36px; }
+    #hud-layout-review .dodge .symbol { inset: 9px; width: 18px; height: 18px; }
+    #hud-layout-review .dodge .key { top: 39px; }
+    @media (max-width: 700px) {
+      #hud-layout-review .actor { width: 55px; height: 75px; }
+      #hud-layout-review .vitals { width: 180px; left: 32%; bottom: 14px; }
+      #hud-layout-review .skills { transform: scale(.78); transform-origin: right bottom; right: 12px; bottom: 20px; }
+    }
+    @media (max-width: 420px) {
+      #hud-layout-review .scene { aspect-ratio: 4 / 3; }
+      #hud-layout-review .vitals { left: 16px; bottom: 15px; transform: none; width: 105px; }
+      #hud-layout-review .skills { transform: scale(.7); right: 9px; bottom: 20px; }
+    }
+  </style>
+  <div class="scene" role="group" aria-label="배치 시안: 하단 중앙의 얇은 HP·MP, 우하단의 작은 스킬 아이콘 다섯 개. 게임 반영 전이며 쿨타임은 시연용입니다.">
+    <div class="land"></div><div class="path"></div><div class="shade"></div>
+    <i class="actor" data-lucide="person-standing" aria-label="캐릭터 위치 참고"></i>
+    <div class="vitals" aria-label="HP·MP 배치 참고">
+      <div class="vital-label"><span>HP</span><span>82 / 100</span></div>
+      <div class="hp-track"><div class="hp"></div></div>
+      <div class="mp-track" aria-label="MP 연결 대기"></div>
+    </div>
+    <div class="skills" role="group" aria-label="스킬 배치·테두리 충전 시연">
+      <button class="skill q" type="button" aria-label="Q 오지마 테두리 충전 시연" style="--charge: 28; --ink: .55">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="20"/><circle class="fill" cx="22" cy="22" r="20" pathLength="100"/></svg>
+        <i class="symbol" data-lucide="bow-arrow" aria-hidden="true"></i><span class="key">Q</span>
+      </button>
+      <button class="skill e" type="button" aria-label="E 화살 비 테두리 충전 시연" style="--charge: 72; --ink: .8">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="20"/><circle class="fill" cx="22" cy="22" r="20" pathLength="100"/></svg>
+        <i class="symbol" data-lucide="cloud-rain" aria-hidden="true"></i><span class="key">E</span>
+      </button>
+      <button class="skill special" type="button" aria-label="좌클릭 직업 특수 테두리 충전 시연" style="--charge: 100">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="20"/><circle class="fill" cx="22" cy="22" r="20" pathLength="100"/></svg>
+        <i class="symbol" data-lucide="copy" aria-hidden="true"></i><span class="key">좌클릭</span>
+      </button>
+      <button class="skill boss" type="button" aria-label="Shift 보스 스킬 테두리 충전 시연" style="--charge: 100">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="20"/><circle class="fill" cx="22" cy="22" r="20" pathLength="100"/></svg>
+        <i class="symbol" data-lucide="eclipse" aria-hidden="true"></i><span class="key">Shift</span>
+      </button>
+      <button class="skill dodge" type="button" aria-label="Space 회피 테두리 충전 시연" style="--charge: 100">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="20"/><circle class="fill" cx="22" cy="22" r="20" pathLength="100"/></svg>
+        <i class="symbol" data-lucide="wind" aria-hidden="true"></i><span class="key">Space</span>
+      </button>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const root = document.getElementById('hud-layout-review');
+      root.querySelectorAll('.skill').forEach(button => {
+        let animation = 0;
+        button.addEventListener('click', () => {
+          cancelAnimationFrame(animation);
+          const start = performance.now();
+          button.style.setProperty('--charge', 0);
+          button.style.setProperty('--ink', .45);
+          function tick(now) {
+            const fraction = Math.min(1, (now - start) / 3200);
+            button.style.setProperty('--charge', fraction * 100);
+            button.style.setProperty('--ink', .45 + .55 * fraction);
+            if (fraction < 1) animation = requestAnimationFrame(tick);
+          }
+          animation = requestAnimationFrame(tick);
+        });
+      });
+    })();
+  </script>
+</div>
