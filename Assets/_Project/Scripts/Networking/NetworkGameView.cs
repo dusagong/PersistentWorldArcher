@@ -19,6 +19,7 @@ namespace PersistentWorld.Networking
         private readonly Dictionary<int, List<(double time, SpriteFrame frame)>> history = new Dictionary<int, List<(double, SpriteFrame)>>();
         private readonly Dictionary<int, float> flashes = new Dictionary<int, float>();
         private readonly Dictionary<int, float> born = new Dictionary<int, float>();
+        private readonly Dictionary<int, NetworkCharacterPose> characterPoses = new Dictionary<int, NetworkCharacterPose>();
         private double serverTime, receivedAt;
         private double clockOffset;
         private bool clockReady;
@@ -74,6 +75,18 @@ namespace PersistentWorld.Networking
                 visual.transform.localScale = data.scale;
                 visual.enabled = true;
             }
+            if (frame.players != null)
+                foreach (PlayerFrame player in frame.players)
+                {
+                    if (player.hp <= 0) { characterPoses.Remove(player.visual); continue; }
+                    if (!visible.Contains(player.visual) || !actors.TryGetValue(player.visual, out SpriteRenderer body)) continue;
+                    if (!characterPoses.TryGetValue(player.visual, out NetworkCharacterPose pose))
+                        characterPoses[player.visual] = pose = new NetworkCharacterPose();
+                    Vector2 aim = CharacterAim(player, frame, out int comboEffect);
+                    pose.Observe(player, aim, comboEffect, Time.unscaledTime);
+                    Sprite directional = pose.Sprite(Time.unscaledTime);
+                    if (directional != null) { body.sprite = directional; body.flipX = false; }
+                }
             foreach (var pair in actors) if (!visible.Contains(pair.Key))
                 pair.Value.enabled = targets[pair.Key].swordSwing && Time.unscaledTime - born[pair.Key] < PersistentWorld.Combat.SwordSwingEffect.Duration;
             visible.Clear();
@@ -93,7 +106,7 @@ namespace PersistentWorld.Networking
             // Remove retired objects instead of retaining an unbounded history of projectiles/effects.
             retired.Clear();
             foreach (var pair in actors) if (!pair.Value.enabled) retired.Add(pair.Key);
-            foreach (int id in retired) { Object.Destroy(actors[id].gameObject); actors.Remove(id); targets.Remove(id); history.Remove(id); flashes.Remove(id); born.Remove(id); }
+            foreach (int id in retired) { Object.Destroy(actors[id].gameObject); actors.Remove(id); targets.Remove(id); history.Remove(id); flashes.Remove(id); born.Remove(id); characterPoses.Remove(id); }
             retired.Clear();
             foreach (var pair in lines) if (!pair.Value.enabled) retired.Add(pair.Key);
             foreach (int id in retired) { Object.Destroy(lines[id].gameObject); lines.Remove(id); }
@@ -115,6 +128,11 @@ namespace PersistentWorld.Networking
                 body.SetPositionAndRotation(position, Quaternion.Euler(0, 0, angle));
                 pair.Value.color = flashes.TryGetValue(pair.Key, out float until) && Time.unscaledTime < until
                     ? Color.Lerp(target.color, Color.red, .5f) : target.color;
+                if (characterPoses.TryGetValue(pair.Key, out NetworkCharacterPose pose))
+                {
+                    Sprite directional = pose.Sprite(Time.unscaledTime);
+                    if (directional != null) { pair.Value.sprite = directional; pair.Value.flipX = false; }
+                }
             }
             // Shadows use the exact rendered actor position, so interpolation cannot make them lag behind.
             foreach (var pair in actors)
@@ -123,6 +141,53 @@ namespace PersistentWorld.Networking
                 if (target.follow != 0 && actors.TryGetValue(target.follow, out SpriteRenderer owner))
                     pair.Value.transform.position = owner.transform.position + target.followOffset;
             }
+        }
+        private Vector2 CharacterAim(PlayerFrame player, GameFrame frame, out int comboEffect)
+        {
+            comboEffect = 0;
+            Vector2 result = player.aim;
+            float best = float.PositiveInfinity, latestCombo = float.NegativeInfinity;
+            // Old deployed servers have no PlayerFrame.aim yet. Their existing effect rotations
+            // still supply remote attack directions without changing the wire protocol/version.
+            foreach (SpriteFrame effect in frame.sprites)
+            {
+                if (effect.id == player.visual) continue;
+                if (effect.swordSwing && effect.follow == player.visual && effect.aim.sqrMagnitude > .001f)
+                { if (result.sqrMagnitude < .001f) result = effect.aim; continue; }
+                if (effect.texture < 0 || effect.texture >= assets.textures.Length) continue;
+                Texture2D texture = assets.textures[effect.texture];
+                if (texture == null) continue;
+                string name = texture.name;
+                float sourceAngle;
+                switch (name)
+                {
+                    case "BasicAttackBow": case "BasicAttackArrow": sourceAngle = 45; break;
+                    case "SkillThreeCast": sourceAngle = -135; break;
+                    case "WarriorCharge": case "WarriorRelease": sourceAngle = -90; break;
+                    case "WarriorParry": sourceAngle = 180; break;
+                    case "HealerBolt": sourceAngle = 90; break;
+                    case "WarriorCombo": case "HealerJudgment": sourceAngle = 0; break;
+                    default: continue;
+                }
+                float distance = ((Vector2)effect.position - player.position).sqrMagnitude;
+                if (distance > 9) continue;
+                bool nearerPlayer = false;
+                foreach (PlayerFrame other in frame.players)
+                    if (other.visual != player.visual && ((Vector2)effect.position - other.position).sqrMagnitude + .001f < distance)
+                    { nearerPlayer = true; break; }
+                if (nearerPlayer) continue;
+                if (name == "WarriorCombo" && born.TryGetValue(effect.id, out float began) && began > latestCombo)
+                { latestCombo = began; comboEffect = effect.id; }
+                if (player.aim.sqrMagnitude < .001f && distance < best)
+                {
+                    best = distance; float angle = (effect.angle + sourceAngle) * Mathf.Deg2Rad;
+                    result = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                }
+            }
+            var manager = Unity.Netcode.NetworkManager.Singleton;
+            if (player.aim.sqrMagnitude < .001f && manager != null && manager.LocalClientId == player.id && Camera.main != null)
+                result = ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - player.position).normalized;
+            return result;
         }
         private void Sample(int id, double time, out Vector3 position, out float angle)
         {
@@ -150,6 +215,7 @@ namespace PersistentWorld.Networking
             foreach (var pair in actors) if (pair.Value != null) Object.Destroy(pair.Value.gameObject);
             foreach (var pair in lines) if (pair.Value != null) Object.Destroy(pair.Value.gameObject);
             actors.Clear(); lines.Clear(); targets.Clear(); history.Clear(); flashes.Clear(); born.Clear();
+            characterPoses.Clear();
             clockReady = false;
         }
     }

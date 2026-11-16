@@ -18,6 +18,7 @@ namespace PersistentWorld.Player
         private float frameTimer, dashStartedAt;
         private int frameIndex;
         private bool playingDash;
+        private int facing;
         private const float DashDuration = .6f;
 
         private void Awake()
@@ -37,7 +38,11 @@ namespace PersistentWorld.Player
             runFrames = RunFrames(type); dashFrames = DashFrames(type);
             if (runFrames == null || dashFrames == null) return false;
             loadedClass = type; playingDash = false; frameIndex = 0; frameTimer = 0;
-            visual.color = Color.white; visual.sprite = runFrames[0];
+            visual.color = Color.white;
+            Sprite directional = PersistentWorld.Networking.NetworkGameWorld.Instance == null
+                ? FourDirectionCharacterArt.Frame(type, CharacterMotion.Idle, facing, 0) : null;
+            visual.sprite = directional != null ? directional : runFrames[0];
+            if (directional != null) visual.flipX = false;
             return true;
         }
 
@@ -56,7 +61,9 @@ namespace PersistentWorld.Player
         }
         private void Update()
         {
+            if (controller.Loadout == null) return;
             if (loadedClass != controller.Loadout.Class && !RefreshClass()) return;
+            if (DrawDirectional()) return;
             if (playingDash)
             {
                 float progress = (Time.time - dashStartedAt) / DashDuration;
@@ -75,6 +82,44 @@ namespace PersistentWorld.Player
             if (frameTimer >= interval)
             { frameIndex = (frameIndex + Mathf.FloorToInt(frameTimer / interval)) % runFrames.Length; frameTimer %= interval; }
             visual.sprite = runFrames[frameIndex];
+        }
+
+        private bool DrawDirectional()
+        {
+            // Online bodies are presented by NetworkGameView. Keep server texture IDs compatible.
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance != null) return false;
+            if (controller.Health != null && controller.Health.IsDead) return true;
+            PlayerSkills skills = controller.Skills;
+            Vector2 movement = body.linearVelocity;
+            bool moving = movement.sqrMagnitude > .01f;
+            CharacterMotion motion = moving ? CharacterMotion.Walk : CharacterMotion.Idle;
+            float elapsed = Time.time;
+            bool holding = false;
+            if (moving) facing = FourDirectionCharacterArt.Face(movement.normalized, facing);
+            if (skills != null && skills.IsHolding)
+            {
+                motion = moving && skills.HoldingSkill == SkillId.ArrowRain ? CharacterMotion.Walk
+                    : FourDirectionCharacterArt.ForSkill(skills.HoldingSkill);
+                holding = motion != CharacterMotion.Walk;
+                facing = FourDirectionCharacterArt.Face(controller.AimDirection, facing);
+            }
+            else if (skills != null && skills.VisualMotion != CharacterMotion.Idle &&
+                Time.time - skills.VisualMotionAt < FourDirectionCharacterArt.Duration(loadedClass, skills.VisualMotion))
+            {
+                motion = skills.VisualMotion; elapsed = Time.time - skills.VisualMotionAt;
+                facing = FourDirectionCharacterArt.Face(skills.VisualAim, facing);
+            }
+            else if (skills != null && skills.SpecialActive && loadedClass == CharacterClass.Warrior && !moving)
+            { motion = CharacterMotion.Special; holding = true; facing = FourDirectionCharacterArt.Face(controller.AimDirection, facing); }
+            if (controller.IsDashing)
+            {
+                motion = CharacterMotion.Dodge; elapsed = Time.time - dashStartedAt; holding = false;
+                facing = FourDirectionCharacterArt.Face(moving ? movement.normalized : controller.AimDirection, facing);
+            }
+            Sprite frame = FourDirectionCharacterArt.Frame(loadedClass, motion, facing, elapsed, holding);
+            if (frame == null) return false;
+            visual.sprite = frame; visual.flipX = false;
+            return true;
         }
 
         public static Sprite[] RunFrames(CharacterClass type)

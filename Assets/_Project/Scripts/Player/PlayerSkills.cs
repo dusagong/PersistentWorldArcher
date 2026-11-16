@@ -51,6 +51,11 @@ namespace PersistentWorld.Player
         public float CooldownDuration(SkillId id) => HudCooldownDurations.TryGetValue(Key(id), out float seconds) ? seconds : 0;
         public float SpecialActiveRemaining => Mathf.Max(0, specialEndsAt - Time.time);
         public float SpecialActiveDuration { get; private set; }
+        public CharacterMotion VisualMotion { get; private set; }
+        public float VisualMotionAt { get; private set; }
+        public Vector2 VisualAim { get; private set; }
+        private void RecordVisual(CharacterMotion motion)
+        { VisualMotion = motion; VisualMotionAt = Time.time; VisualAim = controller.AimDirection; }
         public bool IsUsingSkill(SkillId id) => id != SkillId.None &&
             (held == id || (busy && id == SkillId.Whirlwind) ||
              (releasing && id == SkillId.Snipe) || (combo > 0 && id == SkillId.ComboSlash));
@@ -191,6 +196,7 @@ namespace PersistentWorld.Player
                     break;
                 default: return false;
             }
+            RecordVisual(FourDirectionCharacterArt.ForSkill(id));
             return true;
         }
 
@@ -220,6 +226,7 @@ namespace PersistentWorld.Player
                 ClassSheetEffect.Play(ClassArtEffect.WarriorRelease, (Vector2)transform.position + Vector2.up * .35f + direction * Mathf.Lerp(.8f, 1.5f, charge), owner: transform, aim: direction, scale: Mathf.Lerp(.6f, 1.4f, charge));
                 SectorDamage(transform.position, direction, Mathf.Lerp(2, 5, charge), 100, Damage(Mathf.Lerp(25, 80, charge)), showRange: false);
             }
+            RecordVisual(FourDirectionCharacterArt.ForSkill(id));
             return true;
         }
 
@@ -295,6 +302,7 @@ namespace PersistentWorld.Player
                 BasicAttackEffect.PlayCast(transform, direction);
                 StartCoroutine(BasicArrows(direction, SpecialActive));
             }
+            RecordVisual(CharacterMotion.BasicAttack);
             return true;
         }
 
@@ -349,6 +357,7 @@ namespace PersistentWorld.Player
                 else ClassSheetEffect.Play(ClassArtEffect.ArcherSpecial, transform.position, 5, true, transform);
             }
             HudCooldownDurations[loadout.Class + ":Special"] = SpecialRemaining;
+            RecordVisual(CharacterMotion.Special);
             return true;
         }
 
@@ -381,6 +390,7 @@ namespace PersistentWorld.Player
 
         private void ClearHold()
         {
+            VisualMotion = CharacterMotion.Idle;
             // Ending or interrupting the channel starts its full cooldown, even on class changes.
             if (held == SkillId.Judgment)
             {
@@ -396,6 +406,7 @@ namespace PersistentWorld.Player
 
         public void Cancel()
         {
+            VisualMotion = CharacterMotion.Idle;
             ClearHold(); StopAllCoroutines(); busy = releasing = false;
             foreach (SwordSwingEffect effect in UnityEngine.Object.FindObjectsByType<SwordSwingEffect>(FindObjectsSortMode.None))
                 if (effect.Owner == transform) Destroy(effect.gameObject);

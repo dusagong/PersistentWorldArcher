@@ -13,6 +13,7 @@ namespace PersistentWorld.Networking
         public float[] cooldownDurations;
         public bool[] activeSkills;
         public Vector2 position; public bool leader;
+        public Vector2 aim;
         public int visual;
         public int attacks;
         [NonSerialized] public Vector3 renderedPosition;

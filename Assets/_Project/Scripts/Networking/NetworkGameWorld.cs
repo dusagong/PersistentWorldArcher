@@ -418,7 +418,7 @@ namespace PersistentWorld.Networking
                     specialEnabled = PlayerSkills.SpecialSkillsEnabled, hasWeapon = actor.HasWeapon,
                     cooldownDurations = actor.Loadout.Slots.Select(actor.Skills.CooldownDuration).ToArray(),
                     activeSkills = actor.Loadout.Slots.Select(actor.Skills.IsUsingSkill).ToArray(),
-                    position = actor.transform.position, leader = Parties.Leader(member.Party) == pair.Key,
+                    position = actor.transform.position, aim = actor.AimDirection, leader = Parties.Leader(member.Party) == pair.Key,
                     visual = actor.GetComponent<SpriteRenderer>().GetInstanceID(),
                     attacks = attackSequences.TryGetValue(pair.Key, out int attacks) ? attacks : 0,
                     bossLearned = actor.Loadout.BossLearned, books = actor.Loadout.BossSkillBooks };
