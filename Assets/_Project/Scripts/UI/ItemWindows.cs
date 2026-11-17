@@ -5,7 +5,7 @@ namespace PersistentWorld.UI
     public static class ItemWindows
     {
         private static int closedFrame = -1;
-        public static bool BlocksGameplay => BlacksmithWindow.IsOpen || InventoryWindow.IsOpen || closedFrame == Time.frameCount;
+        public static bool BlocksGameplay => BlacksmithWindow.IsOpen || InventoryWindow.IsOpen || PersistentWorld.World.BossResultView.IsOpen || closedFrame == Time.frameCount;
         public static void ConsumeClose() => closedFrame = Time.frameCount;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

@@ -45,7 +45,8 @@ namespace PersistentWorld.Editor
             world.mapSpawns = new Vector2[areaCount];
             foreach (GameArea area in Enum.GetValues(typeof(GameArea)))
             {
-                GameArea template = area == GameArea.Field2 || area == GameArea.Tutorial ? GameArea.Field : area;
+                // 두 번째 필드는 Scenes/Field2.unity, 연습장은 첫 번째 필드를 바탕으로 만든다
+                GameArea template = area == GameArea.Tutorial ? GameArea.Field : area;
                 Scene source = EditorSceneManager.OpenScene("Assets/_Project/Scenes/" + template + ".unity", OpenSceneMode.Additive);
                 GameObject map = new GameObject(area + " World"); SceneManager.MoveGameObjectToScene(map, destination);
                 world.maps[(int)area] = map.transform;

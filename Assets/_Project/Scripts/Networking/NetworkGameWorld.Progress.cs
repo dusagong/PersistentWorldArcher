@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using PersistentWorld.Combat;
@@ -312,6 +313,17 @@ namespace PersistentWorld.Networking
 
         private void AwardBoss(Health defeated)
         {
+            // 딜량표: 보스방에 있던 파티원 전원을 넣는다 (피해를 못 줬어도)
+            var fighters = Parties.Group(Parties.BossParty).Where(m => m.Area == GameArea.BossArena && Actors.ContainsKey(m.Id)).ToArray();
+            if (CurrentBoss != null)
+            {
+                bossResult = CurrentBoss.BuildResult(actor =>
+                {
+                    ulong client = actor.GetComponent<NetworkActorContext>()?.ClientId ?? 0;
+                    return (client, Parties.Members.TryGetValue(client, out PartyMember who) ? who.Name : "?");
+                }, fighters.Select(m => Actors[m.Id]));
+                bossResult.sequence = ++bossResultSequence;
+            }
             foreach (PartyMember member in Parties.Group(Parties.BossParty))
             {
                 if (member.Area != GameArea.BossArena || !Actors.TryGetValue(member.Id, out ArcherController actor)) continue;

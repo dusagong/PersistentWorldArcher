@@ -1,0 +1,16 @@
+/* UI 손맛: 버튼이 살짝 커지고, 누르면 눌렸다가 튕겨 돌아온다 (UiJuice.Attach로 붙인다) */
+Button {
+    transition-property: scale;
+    transition-duration: 0.16s;
+    transition-timing-function: ease-out-back;
+}
+
+Button:hover:enabled {
+    scale: 1.05 1.05;
+}
+
+Button:active:enabled {
+    scale: 0.92 0.92;
+    transition-duration: 0.05s;
+    transition-timing-function: ease-out;
+}

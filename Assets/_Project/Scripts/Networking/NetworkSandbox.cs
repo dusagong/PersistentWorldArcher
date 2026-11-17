@@ -50,7 +50,7 @@ namespace PersistentWorld.Networking
             !HasArgument("-pwa-probe");
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
         // The town assets change the shared render registry's texture indices.
-        public const int Protocol = 6;
+        public const int Protocol = 7;
         private const int CooperativePacketQueueSize = 1024;
         [Serializable] private sealed class Ticket { public int protocol, selected; public string code, name, characterKey, mode; }
 
@@ -358,12 +358,12 @@ namespace PersistentWorld.Networking
                         Rect picture = GUILayoutUtility.GetRect(1, 186, GUILayout.ExpandWidth(true));
                         if (portrait != null) GUI.DrawTexture(picture, portrait, ScaleMode.ScaleToFit, true);
                         GUI.enabled = !connecting && !manager.ShutdownInProgress;
-                        if (GUI.Button(picture, GUIContent.none, GUIStyle.none) || GUILayout.Button("선택 · 시작", GUILayout.Height(38)))
+                        if (RpgGuiJuice.Button(picture, GUIContent.none, GUIStyle.none) || RpgGuiJuice.LayoutButton("선택 · 시작", GUILayout.Height(38)))
                         { selectedClass = (int)type; selectClass = false; Connect(endpoint.Trim(), password); }
                         GUI.enabled = true; GUILayout.EndVertical();
                     }
                     GUILayout.EndHorizontal();
-                    if (GUILayout.Button("뒤로")) { selectClass = false; connectionScroll = Vector2.zero; }
+                    if (RpgGuiJuice.LayoutButton("뒤로")) { selectClass = false; connectionScroll = Vector2.zero; }
                 }
                 else
                 {
@@ -373,7 +373,7 @@ namespace PersistentWorld.Networking
                     GUILayout.Label("플레이어 코드 · 기존 계정 로그인 시 반드시 입력하세요.");
                     recoveryKey = GUILayout.PasswordField(recoveryKey, '*', 32);
                     GUI.enabled = !connecting && !manager.ShutdownInProgress && retryAt < 0;
-                    if (GUILayout.Button("플레이어 코드로 로그인", GUILayout.Height(36)))
+                    if (RpgGuiJuice.LayoutButton("플레이어 코드로 로그인", GUILayout.Height(36)))
                     {
                         demo = false; loginMode = "restore"; newCharacterKey = null;
                         if (string.IsNullOrWhiteSpace(recoveryKey)) status = "로그인할 계정의 플레이어 코드를 입력해주세요.";
@@ -381,18 +381,18 @@ namespace PersistentWorld.Networking
                             status = "플레이어 코드가 올바르지 않습니다. 발급받은 32자리 코드를 확인해주세요.";
                         else Connect(endpoint.Trim(), password);
                     }
-                    if (GUILayout.Button("새 플레이어 만들기", GUILayout.Height(36)))
+                    if (RpgGuiJuice.LayoutButton("새 플레이어 만들기", GUILayout.Height(36)))
                         BeginNewPlayer(false);
-                    if (GUILayout.Button("데모 계정으로 플레이 · 로그아웃 시 삭제", GUILayout.Height(36)))
+                    if (RpgGuiJuice.LayoutButton("데모 계정으로 플레이 · 로그아웃 시 삭제", GUILayout.Height(36)))
                         BeginNewPlayer(true);
                     GUI.enabled = true;
-                    if (retryAt >= 0 && GUILayout.Button("자동 재접속 취소")) Logout();
+                    if (retryAt >= 0 && RpgGuiJuice.LayoutButton("자동 재접속 취소")) Logout();
                     GUILayout.Label("새 계정은 고유 코드를 자동 발급합니다. ESC 메뉴에서 복사해 보관하세요.\n기존 계정은 해당 코드로 로그인하며, 데모 계정은 코드 입력 없이 시작합니다.");
                 }
             }
-            else if (GUILayout.Button("접속 취소")) Logout();
+            else if (RpgGuiJuice.LayoutButton("접속 취소")) Logout();
             GUILayout.EndScrollView(); GUILayout.EndArea();
-            if (GUI.Button(new Rect(bounds.x + 24, bounds.yMax - 52, bounds.width - 48, 34), "게임 종료", connectionTheme.SmallButton)) Application.Quit();
+            if (RpgGuiJuice.Button(new Rect(bounds.x + 24, bounds.yMax - 52, bounds.width - 48, 34), "게임 종료", connectionTheme.SmallButton)) Application.Quit();
             }
             finally { GUI.enabled = previousEnabled; GUI.skin = previousSkin; GUI.matrix = previous; }
         }

@@ -13,6 +13,8 @@ namespace PersistentWorld.Combat
         public event Action<int, int> Changed;
         public event Action<Health> Died;
         public static event Action<Health, int> DamageApplied;
+        // 실제로 깎인 양과 피해를 준 쪽(없으면 null). 보스 딜량표가 쓴다.
+        public static event Action<Health, int, GameObject> DamageDealt;
 
         public Faction Faction => faction;
         public int Current { get; private set; }
@@ -61,6 +63,7 @@ namespace PersistentWorld.Combat
             Current = Mathf.Max(0, Current - amount);
             Changed?.Invoke(Current, maxHealth);
             DamageApplied?.Invoke(this, actual);
+            DamageDealt?.Invoke(this, actual, source.Source);
             if (Current == 0)
             {
                 Died?.Invoke(this);

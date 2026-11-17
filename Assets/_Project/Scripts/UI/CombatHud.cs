@@ -73,8 +73,9 @@ namespace PersistentWorld.UI
             ui.SetActive(true);
             var root = document.rootVisualElement;
             root.AddToClassList("combat-document");
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
-            root.style.unityFont = font;
+            Font shared = Resources.Load<Font>("UI/Fonts/Galmuri11");
+            font = shared == null ? Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16) : null;
+            root.style.unityFont = shared != null ? shared : font;
             screen = root.Q("combat-screen");
             panel = root.Q("combat-panel");
             vitals = root.Q("combat-vitals");

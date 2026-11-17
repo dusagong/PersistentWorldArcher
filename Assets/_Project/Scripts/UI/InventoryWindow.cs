@@ -70,12 +70,13 @@ namespace PersistentWorld.UI
             document.panelSettings = settings;
             document.visualTreeAsset = tree;
             ui.SetActive(true);
-            font = Resources.Load<Font>("UI/Fonts/NanumGothic-Regular");
+            font = Resources.Load<Font>("UI/Fonts/Galmuri11");
             ownsFont = font == null;
             if (ownsFont) font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
             document.rootVisualElement.AddToClassList("inventory-document");
             document.rootVisualElement.style.unityFont = font;
             screen = document.rootVisualElement.Q("inventory-screen");
+            UiJuice.Attach(document.rootVisualElement);
             InitializeEquipmentDrag();
             hoverHint = new Label { pickingMode = PickingMode.Ignore };
             hoverHint.style.position = Position.Absolute; hoverHint.style.width = 290;
@@ -209,12 +210,14 @@ namespace PersistentWorld.UI
             preview.sprite = Resources.Load<Sprite>("Characters/" + ItemSession.ToCharacterClass(Profile.Class) + "InventoryIdle");
             message.text = "아이템을 선택하면 아래에서 정보를 확인할 수 있습니다.";
             Refresh();
+            UiJuice.PopIn(screen.Q("inventory-panel"));
         }
 
         public void Close()
         {
             CancelEquipmentDrag();
             if (!visible) return;
+            UiSound.Close();
             visible = false;
             ItemWindows.ConsumeClose();
             screen?.AddToClassList("hidden");
