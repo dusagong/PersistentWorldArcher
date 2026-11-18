@@ -18,7 +18,7 @@ namespace PersistentWorld.Editor
             ValidateBuildSettings();
             ValidatePlayerArt();
             ValidateScene("Town", expectedEnemies: 0, expectedBosses: 0, expectedNpcs: 1, expectedPortals: 1);
-            ValidateScene("Field", expectedEnemies: 18, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 2);
+            ValidateScene("Field", expectedEnemies: 18, expectedBosses: 0, expectedNpcs: 0, expectedPortals: 3); // 마을·보스방·두 번째 필드
             ValidateScene("BossArena", expectedEnemies: 0, expectedBosses: 1, expectedNpcs: 0, expectedPortals: 1);
             ValidateDamageRules();
             Debug.Log("PERSISTENT_WORLD_VALIDATION_OK");
@@ -26,9 +26,9 @@ namespace PersistentWorld.Editor
 
         private static void ValidateBuildSettings()
         {
-            if (EditorBuildSettings.scenes.Length != 3)
+            if (EditorBuildSettings.scenes.Length != 4)
             {
-                throw new InvalidOperationException("Expected exactly three scenes in Build Settings.");
+                throw new InvalidOperationException("Expected exactly four scenes in Build Settings (Town, Field, Field2, BossArena).");
             }
 
             foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)

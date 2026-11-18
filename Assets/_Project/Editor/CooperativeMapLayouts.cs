@@ -26,12 +26,8 @@ namespace PersistentWorld.Editor
                     MoveProp(map, obstacle.transform, origin + local);
                 }
             }
-            if (area == GameArea.Field2)
-            {
-                // 두 번째 필드는 Scenes/Field2.unity를 손대지 않고 그대로 쓴다. 첫 번째 필드에 이곳으로 오는 포탈만 놓는다.
-                Portal(world, GameArea.Field, world.mapSpawns[(int)GameArea.Field] + Vector2.right * 4, "Field2", "두 번째 필드 · 안개 숲으로 이동");
-                return;
-            }
+            // 두 번째 필드는 Scenes/Field2.unity를 그대로 쓴다. 그곳으로 가는 포탈은 Scenes/Field.unity에 직접 놓여 있다.
+            if (area == GameArea.Field2) return;
             if (area != GameArea.Tutorial) return;
             Sprite dummySprite = map.GetComponentsInChildren<ServerWorldEntity>(true)
                 .Select(e => e.GetComponent<SpriteRenderer>()?.sprite).FirstOrDefault(s => s != null);

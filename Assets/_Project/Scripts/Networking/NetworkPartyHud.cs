@@ -42,7 +42,7 @@ namespace PersistentWorld.Networking
             get
             {
                 Vector2 point = Pointer;
-                return BlocksKeyboard || result != null || PartyRect.Contains(point) ||
+                return BlocksKeyboard || result != null || PartyRect.Contains(point) || GuideRect.Contains(point) ||
                     (world.Local?.area == (int)GameArea.Tutorial && practicePanelRect.Contains(point)) ||
                     (world.Frame != null && world.Frame.inviteRemaining > 0 && InviteRect.Contains(point));
             }
@@ -68,6 +68,7 @@ namespace PersistentWorld.Networking
             {
                 menu = context = false; Send(PartyCommand.Menu); GetComponent<InventoryWindow>()?.OpenOnline(); return;
             }
+            if (Input.GetKeyDown(KeyCode.H) && !menu) ToggleGuide();
             if (Input.GetKeyDown(KeyCode.K))
             {
                 menu = !(menu && page == MenuPage.Skills); page = MenuPage.Skills; context = false;

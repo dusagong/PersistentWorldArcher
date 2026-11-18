@@ -519,7 +519,7 @@ namespace PersistentWorld.Networking
                     for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == viewedArea);
                     // 보스방에 들어가면 보스 얼굴과 이름을 잠깐 보여 준다 (서버 보스도 그동안 공격하지 않는다)
                     if (viewedArea == (int)GameArea.BossArena && bossPrefab != null && bossPrefab.GetComponent<BossController>() is BossController bossInfo)
-                        PersistentWorld.World.BossIntro.Show(bossInfo.DisplayName, bossInfo.DisplayTitle);
+                        PersistentWorld.World.BossIntro.Show(bossInfo.DisplayName, bossInfo.DisplayTitle, bossInfo.Portrait);
                 }
                 view.Apply(Frame);
                 PlayerFrame oldLocal = previous?.players?.FirstOrDefault(p => p.id == local.id);

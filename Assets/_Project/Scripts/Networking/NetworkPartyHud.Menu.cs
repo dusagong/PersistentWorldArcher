@@ -65,15 +65,106 @@ namespace PersistentWorld.Networking
             GUI.EndGroup();
         }
 
+        // ---- 오른쪽 위 조작키 안내: 접으면 이름 줄만, 펼치면 키캡 모양으로 조작키를 보여준다 (H 또는 클릭) ----
+        private const string GuidePref = "pwa.controlGuideOpen";
+        private const float GuideWidth = 300, GuideHeader = 44, GuideRow = 28;
+        // 왼쪽 칸 / 오른쪽 칸: 누르는 키들, 설명
+        private static readonly (string[] keys, string text)[,] GuideRows =
+        {
+            { (new[] { "W", "A", "S", "D" }, "이동"), (new[] { "Space" }, "회피") },
+            { (new[] { "우클릭" }, "평타"), (new[] { "좌클릭" }, "특수") },
+            { (new[] { "Q", "E", "Shift" }, "스킬"), (new[] { "F" }, "상호작용") },
+            { (new[] { "1", "2" }, "포션"), (new[] { "K" }, "스킬창") },
+            { (new[] { "I" }, "인벤토리"), (new[] { "ESC" }, "메뉴") },
+        };
+        private bool? guideOpen;
+        private GUIStyle keyCapStyle, guideTextStyle, guideTitleStyle;
+
+        private bool GuideOpen
+        {
+            get
+            {
+                if (guideOpen == null) guideOpen = PlayerPrefs.GetInt(GuidePref, 1) == 1; // 처음엔 펼쳐서 보여준다
+                return guideOpen.Value;
+            }
+        }
+        private Rect GuideRect => new Rect(Mathf.Max(12, Width - GuideWidth - 12), 12, GuideWidth,
+            GuideOpen ? GuideHeader + GuideRows.GetLength(0) * GuideRow + 14 : GuideHeader);
+
+        private void ToggleGuide()
+        {
+            guideOpen = !GuideOpen;
+            PlayerPrefs.SetInt(GuidePref, guideOpen.Value ? 1 : 0);
+            if (guideOpen.Value) PersistentWorld.UI.UiSound.Open(); else PersistentWorld.UI.UiSound.Close();
+        }
+
+        private static string AreaTitle(GameArea area) => area switch
+        {
+            GameArea.Town => "마을",
+            GameArea.Field => "필드",
+            GameArea.Field2 => "두 번째 필드",
+            GameArea.BossArena => "보스방",
+            GameArea.Tutorial => "튜토리얼",
+            _ => area.ToString(),
+        };
+
         private void DrawControlGuide(PlayerFrame me)
         {
-            var rect = new Rect(Mathf.Max(12, Width - 324), 12, 312, 152);
+            EnsureGuideStyles();
+            Rect rect = GuideRect;
+            bool open = GuideOpen;
             RpgGuiTheme.Panel(rect, RpgGuiTheme.Blue);
-            GUI.Label(new Rect(rect.x + 14, rect.y + 14, rect.width - 28, 24),
-                me.name + " · " + SkillCatalog.ClassName((CharacterClass)me.character) + " · " + (GameArea)me.area);
-            RpgGuiTheme.Divider(new Rect(rect.x + 14, rect.y + 41, rect.width - 28, 5), RpgGuiTheme.Blue);
-            GUI.Label(new Rect(rect.x + 12, rect.y + 51, rect.width - 24, 92),
-                "WASD 이동 · 우클릭 평타 · 좌클릭 특수\nQ / E / Shift 스킬 · Space 회피\n1 / 2 포션 · F 상호작용\nK 스킬 · I 인벤토리 · ESC 메뉴", menuTheme.Muted);
+
+            // 머리 줄: 이름 · 직업 · 지역 + 오른쪽에 [H] ▾/▴ (머리 줄 아무 데나 눌러도 접고 펼친다)
+            var header = new Rect(rect.x, rect.y, rect.width, GuideHeader);
+            float hintWidth = KeyCapWidth("H") + 18;
+            GUI.Label(new Rect(rect.x + 14, rect.y + 11, rect.width - 28 - hintWidth, 22),
+                me.name + " · " + SkillCatalog.ClassName((CharacterClass)me.character) + " · " + AreaTitle((GameArea)me.area), guideTitleStyle);
+            bool hover = header.Contains(Event.current.mousePosition);
+            float hx = rect.xMax - 14 - hintWidth;
+            DrawKeyCap(new Vector2(hx, rect.y + 11), "H", hover);
+            GUI.Label(new Rect(hx + KeyCapWidth("H") + 4, rect.y + 11, 16, 22), open ? "▴" : "▾", guideTextStyle);
+            if (!menu && GUI.Button(header, GUIContent.none, GUIStyle.none)) ToggleGuide();
+            if (!open) return;
+
+            RpgGuiTheme.Divider(new Rect(rect.x + 14, rect.y + GuideHeader - 4, rect.width - 28, 5), RpgGuiTheme.Blue);
+            for (int row = 0; row < GuideRows.GetLength(0); row++)
+            {
+                float y = rect.y + GuideHeader + 6 + row * GuideRow;
+                DrawGuideEntry(new Vector2(rect.x + 14, y), GuideRows[row, 0]);
+                DrawGuideEntry(new Vector2(rect.x + 164, y), GuideRows[row, 1]);
+            }
+        }
+
+        private void DrawGuideEntry(Vector2 at, (string[] keys, string text) entry)
+        {
+            float x = at.x;
+            foreach (string key in entry.keys) x += DrawKeyCap(new Vector2(x, at.y), key, false) + 2;
+            GUI.Label(new Rect(x + 4, at.y, 120, 22), entry.text, guideTextStyle);
+        }
+
+        private float KeyCapWidth(string key) => Mathf.Max(22, Mathf.Ceil(keyCapStyle.CalcSize(new GUIContent(key)).x) + 10);
+
+        // 키보드 키 모양: 검은 테두리 + 밝은 윗면 + 아래쪽 두꺼운 그림자 턱
+        private float DrawKeyCap(Vector2 at, string key, bool lit)
+        {
+            float w = KeyCapWidth(key);
+            var r = new Rect(at.x, at.y, w, 22);
+            RpgGuiTheme.Fill(r, new Color32(23, 19, 15, 255));
+            RpgGuiTheme.Fill(new Rect(r.x + 1, r.y + 1, r.width - 2, r.height - 2), new Color32(120, 112, 100, 255)); // 턱
+            Color top = lit ? (Color)new Color32(236, 214, 160, 255) : new Color32(204, 194, 172, 255);
+            RpgGuiTheme.Fill(new Rect(r.x + 1, r.y + 1, r.width - 2, r.height - 5), top);
+            RpgGuiTheme.Fill(new Rect(r.x + 2, r.y + 2, r.width - 4, 1), new Color(1, 1, 1, .35f)); // 윗면 반짝
+            GUI.Label(new Rect(r.x, r.y, r.width, r.height - 3), key, keyCapStyle);
+            return w;
+        }
+
+        private void EnsureGuideStyles()
+        {
+            if (keyCapStyle != null && keyCapStyle.font == menuTheme.SmallLeft.font) return;
+            keyCapStyle = new GUIStyle(menuTheme.SmallLeft) { fontSize = 12, alignment = TextAnchor.MiddleCenter, normal = { textColor = RpgGuiTheme.Ink } };
+            guideTextStyle = new GUIStyle(menuTheme.SmallLeft) { fontSize = 13, normal = { textColor = new Color32(214, 204, 184, 255) } };
+            guideTitleStyle = new GUIStyle(menuTheme.SmallLeft) { fontSize = 14, normal = { textColor = RpgGuiTheme.Text } };
         }
 
         private void DrawMenu(PlayerFrame me)

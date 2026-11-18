@@ -26,7 +26,9 @@ namespace PersistentWorld.World
         [Header("등장")]
         [SerializeField, Tooltip("보스 등장 연출에 뜨는 이름")] private string displayName = "이끼 석상 골렘";
         [SerializeField, Tooltip("이름 위에 작게 뜨는 칭호")] private string displayTitle = "잊힌 유적의 수호자";
+        [SerializeField, Tooltip("등장 연출 얼굴 그림 (Resources/Boss/Portraits/ 안의 파일 이름)")] private string portrait = "Golem";
         public string DisplayName => displayName;
+        public string Portrait => portrait;
         public string DisplayTitle => displayTitle;
 
         // ---------- 딜량표 ----------
@@ -278,8 +280,9 @@ namespace PersistentWorld.World
         private IEnumerator Brain()
         {
             // 등장 연출 동안은 공격하지 않는다. 온라인은 각 클라이언트가 보스방에 들어갈 때 같은 연출을 보여 준다.
-            if (PersistentWorld.Networking.NetworkGameWorld.Instance == null) BossIntro.Show(displayName, displayTitle);
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance == null) BossIntro.Show(displayName, displayTitle, portrait);
             yield return new WaitForSeconds(BossIntro.Duration);
+            while (BossIntro.Active) yield return null; // 로딩으로 연출이 늦어졌으면 끝까지 기다린다
             engagedAt = Time.time;
             if (testStartPhase == TestStartPhase.Phase2)
             {

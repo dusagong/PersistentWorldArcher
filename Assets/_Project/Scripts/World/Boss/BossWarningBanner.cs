@@ -31,8 +31,11 @@ namespace PersistentWorld.World
             bool urgent = seconds >= 0 && seconds <= 5;
             float pulse = .5f + .5f * Mathf.Sin(time * (urgent ? 14f : 5f));
 
-            Fill(new Rect(r.x + 3, r.y + 4, r.width, r.height), new Color(0, 0, 0, .5f));
-            Fill(r, new Color32(24, 10, 12, 240));
+            // 바탕은 살짝 비치게 해서 띠 뒤의 보스·바닥 경고가 보이게 한다 (글자·테두리·줄무늬는 진하게 그대로)
+            // 그림자는 띠 바깥(오른쪽·아래)에만: 바탕이 비쳐도 안쪽에 얼룩이 지지 않게
+            Fill(new Rect(r.xMax, r.y + 4, 3, r.height), new Color(0, 0, 0, .3f));
+            Fill(new Rect(r.x + 3, r.yMax, r.width - 3, 4), new Color(0, 0, 0, .3f));
+            Fill(r, new Color32(24, 10, 12, 170));
             Fill(new Rect(r.x, r.y, r.width, r.height * .5f), new Color(1, .3f, .2f, .05f));
             // 양 끝 위험 줄무늬
             const float band = 26;

@@ -4,33 +4,46 @@ namespace PersistentWorld.World
 {
     // 보스 등장 연출: 위아래 검은 띠가 내려오고, 보스 얼굴 클로즈업이 돌·황동 액자에 담겨 미끄러져 들어오며 이름이 뜬다.
     // 화면에만 그리는 연출이다. 혼자 하기는 보스가 깨어날 때, 온라인은 각 클라이언트가 보스방에 들어갈 때 보여 준다.
+    // 얼굴 그림은 Resources/Boss/Portraits/<portrait>.png (가로:세로 6:5 고화질). 없으면 골렘 이동 그림에서 머리를 잘라 쓴다.
     // 보스는 이 시간(Duration) 동안 공격하지 않는다.
     public sealed class BossIntro : MonoBehaviour
     {
         public const float Duration = 2.8f;
+        // 지금 화면에 등장 연출이 떠 있는지 (혼자 하기 보스는 이게 끝날 때까지 기다린다)
+        public static bool Active => FindFirstObjectByType<BossIntro>() != null;
         private static Texture2D sheet;
         private static Rect faceUv;
         private static bool faceReady;
         private static GUIStyle nameStyle, titleStyle;
 
+        private static readonly System.Collections.Generic.Dictionary<string, Texture2D> portraits = new System.Collections.Generic.Dictionary<string, Texture2D>();
         private string bossName, bossTitle;
-        private float startedAt;
+        private Texture2D portrait;
+        // 연출 진행 시간. 실제 시간이 아니라 프레임마다 조금씩(최대 0.05초) 더해서,
+        // 장면을 처음 열 때처럼 로딩으로 몇 초 멈춰도 연출이 그 사이에 지나가 버리지 않게 한다.
+        private float age;
 
-        public static void Show(string name, string title)
+        public static void Show(string name, string title, string portraitName = null)
         {
             if (Application.isBatchMode) return;
             foreach (BossIntro old in FindObjectsByType<BossIntro>(FindObjectsSortMode.None)) Destroy(old.gameObject);
             var intro = new GameObject("Boss Intro").AddComponent<BossIntro>();
             intro.bossName = name;
             intro.bossTitle = title;
-            intro.startedAt = Time.unscaledTime;
+            intro.portrait = Portrait(portraitName);
             PersistentWorld.UI.UiSound.Open();
+        }
+
+        private void Update()
+        {
+            age += Mathf.Min(Time.unscaledDeltaTime, .05f);
+            if (age >= Duration) Destroy(gameObject);
         }
 
         private void OnGUI()
         {
-            float t = Time.unscaledTime - startedAt;
-            if (t >= Duration) { Destroy(gameObject); return; }
+            float t = age;
+            if (t >= Duration) return;
             if (Event.current.type != EventType.Repaint) return;
             GUI.depth = -60;
             Ensure();
@@ -52,7 +65,19 @@ namespace PersistentWorld.World
             var inner = new Rect(card.x + 11 * s, card.y + 11 * s, card.width - 22 * s, card.height - 22 * s);
             Fill(inner, new Color(.16f, .06f, .06f, k));
             Fill(new Rect(inner.x, inner.y + inner.height * .55f, inner.width, inner.height * .45f), new Color(0, 0, 0, .35f * k));
-            if (faceReady)
+            if (portrait != null)
+            {
+                // 고화질 얼굴 그림: 액자를 꽉 채우도록 맞춘다 (비율이 다르면 가장자리가 잘린다)
+                float aspect = portrait.width / (float)portrait.height;
+                float fw = inner.width, fh = fw / aspect;
+                if (fh < inner.height) { fh = inner.height; fw = fh * aspect; }
+                GUI.BeginGroup(inner);
+                Color previous = GUI.color; GUI.color = new Color(1, 1, 1, k);
+                GUI.DrawTexture(new Rect((inner.width - fw) / 2f, (inner.height - fh) / 2f, fw, fh), portrait);
+                GUI.color = previous;
+                GUI.EndGroup();
+            }
+            else if (faceReady)
             {
                 float aspect = faceUv.width * sheet.width / (faceUv.height * sheet.height);
                 float fw = inner.width, fh = fw / aspect;
@@ -78,6 +103,14 @@ namespace PersistentWorld.World
 
             // 시작 순간 번쩍임
             if (t < .25f) Fill(new Rect(0, 0, sw, sh), new Color(1, 1, 1, .35f * (1f - t / .25f)));
+        }
+
+        private static Texture2D Portrait(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            if (!portraits.TryGetValue(name, out Texture2D texture))
+                portraits[name] = texture = Resources.Load<Texture2D>("Boss/Portraits/" + name);
+            return texture;
         }
 
         private static float Ease(float t)
