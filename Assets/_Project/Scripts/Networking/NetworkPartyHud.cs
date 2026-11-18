@@ -20,6 +20,10 @@ namespace PersistentWorld.Networking
         private GUIStyle playerHealthStyle;
         private CombatHud combatHud;
         private Rect practicePanelRect = new Rect(12, 220, 300, 330);
+        // 보스 딜량표: 서버가 보낸 결과를 한 번만 띄운다
+        private BossResultFrame result;
+        private int shownResult;
+        private float resultOpenedAt;
         private static float Scale => Mathf.Max(.5f, Mathf.Min(Screen.width / 1280f, Screen.height / 720f));
         private static float Width => Screen.width / Scale;
         private static float Height => Screen.height / Scale;
@@ -38,7 +42,7 @@ namespace PersistentWorld.Networking
             get
             {
                 Vector2 point = Pointer;
-                return BlocksKeyboard || PartyRect.Contains(point) ||
+                return BlocksKeyboard || result != null || PartyRect.Contains(point) || GuideRect.Contains(point) ||
                     (world.Local?.area == (int)GameArea.Tutorial && practicePanelRect.Contains(point)) ||
                     (world.Frame != null && world.Frame.inviteRemaining > 0 && InviteRect.Contains(point));
             }
@@ -51,10 +55,20 @@ namespace PersistentWorld.Networking
             PlayerFrame me = world.Local;
             if (me == null) { menu = context = false; return; }
             if (ItemWindows.BlocksGameplay) return;
+            BossResultFrame incoming = world.Frame?.bossResult;
+            if (incoming != null && incoming.sequence > 0 && incoming.sequence != shownResult)
+            {
+                shownResult = incoming.sequence; result = incoming; resultOpenedAt = Time.unscaledTime;
+                if (menu) Send(PartyCommand.Menu, first: 0);
+                menu = context = false;
+                PersistentWorld.UI.UiSound.Open();
+            }
+            if (result != null && Input.GetKeyDown(KeyCode.Escape)) { CloseResult(); return; }
             if (Input.GetKeyDown(KeyCode.I) && me.hp > 0 && world.ClientInventory != null)
             {
                 menu = context = false; Send(PartyCommand.Menu); GetComponent<InventoryWindow>()?.OpenOnline(); return;
             }
+            if (Input.GetKeyDown(KeyCode.H) && !menu) ToggleGuide();
             if (Input.GetKeyDown(KeyCode.K))
             {
                 menu = !(menu && page == MenuPage.Skills); page = MenuPage.Skills; context = false;
@@ -66,6 +80,7 @@ namespace PersistentWorld.Networking
                 page = MenuPage.Main;
                 context = false;
                 Send(PartyCommand.Menu, first: menu ? 1 : 0);
+                if (!menu) PersistentWorld.UI.UiSound.Close();
             }
             Vector2 point = Pointer;
             if (Input.GetMouseButtonDown(1) && !menu)
@@ -102,8 +117,8 @@ namespace PersistentWorld.Networking
                 GUILayout.BeginArea(InviteRect, GUI.skin.box);
                 GUILayout.Label(world.Frame.inviterName + "님의 파티 초대 · " + Mathf.CeilToInt(world.Frame.inviteRemaining) + "초");
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("수락")) Send(PartyCommand.Accept);
-                if (GUILayout.Button("거절")) Send(PartyCommand.Decline);
+                if (RpgGuiJuice.LayoutButton("수락")) Send(PartyCommand.Accept);
+                if (RpgGuiJuice.LayoutButton("거절")) Send(PartyCommand.Decline);
                 GUILayout.EndHorizontal(); GUILayout.EndArea();
             }
             if (context)
@@ -111,16 +126,16 @@ namespace PersistentWorld.Networking
                 GUILayout.BeginArea(ContextRect, GUI.skin.box);
                 if (partyContext)
                 {
-                    if (GUILayout.Button(me.area == (int)GameArea.BossArena ? "탈퇴하기 · 마을 귀환" : "탈퇴하기")) { Send(PartyCommand.Leave); context = false; }
+                    if (RpgGuiJuice.LayoutButton(me.area == (int)GameArea.BossArena ? "탈퇴하기 · 마을 귀환" : "탈퇴하기")) { Send(PartyCommand.Leave); context = false; }
                 }
                 else
                 {
                     PlayerFrame selected = world.Frame.players.FirstOrDefault(p => p.id == target);
                     GUI.enabled = selected != null && selected.party == 0 && me.area != (int)GameArea.BossArena;
-                    if (GUILayout.Button("파티 초대")) { Send(PartyCommand.Invite, target); context = false; }
+                    if (RpgGuiJuice.LayoutButton("파티 초대")) { Send(PartyCommand.Invite, target); context = false; }
                     GUI.enabled = true;
                 }
-                if (GUILayout.Button("닫기")) context = false;
+                if (RpgGuiJuice.LayoutButton("닫기")) context = false;
                 GUILayout.EndArea();
             }
             if (!string.IsNullOrEmpty(world.Frame.message)) DrawNotice(world.Frame.message, 18, 600, RpgGuiTheme.Gold);
@@ -133,7 +148,7 @@ namespace PersistentWorld.Networking
                 Bar(new Rect(bossBar.x + 12, bossBar.y + 32, bossBar.width - 24, 5),
                     world.Frame.bossHp / (float)world.Frame.bossMax, new Color(.82f, .18f, .24f));
             }
-            if (me.area == (int)GameArea.BossArena && !string.IsNullOrEmpty(world.Frame.bossNotice)) DrawNotice(world.Frame.bossNotice, 134, 480, RpgGuiTheme.Red);
+            if (me.area == (int)GameArea.BossArena && !string.IsNullOrEmpty(world.Frame.bossNotice)) PersistentWorld.World.BossWarningBanner.Draw(world.Frame.bossNotice, Width, 134);
             if (me.hp == 0) DrawNotice("사망\n" + (me.area == (int)GameArea.BossArena ? "보스전 종료 또는 힐러 부활까지 대기" : "10초 후 마을 귀환"), Height / 2f - 35, 400, RpgGuiTheme.Red);
             if (!menu && !ItemWindows.BlocksGameplay && !string.IsNullOrEmpty(world.Frame.prompt))
                 DrawNotice(world.Frame.prompt, CombatTop - 12, 400, RpgGuiTheme.Gold, true);
@@ -154,14 +169,20 @@ namespace PersistentWorld.Networking
                     string label = practice.kind == 0 ? "회복 연습" : practice.kind == 1 ? "정화 연습" : "부활 연습";
                     GUI.Box(new Rect(at.x - 63, Height - at.y - 18, 126, 38), label + (practice.complete ? " · 완료" : "") + $"\nHP {practice.hp}/{practice.maximum}");
                 }
-                if (GUI.Button(new Rect(22, 220 + practiceHeight + 9, 280, 30), "연습 초기화 · HP / MP / 쿨타임")) Send(PartyCommand.ResetPractice);
-                if (GUI.Button(new Rect(22, 220 + practiceHeight + 46, 280, 30), "연습 종료 · 마을로")) Send(PartyCommand.Tutorial);
+                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 9, 280, 30), "연습 초기화 · HP / MP / 쿨타임")) Send(PartyCommand.ResetPractice);
+                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 46, 280, 30), "연습 종료 · 마을로")) Send(PartyCommand.Tutorial);
             }
             if (menu) DrawMenu(me);
+            if (result != null && PersistentWorld.World.BossResultWindow.Draw(result, Time.unscaledTime - resultOpenedAt, me.id, Width, Height, menuTheme)) CloseResult();
             }
             finally { GUI.enabled = previousEnabled; GUI.skin = previousSkin; GUI.matrix = previous; }
         }
 
+        private void CloseResult()
+        {
+            result = null;
+            PersistentWorld.UI.UiSound.Close();
+        }
         private void DrawPlayerNames(int area)
         {
             playerNameStyle ??= new GUIStyle(GUI.skin.label)
@@ -192,15 +213,15 @@ namespace PersistentWorld.Networking
         }
         private void DrawSkills(PlayerFrame me)
         {
-            if (!me.bossLearned && me.books > 0 && GUILayout.Button("보스 스킬 북 사용")) Send(PartyCommand.LearnBossSkill);
-            if (me.bossLearned && GUILayout.Button("Shift · 보스 스킬 장착")) Send(PartyCommand.Equip, first: 2, second: (int)SkillId.BossBlast);
+            if (!me.bossLearned && me.books > 0 && RpgGuiJuice.LayoutButton("보스 스킬 북 사용")) Send(PartyCommand.LearnBossSkill);
+            if (me.bossLearned && RpgGuiJuice.LayoutButton("Shift · 보스 스킬 장착")) Send(PartyCommand.Equip, first: 2, second: (int)SkillId.BossBlast);
             for (int i = 0; i < me.slots.Length; i++)
-                if (GUILayout.Button((i == 0 ? "Q " : i == 1 ? "E " : "Shift ") + SkillCatalog.Name((SkillId)me.slots[i]) + " 해제")) Send(PartyCommand.Equip, first: i, second: 0);
+                if (RpgGuiJuice.LayoutButton((i == 0 ? "Q " : i == 1 ? "E " : "Shift ") + SkillCatalog.Name((SkillId)me.slots[i]) + " 해제")) Send(PartyCommand.Equip, first: i, second: 0);
             foreach (SkillId skill in SkillCatalog.ForClass((CharacterClass)me.character))
             {
                 GUILayout.Label(SkillCatalog.Name(skill) + " · " + SkillCatalog.Description(skill)); GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Q 장착")) Send(PartyCommand.Equip, first: 0, second: (int)skill);
-                if (GUILayout.Button("E 장착")) Send(PartyCommand.Equip, first: 1, second: (int)skill);
+                if (RpgGuiJuice.LayoutButton("Q 장착")) Send(PartyCommand.Equip, first: 0, second: (int)skill);
+                if (RpgGuiJuice.LayoutButton("E 장착")) Send(PartyCommand.Equip, first: 1, second: (int)skill);
                 GUILayout.EndHorizontal();
             }
         }

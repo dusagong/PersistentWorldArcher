@@ -46,6 +46,54 @@ namespace PersistentWorld.Networking
         private int hitSequence;
         private readonly List<HitFrame> recentHits = new List<HitFrame>();
         private int lastHit;
+        // 보이기만 하는 연출 신호: 서버는 기록만 하고, 클라이언트가 받아서 직접 그린다
+        private int effectSequence, lastEffect;
+        private readonly List<EffectFrame> recentEffects = new List<EffectFrame>();
+        private PersistentWorld.World.DoomEffect clientDoom;
+        // 보스를 잡으면 만든 딜량표. 참가자가 보스방에 있는 동안 그 사람의 프레임에 싣는다.
+        private BossResultFrame bossResult;
+        private static int bossResultSequence;
+
+        public static bool IsServerWorld => Instance != null && Instance.manager != null && Instance.manager.IsServer;
+
+        // 온라인 서버면 연출 신호를 기록하고 true. 그 외(혼자 하기·클라이언트)는 false라 호출한 쪽이 직접 그린다.
+        public static bool RecordEffect(EffectFrame effect)
+        {
+            if (!IsServerWorld) return false;
+            effect.sequence = ++Instance.effectSequence;
+            effect.time = Time.unscaledTimeAsDouble;
+            Instance.recentEffects.Add(effect);
+            return true;
+        }
+
+        public Sprite[] BossDebris => bossPrefab != null && bossPrefab.GetComponent<BossController>() is BossController boss ? boss.QuakeDebris : null;
+
+        private void PlayEffect(EffectFrame effect)
+        {
+            switch (effect.kind)
+            {
+                case EffectFrame.Burst:
+                    PersistentWorld.World.GroundBurst.Replay(effect, effect.debris == 1 ? BossDebris : null);
+                    break;
+                case EffectFrame.DoomBegin:
+                    if (clientDoom != null) Destroy(clientDoom.gameObject);
+                    clientDoom = PersistentWorld.World.DoomEffect.Begin(null, effect.position, effect.direction, effect.size, Time.time + effect.duration);
+                    break;
+                case EffectFrame.DoomDetonate:
+                    if (clientDoom != null) clientDoom.Detonate();
+                    clientDoom = null;
+                    break;
+                case EffectFrame.DoomCancel:
+                    if (clientDoom != null) Destroy(clientDoom.gameObject);
+                    clientDoom = null;
+                    break;
+                case EffectFrame.ChargeWarn:
+                    // 신호가 기록된 뒤 이 화면 정보가 만들어지기까지 지난 시간(서버 기준)만큼 경고를 줄여 보스 출발과 맞춘다
+                    if (Frame != null) effect.duration -= Mathf.Max(0f, (float)(Frame.time - effect.time));
+                    PersistentWorld.World.ChargeWarning.Replay(effect);
+                    break;
+            }
+        }
         private readonly Dictionary<ulong, int> tutorialProgress = new Dictionary<ulong, int>();
         private readonly Dictionary<ulong, int> attackSequences = new Dictionary<ulong, int>();
         private int previousBossParty;
@@ -320,6 +368,7 @@ namespace PersistentWorld.Networking
             if (Time.unscaledTime < nextFrame) return;
             nextFrame = Time.unscaledTime + .1f;
             recentHits.RemoveAll(hit => Time.unscaledTimeAsDouble - hit.time > 1);
+            recentEffects.RemoveAll(effect => Time.unscaledTimeAsDouble - effect.time > 1);
             var renderers = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
             var lineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None);
             var frames = new GameFrame[maps.Length];
@@ -339,6 +388,7 @@ namespace PersistentWorld.Networking
                 frame.prompt = NearbyPrompt(Actors[recipient]);
                 frame.tutorial = tutorialProgress.TryGetValue(recipient, out int progress) ? progress : 0;
                 frame.practice = PracticeTargets(recipient);
+                frame.bossResult = bossResult != null && area == (int)GameArea.BossArena && bossResult.rows.Any(r => r.id == recipient) ? bossResult : null;
                 smithRequests.TryGetValue(recipient, out frame.smithRequest);
                 if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
                 {
@@ -355,6 +405,7 @@ namespace PersistentWorld.Networking
         }
         private void ResetBoss()
         {
+            bossResult = null;
             if (boss != null) { boss.SetSimulation(false); Destroy(boss.gameObject); }
             foreach (GameObject root in gameObject.scene.GetRootGameObjects())
                 if (root != gameObject && root.transform.parent == null && root.GetComponent<NetworkObject>() == null &&
@@ -378,6 +429,7 @@ namespace PersistentWorld.Networking
                 else if (sprite.name == "Jump Warning Circle") texture = -6;
                 else if (sprite.name == "Boss Telegraph Circle") texture = -4;
                 else if (sprite.name == "Boss Telegraph Frame") texture = -5;
+                else if (sprite.name == DroppedItem.CircleSpriteName) texture = -7;
                 Transform follow = renderer.GetComponent<ActorShadow>()?.Target;
                 SwordSwingEffect swing = renderer.GetComponent<SwordSwingEffect>();
                 if (swing != null) follow = swing.Owner;
@@ -425,6 +477,7 @@ namespace PersistentWorld.Networking
             }).ToArray();
             GameFrame frame = new GameFrame { time = Time.unscaledTimeAsDouble,
                 hits = recentHits.Where(hit => AreaAt(hit.position) == area).ToArray(),
+                effects = recentEffects.Where(effect => AreaAt(effect.position) == area).ToArray(),
                 players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
                 bossHp = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Current : 0, bossMax = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Maximum : 0,
                 bossPhaseTwo = CurrentBoss != null && CurrentBoss.IsPhaseTwo };
@@ -464,6 +517,9 @@ namespace PersistentWorld.Networking
                     gameCamera.backgroundColor = mapBackgrounds[viewedArea];
                     gameCamera.orthographicSize = mapCameraSizes[viewedArea];
                     for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == viewedArea);
+                    // 보스방에 들어가면 보스 얼굴과 이름을 잠깐 보여 준다 (서버 보스도 그동안 공격하지 않는다)
+                    if (viewedArea == (int)GameArea.BossArena && bossPrefab != null && bossPrefab.GetComponent<BossController>() is BossController bossInfo)
+                        PersistentWorld.World.BossIntro.Show(bossInfo.DisplayName, bossInfo.DisplayTitle, bossInfo.Portrait);
                 }
                 view.Apply(Frame);
                 PlayerFrame oldLocal = previous?.players?.FirstOrDefault(p => p.id == local.id);
@@ -482,10 +538,30 @@ namespace PersistentWorld.Networking
                     lastHit = hit.sequence;
                     DamageNumber.Spawn(hit.position, hit.amount.ToString(), hit.player ? new Color(1, .5f, .4f) : Color.white);
                     view.Flash(hit.visual);
+                    if (!hit.player) view.React(hit.visual, NearestPlayerPosition(hit.position));
                     GameAudio.Hit(hit.player);
+                }
+                if (Frame.effects != null) foreach (EffectFrame effect in Frame.effects)
+                {
+                    if (effect.sequence <= lastEffect) continue;
+                    lastEffect = effect.sequence;
+                    PlayEffect(effect);
                 }
             }
             catch (Exception error) { Debug.LogWarning("Game frame rejected: " + error.Message); }
+        }
+        // 피격 연출의 밀리는 방향을 정할 때 쓴다 (때린 사람은 전송하지 않으므로 가장 가까운 플레이어로 본다)
+        private Vector2 NearestPlayerPosition(Vector3 from)
+        {
+            Vector2 best = from;
+            float bestDistance = float.MaxValue;
+            if (Frame?.players != null)
+                foreach (PlayerFrame player in Frame.players)
+                {
+                    float d = (player.position - (Vector2)from).sqrMagnitude;
+                    if (d < bestDistance) { bestDistance = d; best = player.position; }
+                }
+            return best;
         }
         private static Vector3 CameraTarget(PlayerFrame local) => new Vector3(local.position.x, local.position.y + .4f, -10);
         private void LateUpdate()

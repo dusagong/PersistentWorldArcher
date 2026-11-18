@@ -187,7 +187,9 @@ namespace PersistentWorld.World
             }
         }
 
-        private static Sprite Circle
+        // 온라인 클라이언트는 이 이름을 보고 같은 그림을 직접 만든다 (코드로 만든 그림은 텍스처 번호가 없다)
+        internal const string CircleSpriteName = "Dropped Item Shadow Circle";
+        internal static Sprite Circle
         {
             get
             {
@@ -203,6 +205,7 @@ namespace PersistentWorld.World
                 }
                 texture.Apply();
                 circle = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(.5f, .5f), size);
+                circle.name = CircleSpriteName;
                 return circle;
             }
         }

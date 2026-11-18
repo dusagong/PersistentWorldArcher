@@ -36,6 +36,7 @@ namespace PersistentWorld.Editor
             {
                 new EditorBuildSettingsScene(SceneFolder + "/Town.unity", true),
                 new EditorBuildSettingsScene(SceneFolder + "/Field.unity", true),
+                new EditorBuildSettingsScene(SceneFolder + "/Field2.unity", true),
                 new EditorBuildSettingsScene(SceneFolder + "/BossArena.unity", true)
             };
 

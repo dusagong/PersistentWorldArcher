@@ -20,6 +20,66 @@ namespace PersistentWorld.World
         public enum TestStartPhase { Phase1, PhaseTransition, Phase2 }
 
         private const float PlayerRadius = .3f;
+        // 돌진 자국: 2유닛마다 작은 돌·흙 튐, 돌조각은 1.5초 남았다가 사라진다 (온라인 전송 개수 한도를 고려해 적게 둔다)
+        private const float ChargeRubbleSpacing = 2f, ChargeRubbleLinger = 1.5f;
+
+        [Header("등장")]
+        [SerializeField, Tooltip("보스 등장 연출에 뜨는 이름")] private string displayName = "이끼 석상 골렘";
+        [SerializeField, Tooltip("이름 위에 작게 뜨는 칭호")] private string displayTitle = "잊힌 유적의 수호자";
+        [SerializeField, Tooltip("등장 연출 얼굴 그림 (Resources/Boss/Portraits/ 안의 파일 이름)")] private string portrait = "Golem";
+        public string DisplayName => displayName;
+        public string Portrait => portrait;
+        public string DisplayTitle => displayTitle;
+
+        // ---------- 딜량표 ----------
+        // 플레이어별로 보스에게 준 피해, 전투 중 받은 피해, 쓰러진 횟수를 모은다. 보스가 쓰러지면 결과창에 쓴다.
+        private sealed class Tally { public int Dealt, Taken, Deaths; }
+        private readonly Dictionary<PersistentWorld.Player.ArcherController, Tally> tallies = new Dictionary<PersistentWorld.Player.ArcherController, Tally>();
+        private float engagedAt = -1f;
+        public float FightSeconds => engagedAt < 0 ? 0f : Time.time - engagedAt;
+
+        private void Count(Health target, int amount, GameObject source)
+        {
+            if (health == null || amount <= 0) return;
+            if (target == health)
+            {
+                var attacker = source != null ? source.GetComponentInParent<PersistentWorld.Player.ArcherController>() : null;
+                if (attacker != null) TallyOf(attacker).Dealt += amount;
+                return;
+            }
+            if (engagedAt < 0 || health.IsDead || target.Faction != Faction.Player) return;
+            var player = target.GetComponent<PersistentWorld.Player.ArcherController>();
+            if (player == null || !PersistentWorld.Networking.NetworkGameWorld.SameArea(player.transform.position, transform.position)) return;
+            Tally tally = TallyOf(player);
+            tally.Taken += amount;
+            if (target.IsDead) tally.Deaths++;
+        }
+
+        private Tally TallyOf(PersistentWorld.Player.ArcherController player)
+        {
+            if (!tallies.TryGetValue(player, out Tally tally)) tallies[player] = tally = new Tally();
+            return tally;
+        }
+
+        // 결과표를 만든다. identify가 각 플레이어의 번호·이름을 정한다. participants는 피해를 못 줬어도 표에 넣을 사람들.
+        public PersistentWorld.Networking.BossResultFrame BuildResult(System.Func<PersistentWorld.Player.ArcherController, (ulong id, string name)> identify,
+            IEnumerable<PersistentWorld.Player.ArcherController> participants = null)
+        {
+            if (participants != null) foreach (var player in participants) if (player != null) TallyOf(player);
+            var rows = new List<PersistentWorld.Networking.BossResultRow>();
+            foreach (var pair in tallies)
+            {
+                if (pair.Key == null) continue;
+                (ulong id, string name) = identify(pair.Key);
+                rows.Add(new PersistentWorld.Networking.BossResultRow
+                {
+                    id = id, name = name, character = (int)pair.Key.Loadout.Class,
+                    damage = pair.Value.Dealt, taken = pair.Value.Taken, deaths = pair.Value.Deaths
+                });
+            }
+            rows.Sort((a, b) => b.damage.CompareTo(a.damage));
+            return new PersistentWorld.Networking.BossResultFrame { boss = displayName, seconds = FightSeconds, rows = rows.ToArray() };
+        }
 
         [Header("테스트")]
         [SerializeField, Tooltip("테스트용. 실제 씬에서는 Phase1로 둘 것. PhaseTransition = 바로 페이즈 전환 시작, Phase2 = 전환 없이 2페이즈부터")]
@@ -84,6 +144,8 @@ namespace PersistentWorld.World
         [SerializeField] private float quakeWarnTime = 1.5f;
         [SerializeField] private int quakeDamage = 18;
         [SerializeField, Tooltip("내려찍을 때 흙과 함께 튀는 돌 조각 그림 (비우면 흙덩이만)")] private Sprite[] quakeDebrisSprites;
+        // 온라인 클라이언트가 서버 신호로 돌 조각을 직접 그릴 때 같은 그림을 쓴다
+        public Sprite[] QuakeDebris => quakeDebrisSprites;
         [SerializeField, Tooltip("내려찍을 때 화면 흔들림 세기 (0이면 끔)")] private float quakeShake = .45f;
 
         [Header("디버프 구체 (탄막보다 크기 5배, 속도 1.5배 느림)")]
@@ -170,12 +232,14 @@ namespace PersistentWorld.World
         private void OnEnable()
         {
             health.Died += OnDied;
+            Health.DamageDealt += Count;
             StartCoroutine(Brain());
         }
 
         private void OnDisable()
         {
             health.Died -= OnDied;
+            Health.DamageDealt -= Count;
             StopAllCoroutines();
             Cleanup();
         }
@@ -186,6 +250,9 @@ namespace PersistentWorld.World
         {
             StopAllCoroutines();
             Cleanup();
+            // 혼자 하기: 바로 결과창. 온라인은 서버가 결과를 모아 클라이언트에 보낸다.
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance == null)
+                BossResultView.ShowOffline(BuildResult(_ => (0UL, "나"), FindObjectsByType<PersistentWorld.Player.ArcherController>(FindObjectsSortMode.None)));
         }
 
         private void Cleanup()
@@ -212,7 +279,11 @@ namespace PersistentWorld.World
 
         private IEnumerator Brain()
         {
-            yield return new WaitForSeconds(1f);
+            // 등장 연출 동안은 공격하지 않는다. 온라인은 각 클라이언트가 보스방에 들어갈 때 같은 연출을 보여 준다.
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance == null) BossIntro.Show(displayName, displayTitle, portrait);
+            yield return new WaitForSeconds(BossIntro.Duration);
+            while (BossIntro.Active) yield return null; // 로딩으로 연출이 늦어졌으면 끝까지 기다린다
+            engagedAt = Time.time;
             if (testStartPhase == TestStartPhase.Phase2)
             {
                 phaseTwo = true;
@@ -329,7 +400,10 @@ namespace PersistentWorld.World
 
             var paths = new List<BossTelegraph>();
             for (int i = 0; i < count; i++)
+            {
                 paths.Add(Rect(points[i], points[i + 1], chargeWidth, chargeWarnTime).Steady(chargePathAlpha));
+                ChargeWarning.Spawn(points[i], points[i + 1], chargeWidth, chargeWarnTime);
+            }
             Animate(BossClip.ChargeWindup, chargeWarnTime, points[1] - points[0]);
             yield return new WaitForSeconds(chargeWarnTime);
 
@@ -340,13 +414,25 @@ namespace PersistentWorld.World
                 var hit = new HashSet<Health>();
                 Vector2 end = points[i + 1];
                 Animate(BossClip.ChargeRun, .5f, end - points[i]);
+                // 지나간 자리에 흙먼지와 돌조각이 튀고, 돌조각은 잠시 바닥에 남는다
+                Vector2 last = Position;
+                float sinceRubble = 0f;
                 while (Vector2.Distance(Position, end) > .05f && !health.IsDead)
                 {
                     transform.position = Vector2.MoveTowards(Position, end, chargeSpeed * SpeedScale * Time.deltaTime);
                     Vector2 now = Position;
+                    sinceRubble += Vector2.Distance(last, now);
+                    last = now;
+                    if (sinceRubble >= ChargeRubbleSpacing)
+                    {
+                        sinceRubble = 0f;
+                        GroundBurst.Rubble(now, .8f, quakeDebrisSprites, 5, 2, ChargeRubbleLinger);
+                    }
                     HitPlayers(p => Vector2.Distance(p, now) <= chargeWidth * .5f + PlayerRadius, chargeDamage, hit);
                     yield return null;
                 }
+                // 벽에 들이받는 순간 내려찍기처럼 돌이 크게 튄다
+                if (!health.IsDead) GroundBurst.Rubble(end, 1.6f, quakeDebrisSprites, 24, 8, ChargeRubbleLinger, 1f);
                 yield return new WaitForSeconds(.12f);
             }
             if (bodyCollider != null) bodyCollider.isTrigger = false;
@@ -556,6 +642,7 @@ namespace PersistentWorld.World
             GameObject safeZone = null;
             Vector2 safeCenter = Vector2.zero;
             BossTelegraph finalWarning = null;
+            DoomEffect doom = null;
             float endsAt = Time.time + transitionDuration;
             float nextWaveAt = Time.time + minionFirstDelay;
             var minions = new List<GameObject>();
@@ -582,6 +669,8 @@ namespace PersistentWorld.World
                 }
 
                 float remaining = endsAt - Time.time;
+                if (doom == null && remaining <= DoomEffect.LeadTime)
+                    doom = DoomEffect.Begin(health, Position, arenaCenter, arenaHalfSize, endsAt);
                 if (finalWarning == null && remaining <= 3f)
                 {
                     Vector2 half = arenaHalfSize + Vector2.one * 1.5f;
@@ -594,12 +683,13 @@ namespace PersistentWorld.World
                     ? (Vector2)cam.ViewportToWorldPoint(new Vector3(.5f, .8f, 0f))
                     : Position + Vector2.up * 1.6f;
                 countdown.text = safeZone != null
-                    ? $"즉사기 {Mathf.CeilToInt(remaining)}초\n십자가 마법진 위로!"
-                    : $"즉사기 {Mathf.CeilToInt(remaining)}초\n조각상 {broken}/{statues.Count}";
+                    ? $"즉사기 {Mathf.CeilToInt(remaining)}초\n십자가 마법진 위로 피하세요!"
+                    : $"즉사기 {Mathf.CeilToInt(remaining)}초\n조각상을 모두 부수세요 {broken}/{statues.Count}";
                 yield return null;
             }
 
             Fire(finalWarning);
+            if (doom != null) doom.Detonate();
             foreach (Transform player in AlivePlayers())
             {
                 bool safe = safeZone != null && InsideCross(player.position, safeCenter);
@@ -773,6 +863,9 @@ namespace PersistentWorld.World
             MeshRenderer renderer = obj.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = font.material;
             renderer.sortingOrder = 5000;
+            // 글자 자체는 숨기고 화면 위쪽 경고 띠로 보여 준다 (온라인 서버는 이 글자 내용을 클라이언트에 보낸다)
+            renderer.enabled = false;
+            obj.AddComponent<BossNoticeView>();
             transitionObjects.Add(obj);
             return text;
         }

@@ -48,9 +48,26 @@ namespace PersistentWorld.Networking
         public int smithRequest;
         public double time;
         public HitFrame[] hits;
+        public EffectFrame[] effects;
         public string prompt;
         public int tutorial;
         public PracticeFrame[] practice;
+        // 보스를 잡은 직후 보스방에 있는 참가자에게만 실린다. sequence가 0이면 없음.
+        public BossResultFrame bossResult;
+    }
+    // 보스 딜량표: 누가 얼마나 때렸고 얼마나 맞았는지
+    [Serializable] public sealed class BossResultFrame
+    {
+        public int sequence;
+        public string boss;
+        public float seconds;
+        public BossResultRow[] rows;
+    }
+    [Serializable] public sealed class BossResultRow
+    {
+        public ulong id;
+        public string name;
+        public int character, damage, taken, deaths;
     }
     [Serializable] public sealed class PracticeFrame
     {
@@ -63,6 +80,17 @@ namespace PersistentWorld.Networking
         public int sequence, visual, amount;
         public Vector3 position;
         public bool player;
+        public double time;
+    }
+    // 보이기만 하는 연출(흙먼지·돌조각·즉사기)은 서버가 그리지 않고 이 신호만 보낸다. 각 클라이언트가 직접 그린다.
+    [Serializable] public sealed class EffectFrame
+    {
+        public const int Burst = 1, DoomBegin = 2, DoomDetonate = 3, DoomCancel = 4, ChargeWarn = 5;
+        public int sequence, kind, chunks, puffs, debris;
+        public Vector2 position, direction, size;
+        public float radius, power, scale, linger, duration;
+        public bool crater;
+        public Color[] colors;
         public double time;
     }
 }

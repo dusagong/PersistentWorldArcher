@@ -20,6 +20,9 @@ namespace PersistentWorld.Networking
         private readonly Dictionary<int, float> flashes = new Dictionary<int, float>();
         private readonly Dictionary<int, float> born = new Dictionary<int, float>();
         private readonly Dictionary<int, NetworkCharacterPose> characterPoses = new Dictionary<int, NetworkCharacterPose>();
+        // 몬스터 피격 연출(움찔·납작·멈칫): 서버는 그리지 않고 클라이언트가 피격 소식으로 직접 재생한다
+        private readonly Dictionary<int, (float at, Vector2 away, float distance)> reactions = new Dictionary<int, (float, Vector2, float)>();
+        private readonly List<int> finished = new List<int>();
         private double serverTime, receivedAt;
         private double clockOffset;
         private bool clockReady;
@@ -57,13 +60,16 @@ namespace PersistentWorld.Networking
                         -4 => PersistentWorld.World.BossTelegraph.CircleSprite,
                         -5 => PersistentWorld.World.BossTelegraph.FramedSquareSprite,
                         -6 => PersistentWorld.World.SlimeJumpEnemyController.CircleSprite,
+                        -7 => PersistentWorld.World.DroppedItem.Circle,
                         _ => square
                     };
                     if (data.texture >= 0 && data.texture < assets.textures.Length && data.rect.width > 0 && data.rect.height > 0)
                         sprite = Sprite.Create(assets.textures[data.texture], data.rect, data.pivot, Mathf.Max(1, data.ppu), 0, SpriteMeshType.FullRect);
                     sprites[key] = sprite;
                 }
-                visual.sprite = sprite; visual.color = data.color; visual.flipX = data.flipX; visual.flipY = data.flipY;
+                bool frozen = reactions.TryGetValue(data.id, out var hit) && Time.unscaledTime - hit.at < PersistentWorld.World.HitReaction.FreezeTime;
+                if (!frozen) visual.sprite = sprite;
+                visual.color = data.color; visual.flipX = data.flipX; visual.flipY = data.flipY;
                 visual.drawMode = (SpriteDrawMode)data.drawMode; visual.size = data.size;
                 visual.sortingLayerID = data.layer;
                 visual.sortingOrder = data.order;
@@ -106,7 +112,7 @@ namespace PersistentWorld.Networking
             // Remove retired objects instead of retaining an unbounded history of projectiles/effects.
             retired.Clear();
             foreach (var pair in actors) if (!pair.Value.enabled) retired.Add(pair.Key);
-            foreach (int id in retired) { Object.Destroy(actors[id].gameObject); actors.Remove(id); targets.Remove(id); history.Remove(id); flashes.Remove(id); born.Remove(id); characterPoses.Remove(id); }
+            foreach (int id in retired) { Object.Destroy(actors[id].gameObject); actors.Remove(id); targets.Remove(id); history.Remove(id); flashes.Remove(id); born.Remove(id); characterPoses.Remove(id); reactions.Remove(id); }
             retired.Clear();
             foreach (var pair in lines) if (!pair.Value.enabled) retired.Add(pair.Key);
             foreach (int id in retired) { Object.Destroy(lines[id].gameObject); lines.Remove(id); }
@@ -125,6 +131,13 @@ namespace PersistentWorld.Networking
                     angle = Mathf.Atan2(target.aim.y, target.aim.x) * Mathf.Rad2Deg - 45 +
                         Mathf.Lerp(60, -60, Mathf.SmoothStep(0, 1, phase));
                 }
+                if (reactions.TryGetValue(pair.Key, out var hit))
+                {
+                    float age = Time.unscaledTime - hit.at;
+                    position += (Vector3)PersistentWorld.World.HitReaction.Offset(age, hit.away, hit.distance);
+                    body.localScale = Vector3.Scale(target.scale, PersistentWorld.World.HitReaction.Squash(age));
+                    if (age >= PersistentWorld.World.HitReaction.Duration) finished.Add(pair.Key);
+                }
                 body.SetPositionAndRotation(position, Quaternion.Euler(0, 0, angle));
                 pair.Value.color = flashes.TryGetValue(pair.Key, out float until) && Time.unscaledTime < until
                     ? Color.Lerp(target.color, Color.red, .5f) : target.color;
@@ -134,6 +147,8 @@ namespace PersistentWorld.Networking
                     if (directional != null) { pair.Value.sprite = directional; pair.Value.flipX = false; }
                 }
             }
+            foreach (int id in finished) reactions.Remove(id);
+            finished.Clear();
             // Shadows use the exact rendered actor position, so interpolation cannot make them lag behind.
             foreach (var pair in actors)
             {
@@ -208,6 +223,17 @@ namespace PersistentWorld.Networking
         }
         public Vector3 Position(int id, Vector3 fallback) => actors.TryGetValue(id, out SpriteRenderer visual) ? visual.transform.position : fallback;
         public void Flash(int id) { if (actors.ContainsKey(id)) flashes[id] = Time.unscaledTime + .16f; }
+        // attacker: 때린 쪽으로 볼 위치(가장 가까운 플레이어). 큰 그림(보스)은 덜 밀린다.
+        public void React(int id, Vector2 attacker)
+        {
+            if (!actors.TryGetValue(id, out SpriteRenderer visual) || visual.sprite == null) return;
+            Vector2 center = visual.bounds.center;
+            Vector2 away = center - attacker;
+            away = away.sqrMagnitude > .0001f ? away.normalized : Random.insideUnitCircle.normalized;
+            bool heavy = visual.bounds.size.y > 2.2f;
+            reactions[id] = (Time.unscaledTime, away, heavy ? .05f : .13f);
+            PersistentWorld.World.HitSpark.Spawn(center - away * visual.bounds.extents.x * .5f, heavy ? 1.4f : .8f, visual.sortingLayerID, visual.sortingOrder + 3);
+        }
         internal static float PositionBlend(Vector3 current, Vector3 target, float blend) =>
             (current - target).sqrMagnitude > 25 ? 1 : blend;
         public void Clear()
@@ -215,7 +241,7 @@ namespace PersistentWorld.Networking
             foreach (var pair in actors) if (pair.Value != null) Object.Destroy(pair.Value.gameObject);
             foreach (var pair in lines) if (pair.Value != null) Object.Destroy(pair.Value.gameObject);
             actors.Clear(); lines.Clear(); targets.Clear(); history.Clear(); flashes.Clear(); born.Clear();
-            characterPoses.Clear();
+            characterPoses.Clear(); reactions.Clear();
             clockReady = false;
         }
     }

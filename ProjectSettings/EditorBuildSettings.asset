@@ -12,6 +12,9 @@ EditorBuildSettings:
     path: Assets/_Project/Scenes/Field.unity
     guid: e4db3052410bebe428996868522ed8cb
   - enabled: 1
+    path: Assets/_Project/Scenes/Field2.unity
+    guid: 1a5c86b835d1bfc4e81cdc262ed35895
+  - enabled: 1
     path: Assets/_Project/Scenes/BossArena.unity
     guid: cf318f40591d73b47ae45fba140e2a7f
   m_configObjects: {}

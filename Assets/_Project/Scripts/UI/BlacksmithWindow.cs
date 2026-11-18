@@ -59,7 +59,7 @@ namespace PersistentWorld.UI
             document.panelSettings = settings;
             document.visualTreeAsset = tree;
             ui.SetActive(true);
-            font = Resources.Load<Font>("UI/Fonts/NanumGothic-Regular");
+            font = Resources.Load<Font>("UI/Fonts/Galmuri11");
             ownsFont = font == null;
             if (ownsFont) font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Arial" }, 16);
             VisualElement root = document.rootVisualElement;
@@ -70,6 +70,7 @@ namespace PersistentWorld.UI
             root.style.bottom = 0;
             root.style.unityFont = font;
             screen = document.rootVisualElement.Q<VisualElement>("blacksmith-screen");
+            UiJuice.Attach(root);
             RpgUiSurface.AddTo(screen.Q(className: "blacksmith-panel"), RpgUiSurface.Finish.Window);
             recipes = screen.Q<ScrollView>("recipe-list");
             materials = screen.Q<Label>("materials");
@@ -107,11 +108,12 @@ namespace PersistentWorld.UI
             screen.style.display = DisplayStyle.Flex;
             message.text = "방어구는 제작하고, 시작 무기는 최대 +3까지 강화할 수 있습니다.";
             Refresh();
+            UiJuice.PopIn(screen.Q(className: "blacksmith-panel"));
         }
 
         public void Close()
         {
-            if (visible) ItemWindows.ConsumeClose();
+            if (visible) { ItemWindows.ConsumeClose(); UiSound.Close(); }
             visible = false;
             if (screen != null) screen.style.display = DisplayStyle.None;
             actor = null;

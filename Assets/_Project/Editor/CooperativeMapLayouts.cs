@@ -26,7 +26,9 @@ namespace PersistentWorld.Editor
                     MoveProp(map, obstacle.transform, origin + local);
                 }
             }
-            if (area != GameArea.Field2 && area != GameArea.Tutorial) return;
+            // 두 번째 필드는 Scenes/Field2.unity를 그대로 쓴다. 그곳으로 가는 포탈은 Scenes/Field.unity에 직접 놓여 있다.
+            if (area == GameArea.Field2) return;
+            if (area != GameArea.Tutorial) return;
             Sprite dummySprite = map.GetComponentsInChildren<ServerWorldEntity>(true)
                 .Select(e => e.GetComponent<SpriteRenderer>()?.sprite).FirstOrDefault(s => s != null);
             foreach (ScenePortal portal in map.GetComponentsInChildren<ScenePortal>(true))
@@ -38,35 +40,17 @@ namespace PersistentWorld.Editor
                 { position.x = origin.x - (position.x - origin.x); child.position = position; }
             }
             foreach (Tilemap ground in map.GetComponentsInChildren<Tilemap>(true))
-                ground.color = area == GameArea.Field2 ? new Color(.82f, .94f, .86f) : new Color(.95f, .92f, .83f);
+                ground.color = new Color(.95f, .92f, .83f);
             foreach (WorldObstacle obstacle in map.GetComponentsInChildren<WorldObstacle>(true))
             {
                 if (obstacle.GetComponentInParent<Health>() != null) continue;
                 Vector2 local = (Vector2)obstacle.transform.position - origin;
-                bool trainingLane = area == GameArea.Tutorial && Mathf.Abs(local.x) < 23 && Mathf.Abs(local.y) < 6;
-                Vector2[] clearings = { new Vector2(-12, -5), new Vector2(-1, 1), new Vector2(7, 0), new Vector2(12, 9) };
-                bool fieldLane = area == GameArea.Field2 && clearings.Any(center => Vector2.Distance(local, center) < 4.4f);
+                bool trainingLane = Mathf.Abs(local.x) < 23 && Mathf.Abs(local.y) < 6;
                 if (trainingLane) MoveProp(map, obstacle.transform, origin + new Vector2(local.x, local.y < 0 ? -8.5f : 8.5f));
-                else if (fieldLane) MoveProp(map, obstacle.transform, origin + new Vector2(local.x < 0 ? -16 : 17, local.y));
             }
             world.mapCameraSizes[(int)area] = 5.5f;
-            world.mapSpawns[(int)area] = area == GameArea.Tutorial ? new Vector2(0, -2) : new Vector2(-12, -5);
-            AddPath(map, origin, area);
-            if (area == GameArea.Field2)
-            {
-                int index = 0;
-                foreach (ServerWorldEntity enemy in map.GetComponentsInChildren<ServerWorldEntity>(true))
-                {
-                    Vector2[] camps = { new Vector2(-1, 1), new Vector2(7, 0), new Vector2(12, 9) };
-                    float angle = index % 6 * Mathf.PI / 3;
-                    enemy.transform.position = origin + camps[Mathf.Min(2, index / 6)] + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 2.1f;
-                    index++;
-                }
-                Portal(world, area, new Vector2(-14, -5), "Field", "첫 번째 필드로 이동");
-                Portal(world, area, new Vector2(13, 7), "BossArena", "보스 입장 · 파티장 F");
-                Portal(world, GameArea.Field, world.mapSpawns[(int)GameArea.Field] + Vector2.right * 4, "Field2", "두 번째 필드 · 안개 숲으로 이동");
-            }
-            else
+            world.mapSpawns[(int)area] = new Vector2(0, -2);
+            AddPath(map, origin);
             {
                 foreach (ServerWorldEntity enemy in map.GetComponentsInChildren<ServerWorldEntity>(true)) Object.DestroyImmediate(enemy.gameObject);
                 GameObject dummy = new GameObject("Training Target"); dummy.transform.SetParent(map, false);
@@ -93,7 +77,7 @@ namespace PersistentWorld.Editor
                     Vector2.Distance(shadow.transform.position, prop.position) < .5f) shadow.transform.position += delta;
             prop.position += delta;
         }
-        private static void AddPath(Transform map, Vector2 origin, GameArea area)
+        private static void AddPath(Transform map, Vector2 origin)
         {
             TileBase tile = AssetDatabase.LoadAssetAtPath<TileBase>("Assets/_Project/EnvironmentTiles/Town Ground 21300024.asset");
             if (tile == null) return;
@@ -101,8 +85,7 @@ namespace PersistentWorld.Editor
             grid.AddComponent<Grid>();
             GameObject layer = new GameObject("Walking Path"); layer.transform.SetParent(grid.transform, false);
             Tilemap path = layer.AddComponent<Tilemap>(); layer.AddComponent<TilemapRenderer>().sortingOrder = -90;
-            Vector2[] waypoints = area == GameArea.Tutorial ? new[] { new Vector2(-22, -2), new Vector2(22, -2) } :
-                new[] { new Vector2(-14, -5), new Vector2(-6, -3), new Vector2(-1, 1), new Vector2(7, 0), new Vector2(13, 7) };
+            Vector2[] waypoints = { new Vector2(-22, -2), new Vector2(22, -2) };
             for (int segment = 1; segment < waypoints.Length; segment++)
             {
                 int steps = Mathf.CeilToInt(Vector2.Distance(waypoints[segment - 1], waypoints[segment]) * 2);

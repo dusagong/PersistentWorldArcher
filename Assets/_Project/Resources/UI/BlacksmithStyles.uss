@@ -6,8 +6,8 @@
     bottom: 0;
     align-items: center;
     justify-content: center;
-    background-color: rgba(9, 13, 20, 0.8);
-    color: rgb(235, 239, 245);
+    background-color: rgba(12, 10, 8, 0.8);
+    color: rgb(236, 230, 214);
     font-size: 16px;
 }
 .blacksmith-panel {
@@ -18,33 +18,33 @@
     padding-right: 18px;
     padding-top: 16px;
     padding-bottom: 16px;
-    background-color: rgb(16, 26, 39);
+    background-color: rgb(36, 38, 43);
     border-width: 1px;
-    border-color: rgb(82, 66, 40);
+    border-color: rgb(110, 102, 92);
     border-radius: 3px;
 }
 .header { flex-direction: row; align-items: center; min-height: 40px; flex-shrink: 0; margin-bottom: 8px; }
-.title { flex-grow: 1; font-size: 24px; -unity-font-style: bold; color: rgb(240, 231, 207); }
-.materials { min-height: 24px; flex-shrink: 0; margin-bottom: 10px; padding-bottom: 8px; border-bottom-width: 1px; border-bottom-color: rgb(151, 121, 66); color: rgb(193, 211, 226); }
+.title { flex-grow: 1; font-size: 24px; -unity-font-style: bold; color: rgb(240, 212, 138); }
+.materials { min-height: 24px; flex-shrink: 0; margin-bottom: 10px; padding-bottom: 8px; border-bottom-width: 1px; border-bottom-color: rgb(184, 137, 60); color: rgb(206, 196, 172); }
 .recipe-list { flex-grow: 0; flex-shrink: 1; min-height: 0; overflow: hidden; }
 .recipe-list .unity-scroll-view__content-viewport { flex-shrink: 1; min-height: 0; overflow: hidden; }
 .recipe-list .unity-scroll-view__content-container { flex-shrink: 0; }
-.recipe-row { flex-direction: row; align-items: center; height: 72px; flex-shrink: 0; margin-bottom: 8px; padding-top: 6px; padding-bottom: 6px; background-color: rgb(25, 38, 54); border-radius: 2px; }
+.recipe-row { flex-direction: row; align-items: center; height: 72px; flex-shrink: 0; margin-bottom: 8px; padding-top: 6px; padding-bottom: 6px; background-color: rgb(42, 43, 48); border-radius: 2px; }
 .item-icon { width: 56px; height: 56px; margin-left: 12px; margin-right: 14px; }
 .recipe-description { flex-grow: 1; flex-shrink: 1; }
 .recipe-description > Label { min-height: 18px; flex-shrink: 0; margin-bottom: 2px; font-size: 14px; white-space: normal; }
-.recipe-description > .item-name { font-size: 16px; color: rgb(240, 231, 207); }
+.recipe-description > .item-name { font-size: 16px; color: rgb(240, 212, 138); }
 .requirements { flex-direction: row; flex-wrap: wrap; flex-shrink: 0; }
 .requirements > Label { font-size: 14px; margin-right: 14px; min-height: 18px; }
 .material-enough { color: rgb(164, 225, 177); }
 .material-missing { color: rgb(255, 151, 142); }
-.recipe-progress { color: rgb(203, 216, 231); }
-.blacksmith-screen Button { min-width: 72px; min-height: 40px; flex-shrink: 0; padding-left: 14px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; margin-right: 10px; font-size: 16px; color: rgb(236, 235, 225); background-image: none; background-color: rgb(29, 45, 60); border-width: 0; border-radius: 2px; -unity-text-align: middle-center; }
-.blacksmith-screen Button:hover { background-color: rgb(51, 72, 91); }
-.blacksmith-screen Button:disabled { color: rgb(139, 151, 163); background-color: rgb(31, 40, 52); }
+.recipe-progress { color: rgb(214, 204, 180); }
+.blacksmith-screen Button { min-width: 72px; min-height: 40px; flex-shrink: 0; padding-left: 14px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; margin-right: 10px; font-size: 16px; color: rgb(236, 235, 225); background-image: none; background-color: rgb(76, 71, 65); border-width: 0; border-radius: 2px; -unity-text-align: middle-center; }
+.blacksmith-screen Button:hover { background-color: rgb(106, 100, 90); }
+.blacksmith-screen Button:disabled { color: rgb(140, 134, 122); background-color: rgb(46, 44, 41); }
 .blacksmith-screen #close-button { width: 116px; min-width: 116px; height: 40px; padding-top: 6px; padding-bottom: 6px; margin-right: 0; white-space: nowrap; }
 .message { min-height: 20px; flex-shrink: 0; margin-top: 8px; font-size: 13px; white-space: normal; color: rgb(218, 194, 148); }
 .recipe-list .unity-scroll-view__vertical-scroller { width: 10px; min-width: 10px; margin-left: 4px; }
 .recipe-list .unity-scroller__low-button, .recipe-list .unity-scroller__high-button { display: none; }
-.recipe-list .unity-base-slider__tracker { background-color: rgb(13, 23, 35); }
-.recipe-list .unity-base-slider__dragger { background-color: rgb(91, 115, 137); border-radius: 3px; }
+.recipe-list .unity-base-slider__tracker { background-color: rgb(18, 19, 22); }
+.recipe-list .unity-base-slider__dragger { background-color: rgb(140, 132, 118); border-radius: 3px; }

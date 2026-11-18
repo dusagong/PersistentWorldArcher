@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PersistentWorld.Networking;
 using UnityEngine;
 
 namespace PersistentWorld.World
@@ -32,24 +33,45 @@ namespace PersistentWorld.World
         private readonly List<Puff> puffs = new List<Puff>();
         private SpriteRenderer crater;
         private float startedAt;
+        private float linger; // 떨어진 조각이 사라지기 전에 바닥에 남아 있는 시간
 
         // debris가 있으면 조각 일부를 그 그림(흙빛으로 물들인 돌)으로 쓴다
         public static void Spawn(Vector2 center, float radius, Sprite[] debris = null, int chunkCount = 56, int puffCount = 18) =>
-            Build(center, radius, debris, chunkCount, puffCount, Dirt, true, 1f, 1f);
+            Build(center, radius, debris, chunkCount, puffCount, Dirt, true, 1f, 1f, 0f);
+
+        // 돌진 자국: 작게 튀어 오른 돌·흙조각이 lingerSeconds 동안 바닥에 남았다가 사라진다
+        public static void Rubble(Vector2 center, float radius, Sprite[] debris, int chunkCount, int puffCount, float lingerSeconds, float power = .55f) =>
+            Build(center, radius, debris, chunkCount, puffCount, Dirt, true, power, 1f, lingerSeconds);
 
         // 몸이 부서지는 연출: 흙 대신 palette 색 조각이 튀고 바닥 자국은 남기지 않는다. 몸집(radius)에 맞춰 조각 수·힘을 정한다.
         public static void Shatter(Vector2 center, float radius, Color[] palette)
         {
             int chunks = Mathf.Clamp(Mathf.RoundToInt(radius * 44f), 18, 90);
             int puffs = Mathf.Clamp(Mathf.RoundToInt(radius * 12f), 6, 22);
-            Build(center, radius, null, chunks, puffs, palette, false, Mathf.Clamp(radius / 1.6f, .5f, 1.1f), Mathf.Clamp(radius, .8f, 1.7f));
+            Build(center, radius, null, chunks, puffs, palette, false, Mathf.Clamp(radius / 1.6f, .5f, 1.1f), Mathf.Clamp(radius, .8f, 1.7f), 0f);
         }
 
-        private static void Build(Vector2 center, float radius, Sprite[] debris, int chunkCount, int puffCount, Color[] colors, bool withCrater, float power, float chunkScale)
+        // 온라인 클라이언트: 서버가 보낸 신호를 받아 같은 값으로 직접 그린다 (조각이 튀는 방향은 컴퓨터마다 다르다)
+        public static void Replay(EffectFrame e, Sprite[] debris)
         {
+            Color[] colors = e.colors != null && e.colors.Length > 0 ? e.colors : Dirt;
+            Build(e.position, e.radius, debris, e.chunks, e.puffs, colors, e.crater, e.power, e.scale, e.linger);
+        }
+
+        private static void Build(Vector2 center, float radius, Sprite[] debris, int chunkCount, int puffCount, Color[] colors, bool withCrater, float power, float chunkScale, float linger)
+        {
+            // 온라인 서버는 조각을 만들지 않고 신호만 보낸다. 판정이 없는 연출이라 각 클라이언트가 그려도 된다.
+            if (NetworkGameWorld.RecordEffect(new EffectFrame
+            {
+                kind = EffectFrame.Burst, position = center, radius = radius, chunks = chunkCount, puffs = puffCount,
+                debris = debris != null && debris.Length > 0 ? 1 : 0, colors = colors, crater = withCrater,
+                power = power, scale = chunkScale, linger = linger
+            })) return;
+
             var root = new GameObject("Ground Burst").AddComponent<GroundBurst>();
             root.transform.position = center;
             root.startedAt = Time.time;
+            root.linger = linger;
 
             if (withCrater)
             {
@@ -121,14 +143,14 @@ namespace PersistentWorld.World
                 }
                 else
                 {
-                    float fade = (Time.time - c.LandedAt) / ChunkFade;
+                    float fade = (Time.time - c.LandedAt - linger) / ChunkFade;
                     Color color = c.Renderer.color;
                     c.Renderer.color = new Color(color.r, color.g, color.b, 1f - Mathf.Clamp01(fade));
                 }
                 c.Body.position = c.Ground + Vector2.up * c.Height;
                 // 그림자 쪽(땅 위치) 기준으로 앞뒤를 정한다
                 c.Renderer.sortingOrder = 1000 - Mathf.RoundToInt(c.Ground.y * 100f) + 2;
-                if (c.LandedAt < 0f || Time.time - c.LandedAt < ChunkFade) alive = true;
+                if (c.LandedAt < 0f || Time.time - c.LandedAt < linger + ChunkFade) alive = true;
             }
 
             foreach (Puff p in puffs)

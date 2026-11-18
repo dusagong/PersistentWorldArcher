@@ -97,11 +97,38 @@ namespace PersistentWorld.World
             {
                 DamageNumber.Spawn(top, delta.ToString(), damageNumberColor);
                 flashEndsAt = Time.time + flashTime;
+                React();
             }
             else
             {
                 DamageNumber.Spawn(top, "+" + (-delta), new Color(.4f, 1f, .45f));
             }
+        }
+
+        // 몬스터 타격감: 맞은 반대쪽으로 움찔·납작·멈칫하고 맞은 자리에 불꽃이 튄다.
+        // 온라인 서버는 그리지 않는다. 각 클라이언트가 피격 소식을 받아 자기 화면에서 같은 연출을 재생한다.
+        private void React()
+        {
+            if (health.Faction != Faction.Enemy || body == null || body.sprite == null) return;
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance != null) return;
+            Vector2 center = body.bounds.center;
+            Vector2 away = center - NearestPlayer(center);
+            away = away.sqrMagnitude > .0001f ? away.normalized : Random.insideUnitCircle.normalized;
+            bool heavy = MonsterIdentity.Resolve(gameObject) == MonsterKind.Boss;
+            if (!health.IsDead) HitReaction.Play(transform, body, flash, away, heavy ? .05f : .13f);
+            HitSpark.Spawn(center - away * body.bounds.extents.x * .5f, heavy ? 1.4f : .8f, body.sortingLayerID, body.sortingOrder + 3);
+        }
+
+        private static Vector2 NearestPlayer(Vector2 from)
+        {
+            Vector2 best = from;
+            float bestDistance = float.MaxValue;
+            foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+            {
+                float d = ((Vector2)player.transform.position - from).sqrMagnitude;
+                if (d < bestDistance) { bestDistance = d; best = player.transform.position; }
+            }
+            return best;
         }
 
         private void OnDied(Health _)
