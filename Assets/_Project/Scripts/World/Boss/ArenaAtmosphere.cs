@@ -105,6 +105,7 @@ namespace PersistentWorld.World
                 ? NetworkGameWorld.Instance.Frame?.bossPhaseTwo == true
                 : boss != null && boss.IsPhaseTwo;
             float target = phaseTwo ? 1f : 0f;
+            target = Mathf.Max(target, WolfRed.Amount); // 늑대 2페이즈(붉은 번개)도 따라간다
             rage = Mathf.MoveTowards(rage, target, Time.deltaTime * .6f);
 
             foreach (Pool pool in pools)

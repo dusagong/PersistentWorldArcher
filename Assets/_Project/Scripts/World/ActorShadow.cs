@@ -21,6 +21,8 @@ namespace PersistentWorld.World
         private SpriteRenderer visual;
         private float footOffset;
         private bool hideOnDeath;
+        // 대상이 공중에 떠 있는 높이 (점프 중인 보스 등). 그림자는 그만큼 아래, 바닥에 남는다.
+        public float Lift { get; set; }
 
         // footOffset: 대상 위치에서 발까지의 거리 (피벗이 발밑이면 0)
         public static ActorShadow Attach(Transform target, float width, float footOffset, bool hideOnDeath = true)
@@ -47,8 +49,13 @@ namespace PersistentWorld.World
             bool dead = hideOnDeath && health != null && health.IsDead;
             // 점프 몬스터는 공중에서 자기 그림자를 따로 그린다
             visual.enabled = target.gameObject.activeInHierarchy && !dead && !(jumper != null && jumper.IsAirborne);
-            transform.position = target.position + Vector3.down * footOffset + LightOffset;
+            transform.position = target.position + Vector3.down * (footOffset + Lift) + LightOffset;
+            // 높이 뜰수록 그림자가 조금 작아진다
+            float shrink = 1f / (1f + Lift * .35f);
+            if (baseScale == Vector3.zero) baseScale = transform.localScale;
+            transform.localScale = new Vector3(baseScale.x * shrink, baseScale.y * shrink, 1f);
         }
+        private Vector3 baseScale;
 
         // 플레이어는 씬마다 놓여 있어 씬이 열릴 때 붙인다. 몬스터·보스는 각자 애니메이터가 붙인다.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

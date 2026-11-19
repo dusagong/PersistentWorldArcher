@@ -45,6 +45,17 @@ namespace PersistentWorld.World
             return telegraph;
         }
 
+        // 사각 경고를 다른 위치·방향·길이로 옮긴다 (대상을 따라가는 경고용). 진행 표시는 이어서 찬다.
+        public void Reshape(Vector2 start, Vector2 end, float width)
+        {
+            if (isCircle) return;
+            Vector2 delta = end - start;
+            rectSize = new Vector2(Mathf.Max(.01f, delta.magnitude), width);
+            area.size = rectSize;
+            transform.position = (start + end) * .5f;
+            transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
+        }
+
         // 깜빡이지 않고 고정된 투명도로 표시 (안쪽 면 기준 alpha, 예: .4 = 투명도 40%)
         public BossTelegraph Steady(float alpha)
         {
