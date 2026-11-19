@@ -64,7 +64,6 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("부채꼴 경고가 차오르는 시간 (이때 휩쓸 반대쪽으로 피한다)")] private float beamFanWarn = .55f;
         [SerializeField] private int roarDamage = 8;
         [SerializeField] private float roarRadius = 5f, roarPush = 3.5f;
-        [SerializeField, Tooltip("공포 포효: 반지름 / 느려지는 시간(초, 이동 속도 절반)")] private float howlRadius = 7f, howlSlow = 1.5f;
 
         [Header("3연속 점프")]
         [SerializeField, Tooltip("착지 자리 범위 피해")] private int jumpDamage = 14;
@@ -202,7 +201,6 @@ namespace PersistentWorld.World
         [ContextMenu("테스트: 참격")] private void TestSlash() => TestPattern("Slash");
         [ContextMenu("테스트: 큰 발톱")] private void TestClaw() => TestPattern("Claw");
         [ContextMenu("테스트: 바람 포효")] private void TestRoar() => TestPattern("Roar");
-        [ContextMenu("테스트: 공포 포효")] private void TestHowl() => TestPattern("Howl");
         [ContextMenu("테스트: 2페이즈 전환")] private void TestPhaseTwo() => TestPattern("Phase");
         [ContextMenu("테스트: 2페이즈 덮치기 (빗나가면 한 번 더)")] private void TestPounce2() => TestPhaseTwoPattern("Pounce");
         [ContextMenu("테스트: 2페이즈 그림자 참격 (X → +)")] private void TestShadow2() => TestPhaseTwoPattern("ShadowSlash");
@@ -222,7 +220,6 @@ namespace PersistentWorld.World
         [ContextMenu("테스트: 연계 그림자→뇌격")] private void TestComboShadow() => TestPattern("Combo:ShadowSlash");
         [ContextMenu("테스트: 연계 할퀴기→참격")] private void TestComboDouble() => TestPattern("Combo:Double");
         [ContextMenu("테스트: 연계 바람 포효→뇌격")] private void TestComboRoar() => TestPattern("Combo:Roar");
-        [ContextMenu("테스트: 연계 공포 포효→덮치기")] private void TestComboHowl() => TestPattern("Combo:Howl");
 
         // 하던 일을 멈추고 그 패턴만 한 번 쓴 뒤 평소처럼 돌아간다 (등장 연출 없이)
         public void TestPattern(string name)
@@ -265,7 +262,6 @@ namespace PersistentWorld.World
                     case "Slash": yield return Slash(target); break;
                     case "Claw": yield return BigClaw(target); break;
                     case "Roar": yield return WindRoar(); break;
-                    case "Howl": yield return Howl(); break;
                 }
                 art.Face(null);
                 IsPerformingPattern = false;
@@ -358,7 +354,6 @@ namespace PersistentWorld.World
             [Attack.ShadowSlash] = Attack.Beam,   // 뚫고 지나간 반대편에서 돌아서서 쏜다
             [Attack.Double] = Attack.Slash,       // 할퀴고 물러난 사람을 초승달로 마무리
             [Attack.Roar] = Attack.Beam,          // 밀려난 사람을 멀리서 저격
-            [Attack.Howl] = Attack.Pounce,        // 느려진 사람을 덮친다
         };
 
         // ---------- 2페이즈 전환 ----------
@@ -653,7 +648,6 @@ namespace PersistentWorld.World
                 case Attack.Spin: yield return Approach(target, meleeRange); yield return Spin(target); break;
                 case Attack.Beam: yield return Beam(target); break;
                 case Attack.Roar: yield return WindRoar(); break;
-                case Attack.Howl: yield return Howl(); break;
                 case Attack.ShadowSlash: yield return ShadowSlash(target); break;
                 case Attack.Jump: yield return TripleJump(target); break;
             }
@@ -662,7 +656,7 @@ namespace PersistentWorld.World
         }
 
         // ---------- 패턴 고르기 ----------
-        private enum Attack { Pounce, ShadowSlash, Double, Slash, Claw, Spin, Beam, Roar, Howl, Jump }
+        private enum Attack { Pounce, ShadowSlash, Double, Slash, Claw, Spin, Beam, Roar, Jump }
         private Attack last = Attack.Pounce;
         private float lastPounceAt = -999f;
         private bool PounceCooling => Time.time - lastPounceAt < pounceCooldown;
@@ -676,8 +670,8 @@ namespace PersistentWorld.World
             (Attack, int)[] options = distance <= 4f
                 ? new[] { (Attack.Double, 3), (Attack.Slash, 3), (Attack.Claw, 2), (Attack.Spin, 2), (Attack.ShadowSlash, 2), (Attack.Roar, 1), (Attack.Jump, 1) }
                 : distance <= 8f
-                    ? new[] { (Attack.Beam, 3), (Attack.ShadowSlash, 3), (Attack.Jump, 3), (Attack.Roar, 2), (Attack.Howl, 1), (Attack.Pounce, 2), (Attack.Double, 1) }
-                    : new[] { (Attack.Pounce, 2), (Attack.ShadowSlash, 3), (Attack.Jump, 3), (Attack.Beam, 4), (Attack.Howl, 1) };
+                    ? new[] { (Attack.Beam, 3), (Attack.ShadowSlash, 3), (Attack.Jump, 3), (Attack.Roar, 2), (Attack.Pounce, 2), (Attack.Double, 1) }
+                    : new[] { (Attack.Pounce, 2), (Attack.ShadowSlash, 3), (Attack.Jump, 3), (Attack.Beam, 4) };
             var pool = options.Where(o => o.Item1 != last && !(o.Item1 == Attack.Pounce && PounceCooling)).ToArray();
             int roll = Random.Range(0, pool.Sum(o => o.Item2));
             foreach (var (attack, weight) in pool) { if (roll < weight) return attack; roll -= weight; }
@@ -1074,25 +1068,6 @@ namespace PersistentWorld.World
                 p.GetComponent<CombatStatus>()?.Knockback(away.sqrMagnitude < .01f ? Vector2.right : away.normalized, roarPush, .25f);
             }
             yield return new WaitForSeconds(art.Duration("Roar") - hit);
-        }
-
-        // 공포 포효: 주변 플레이어가 잠시 느려진다 (피해 없음)
-        private IEnumerator Howl()
-        {
-            Vector2 center = transform.position;
-            float wind = art.Duration("HowlWind"), hit = art.Frames("Howl", 1);
-            BossTelegraph zone = BossTelegraph.Circle(center, howlRadius, wind + hit, Red(new Color(.6f, .9f, .5f), new Color(.95f, .55f, .5f))).Steady(.18f);
-            art.Play("HowlWind");
-            yield return new WaitForSeconds(wind);
-            art.Play("Howl");
-            yield return new WaitForSeconds(hit);
-            zone.Fire();
-            BossTelegraph.Shockwave(center, howlRadius, Red(new Color(.6f, .9f, .5f), new Color(.95f, .55f, .5f)));
-            StartCoroutine(Strikes(center, howlRadius * .85f, 5));
-            Shake(.2f, .6f);
-            foreach (ArcherController p in Players())
-                if (Vector2.Distance(p.transform.position, center) <= howlRadius) p.GetComponent<CombatStatus>()?.ApplySlow(howlSlow);
-            yield return new WaitForSeconds(art.Duration("Howl") - hit);
         }
 
         // 3연속 점프: 낮고 멀리 덮치듯 뛰어 착지 자리에 범위 피해. 세 번을 매번 다른 사람에게 (혼자면 같은 사람에게 세 번).
