@@ -64,7 +64,7 @@ namespace PersistentWorld.World
         [SerializeField, Tooltip("부채꼴 경고가 차오르는 시간 (이때 휩쓸 반대쪽으로 피한다)")] private float beamFanWarn = .55f;
         [SerializeField] private int roarDamage = 8;
         [SerializeField] private float roarRadius = 5f, roarPush = 3.5f;
-        [SerializeField] private float howlRadius = 7f, howlSlow = 3f;
+        [SerializeField, Tooltip("공포 포효: 반지름 / 느려지는 시간(초, 이동 속도 절반)")] private float howlRadius = 7f, howlSlow = 1.5f;
 
         [Header("3연속 점프")]
         [SerializeField, Tooltip("착지 자리 범위 피해")] private int jumpDamage = 14;
@@ -141,6 +141,7 @@ namespace PersistentWorld.World
 
         public string DisplayName => displayName;
         public string DisplayTitle => displayTitle;
+        public string Portrait => portrait;
         public bool IsPerformingPattern { get; private set; }
 
         private void Awake()
@@ -160,7 +161,13 @@ namespace PersistentWorld.World
         }
 
         // 아레나 바닥의 연두빛 장식도 2페이즈에 함께 붉게 물들도록
-        private void Start() => ArenaRedShift.Attach(gameObject.scene);
+        // 온라인 서버에서는 그리지 않는다 (각 클라이언트가 늑대 방 지도에 직접 붙인다)
+        private void Start()
+        {
+            if (PersistentWorld.Networking.NetworkGameWorld.Instance != null) return;
+            ArenaRedShift.Attach(gameObject.scene);
+            WolfBossBar.Show(this); // 혼자 하기 보스 체력바 (온라인은 파티 HUD가 그린다)
+        }
 
         private void OnDestroy() => WolfRed.Set(0f);
 
@@ -168,6 +175,7 @@ namespace PersistentWorld.World
         {
             health.Died += OnDied;
             Health.DamageApplied += OnDamaged;
+            Health.DamageDealt += Count;
             StartCoroutine(Brain());
         }
 
@@ -175,9 +183,11 @@ namespace PersistentWorld.World
         {
             health.Died -= OnDied;
             Health.DamageApplied -= OnDamaged;
+            Health.DamageDealt -= Count;
             StopAllCoroutines();
             Release();
             EndWipe();
+            ClearWarnings();
             Solid(true);
         }
 
@@ -207,7 +217,7 @@ namespace PersistentWorld.World
             TestPattern(name);
         }
         [ContextMenu("테스트: 전멸기 (뇌광 폭주)")] private void TestWipe() => TestPattern("Wipe");
-        [ContextMenu("테스트: 색 초록으로 되돌리기")] private void TestPhaseReset() { phaseTwo = false; WolfRed.Set(0f); }
+        [ContextMenu("테스트: 색 초록으로 되돌리기")] private void TestPhaseReset() { phaseTwo = false; barFill = -1f; WolfRed.Set(0f); }
         [ContextMenu("테스트: 연계 점프→회전")] private void TestComboJump() => TestPattern("Combo:Jump");
         [ContextMenu("테스트: 연계 그림자→뇌격")] private void TestComboShadow() => TestPattern("Combo:ShadowSlash");
         [ContextMenu("테스트: 연계 할퀴기→참격")] private void TestComboDouble() => TestPattern("Combo:Double");
@@ -271,7 +281,15 @@ namespace PersistentWorld.World
             art.SetLift(0f);
             Release();
             EndWipe();
+            ClearWarnings();
             Solid(true);
+        }
+
+        // 쓰러지거나 꺼질 때 바닥에 남은 경고 장판·화살표를 치운다 (안 그러면 그대로 남아 다음 판에도 보인다)
+        private void ClearWarnings()
+        {
+            BossTelegraph.ClearNear(transform.position);
+            ChargeWarning.ClearNear(transform.position);
         }
 
         private IEnumerator Brain()
@@ -279,6 +297,7 @@ namespace PersistentWorld.World
             if (PersistentWorld.Networking.NetworkGameWorld.Instance == null) BossIntro.Show(displayName, displayTitle, portrait);
             yield return new WaitForSeconds(BossIntro.Duration);
             while (BossIntro.Active) yield return null; // 로딩으로 연출이 늦어졌으면 끝까지 기다린다
+            engagedAt = Time.time;
             yield return Loop();
         }
 
@@ -326,7 +345,7 @@ namespace PersistentWorld.World
             // 연계 신호: 몸에서 번개가 확 튀고 화면이 살짝 흔들린다
             WolfLightning.Burst((Vector2)transform.position + Vector2.up * .3f, 1.6f, 6, .18f);
             WolfLightning.Sparks((Vector2)transform.position + Vector2.up * .3f, 1.2f, 4);
-            CameraFollow.Shake(.12f, comboCue);
+            Shake(.12f, comboCue);
             art.Freeze(comboCue * .6f);
             yield return new WaitForSeconds(comboCue);
             yield return Perform(next, followTarget);
@@ -348,11 +367,26 @@ namespace PersistentWorld.World
         private bool phaseTwo;
         public bool IsPhaseTwo => phaseTwo;
 
+        // 체력바는 페이즈마다 한 줄씩: 1페이즈 줄(전체의 위쪽 절반)을 다 깎으면 전환하며 2페이즈 줄이 꽉 차오른다.
+        // 실제 체력은 하나라서 총량은 그대로다 (다시 회복하지 않는다). 전환 중에는 0에서 차오르는 연출만 보여 준다.
+        private float barFill = -1f;
+        private int PhaseLine => Mathf.RoundToInt(health.Maximum * phaseTwoAt);
+        public void BarValues(out int current, out int max)
+        {
+            int line = PhaseLine;
+            if (!phaseTwo) { max = Mathf.Max(1, health.Maximum - line); current = Mathf.Clamp(health.Current - line, 0, max); }
+            else if (barFill >= 0f) { max = Mathf.Max(1, line); current = Mathf.RoundToInt(max * barFill); }
+            else { max = Mathf.Max(1, line); current = Mathf.Clamp(health.Current, 0, max); }
+        }
+
         private IEnumerator PhaseShift()
         {
             phaseTwo = true;
             IsPerformingPattern = true;
             health.Invulnerable = true;
+            // 2페이즈 줄은 비운 채 시작해 포효하는 동안 차오른다. 전환 직전에 줄 아래로 더 깎인 만큼은 채워 꽉 찬 줄로 시작한다
+            barFill = 0f;
+            if (health.Current < PhaseLine) health.Heal(PhaseLine - health.Current);
             art.Face(null);
             // 변이 포효: 몸을 낮춰 힘을 모으다가(점점 세게 지직거리며) 고개를 들어 길게 울부짖는다
             float wind = art.Duration("MutateWind");
@@ -364,15 +398,15 @@ namespace PersistentWorld.World
                 float k = (Time.time - w0) / wind;
                 if (Time.time >= nextRumble)
                 {
-                    CameraFollow.Shake(Mathf.Lerp(.05f, .25f, k), .12f);
+                    Shake(Mathf.Lerp(.05f, .25f, k), .12f);
                     WolfLightning.Sparks((Vector2)transform.position + Vector2.up * .3f, Mathf.Lerp(.8f, 1.6f, k), Mathf.RoundToInt(Mathf.Lerp(1f, 4f, k)));
                     nextRumble = Time.time + .1f;
                 }
                 yield return null;
             }
             art.Play("MutateRoar");
-            ScreenFlash.Show(.55f);
-            CameraFollow.Shake(.7f, phaseShiftTime);
+            Flash(.55f);
+            Shake(.7f, phaseShiftTime);
             Vector2 center = transform.position;
             WolfLightning.GroundRing(Feet, 4.5f, .3f);
             BossTelegraph.Shockwave(Feet, 6f, Warning);
@@ -381,6 +415,7 @@ namespace PersistentWorld.World
             while (Time.time - t0 < phaseShiftTime)
             {
                 WolfRed.Set((Time.time - t0) / phaseShiftTime);
+                barFill = Mathf.SmoothStep(0f, 1f, (Time.time - t0) / phaseShiftTime);
                 if (Time.time >= nextBurst)
                 {
                     WolfLightning.Burst(center + Random.insideUnitCircle * 1.2f + Vector2.up * .4f, Random.Range(1.2f, 2f), 6, .2f);
@@ -389,7 +424,8 @@ namespace PersistentWorld.World
                 yield return null;
             }
             WolfRed.Set(1f);
-            ScreenFlash.Show(.45f);
+            barFill = -1f;
+            Flash(.45f);
             StartCoroutine(Strikes(Feet, 5f, 7));
             WolfLightning.Erupt(Feet, 5.5f);
             yield return new WaitForSeconds(Mathf.Max(.5f, art.Duration("MutateRecover")));
@@ -418,11 +454,11 @@ namespace PersistentWorld.World
             art.Face(null);
             art.Play("MutateCrouch");
             StartCoroutine(Crackle(art.Duration("MutateCrouch"), 1.2f, .06f));
-            CameraFollow.Shake(.15f, art.Duration("MutateCrouch"));
+            Shake(.15f, art.Duration("MutateCrouch"));
             yield return new WaitForSeconds(art.Duration("MutateCrouch"));
             art.Play("MutateBlast");
-            ScreenFlash.Show(.4f);
-            CameraFollow.Shake(.5f, .6f);
+            Flash(.4f);
+            Shake(.5f, .6f);
             WolfLightning.GroundRing(center, 4f, .3f);
             for (int i = 0; i < n; i++)
             {
@@ -453,7 +489,7 @@ namespace PersistentWorld.World
                 while (Time.time - warnStart < warn)
                 {
                     float k = (Time.time - warnStart) / warn;
-                    if (Time.time >= nextRumble) { CameraFollow.Shake(Mathf.Lerp(.03f, .2f, k * k), .12f); nextRumble = Time.time + .1f; }
+                    if (Time.time >= nextRumble) { Shake(Mathf.Lerp(.03f, .2f, k * k), .12f); nextRumble = Time.time + .1f; }
                     yield return null;
                 }
 
@@ -461,8 +497,8 @@ namespace PersistentWorld.World
                 art.Play("MutateBurst");
                 WolfSliceZone.FireAll();
                 core.Fire();
-                ScreenFlash.Show(.45f);
-                CameraFollow.Shake(.75f, .45f);
+                Flash(.45f);
+                Shake(.75f, .45f);
                 WolfLightning.GroundRing(center, wipeCoreRadius, .2f);
                 foreach (WolfSliceZone zone in zones) StartCoroutine(SliceStrikes(zone.Targets));
                 var doomed = Players().Where(p => InBurst(p.transform.position, center, burst, offset, width)).ToList();
@@ -547,8 +583,8 @@ namespace PersistentWorld.World
             float groggyEnd = Time.time + wipeGroggy;
             WolfWipeBanner.Show(() => $"과부하 {Mathf.Max(0, Mathf.CeilToInt(groggyEnd - Time.time))}초\n늑대가 쓰러졌습니다! 지금 공격하세요");
             art.Face(null);
-            ScreenFlash.Show(.5f);
-            CameraFollow.Shake(.6f, .5f);
+            Flash(.5f);
+            Shake(.6f, .5f);
             WolfLightning.Burst((Vector2)transform.position + Vector2.up * .4f, 2.4f, 10, .3f);
             WolfLightning.GroundRing(Feet, 3.5f, .25f);
             StartCoroutine(Strikes(Feet, 2.5f, 4));
@@ -594,7 +630,7 @@ namespace PersistentWorld.World
             airGround = null;
             art.SetLift(0f);
             Solid(true);
-            CameraFollow.Shake(.35f, .25f);
+            Shake(.35f, .25f);
             WolfLightning.GroundRing(Feet, 2.5f);
             WolfImpactFx.Crack(land, 1.2f);
             Dust(land + Vector2.down * .4f, 1.4f);
@@ -810,7 +846,7 @@ namespace PersistentWorld.World
                 yield return null;
             }
             zone.Fire();
-            CameraFollow.Shake(.4f, .25f);
+            Shake(.4f, .25f);
             EruptAlong(a, b);
             WolfLightning.Erupt(center, 3.6f, false);
             foreach (ArcherController p in Players())
@@ -841,7 +877,7 @@ namespace PersistentWorld.World
                 Vector2 at = Feet;
                 WolfLightning.Arc((Vector2)transform.position, i % 2 == 0 ? Vector2.right : Vector2.left, 6f);
                 WolfLightning.GroundRing(at, spinRadius * (i == spinTurns - 1 ? 1f : .8f));
-                CameraFollow.Shake(.12f, .1f);
+                Shake(.12f, .1f);
                 HitArea(p => Vector2.Distance(p, at) <= spinRadius, spinTurnDamage, .25f);
                 since = turn;
             }
@@ -899,13 +935,13 @@ namespace PersistentWorld.World
             // ② 고정: 줄이 밝게 번쩍이며 멈춘다. 이때 옆으로 빠지거나 구르기로 넘어야 한다
             path.Cancel();
             BossTelegraph locked = BossTelegraph.Rect(start, end, beamWidth, beamLockTime, Red(new Color(.95f, 1f, .6f), new Color(1f, .75f, .6f)));
-            CameraFollow.Shake(.05f, beamLockTime);
+            Shake(.05f, beamLockTime);
             yield return new WaitForSeconds(beamLockTime);
             locked.Fire();
 
             // ③ 발사: 크게 벌린 입에서 번개가 줄기째 지직거리며 뿜어진다. 한 사람은 한 번만 맞는다
             art.Play("Beam");
-            CameraFollow.Shake(.35f, beamTime);
+            Shake(.35f, beamTime);
             var struck = new System.Collections.Generic.HashSet<ArcherController>();
             float t0 = Time.time, nextBolt = 0f;
             bool firstBolt = true; // 첫 줄기만 화면을 번쩍
@@ -963,13 +999,13 @@ namespace PersistentWorld.World
             float aim = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg, side = Random.value < .5f ? 1f : -1f;
             float from = aim - side * beamSweepAngle * .5f, to = aim + side * beamSweepAngle * .5f;
             WolfSliceZone fan = WolfSliceZone.Sweep(start, from, to, .6f, beamLength, beamFanWarn, Warning);
-            CameraFollow.Shake(.06f, beamFanWarn);
+            Shake(.06f, beamFanWarn);
             yield return new WaitForSeconds(beamFanWarn);
             if (fan != null) Destroy(fan.gameObject);
 
             // ③ 휩쓸기: 줄기가 부채꼴을 훑는다. 한 사람은 한 번만 맞는다 (구르기 중이면 안 맞는다)
             art.Play("Beam");
-            CameraFollow.Shake(.3f, beamSweepTime);
+            Shake(.3f, beamSweepTime);
             var struck = new System.Collections.Generic.HashSet<ArcherController>();
             float t0 = Time.time, nextBolt = 0f, previous = from;
             bool firstBolt = true;
@@ -1029,7 +1065,7 @@ namespace PersistentWorld.World
             zone.Fire();
             BossTelegraph.Shockwave(center, roarRadius, Warning);
             WolfLightning.GroundRing(new Vector2(center.x, art.FeetY), roarRadius, .2f);
-            CameraFollow.Shake(.3f, .4f);
+            Shake(.3f, .4f);
             foreach (ArcherController p in Players())
             {
                 Vector2 away = (Vector2)p.transform.position - center;
@@ -1053,7 +1089,7 @@ namespace PersistentWorld.World
             zone.Fire();
             BossTelegraph.Shockwave(center, howlRadius, Red(new Color(.6f, .9f, .5f), new Color(.95f, .55f, .5f)));
             StartCoroutine(Strikes(center, howlRadius * .85f, 5));
-            CameraFollow.Shake(.2f, .6f);
+            Shake(.2f, .6f);
             foreach (ArcherController p in Players())
                 if (Vector2.Distance(p.transform.position, center) <= howlRadius) p.GetComponent<CombatStatus>()?.ApplySlow(howlSlow);
             yield return new WaitForSeconds(art.Duration("Howl") - hit);
@@ -1109,7 +1145,7 @@ namespace PersistentWorld.World
                 // 착지: 범위 피해 + 번개 + 바닥 균열·흙먼지
                 zone.Fire();
                 HitArea(p => Vector2.Distance(p, land) <= jumpRadius, jumpDamage, .35f);
-                CameraFollow.Shake(.3f, .2f);
+                Shake(.3f, .2f);
                 WolfLightning.GroundRing(new Vector2(land.x, art.FeetY), jumpRadius);
                 WolfImpactFx.Crack(land, 1f);
                 Dust(land + Vector2.down * .4f, 1.2f);
@@ -1141,7 +1177,7 @@ namespace PersistentWorld.World
                 if (p.IsDashing || !inside(p.transform.position)) continue;
                 if (p.GetComponent<Health>().TryDamage(damage, Faction.Enemy, gameObject)) count++;
             }
-            if (count > 0) CameraFollow.Shake(shake, .2f);
+            if (count > 0) Shake(shake, .2f);
             return count;
         }
 
@@ -1228,15 +1264,15 @@ namespace PersistentWorld.World
             WolfSlashMark.Spawn(x.A0, x.A1, width, burstAt);
             yield return new WaitForSeconds(.07f);
             WolfSlashMark.Spawn(x.C0, x.C1, width, burstAt);
-            CameraFollow.Shake(.18f, .12f);
+            Shake(.18f, .12f);
             for (int i = 0; i < 4; i++) Dust(Vector2.Lerp(x.C0, x.C1, Random.value), Random.Range(.9f, 1.3f)); // 긁힐 때 흙먼지
 
             while (Time.time < burstAt) yield return null;
             pathZone.Fire();
             crossZone.Fire();
             // 폭발: 크게 흔들고 화면 번쩍, 교차점에서 큰 분출, 두 획을 따라 땅에서 번개가 줄지어 솟구친다
-            CameraFollow.Shake(.75f, .45f);
-            ScreenFlash.Show(.45f);
+            Shake(.75f, .45f);
+            Flash(.45f);
             WolfLightning.Erupt(x.Mid, 5f);
             EruptAlong(x.A0, x.A1);
             EruptAlong(x.C0, x.C1);
@@ -1269,14 +1305,14 @@ namespace PersistentWorld.World
             float width = shadowWidth * 1.15f;
             yield return new WaitForSeconds(.12f);
             WolfSlashMark.Spawn(p0, p1, width, burstAt);
-            CameraFollow.Shake(.15f, .1f);
+            Shake(.15f, .1f);
             yield return new WaitForSeconds(.07f);
             WolfSlashMark.Spawn(q0, q1, width, burstAt);
-            CameraFollow.Shake(.15f, .1f);
+            Shake(.15f, .1f);
             while (Time.time < burstAt) yield return null;
             z1.Fire(); z2.Fire();
-            CameraFollow.Shake(.6f, .35f);
-            ScreenFlash.Show(.35f);
+            Shake(.6f, .35f);
+            Flash(.35f);
             WolfLightning.Erupt(x.Mid, 4.2f);
             EruptAlong(p0, p1);
             EruptAlong(q0, q1);
@@ -1319,25 +1355,24 @@ namespace PersistentWorld.World
             Vector2 direction = Aim(start + foot, target);
             Vector2 wall = WallPoint(start, direction);
 
-            // 1) 준비 ① 추적: 골렘 돌진처럼 은은한 경로 위로 초록 화살표가 달려갈 쪽으로 흐르고, 경로가 대상을 따라다닌다
+            // 1) 준비 ① 조준: 늑대 발밑에서 노린 사람 쪽으로 돌진 경로(장판 + 초록 화살표)가 뻗어 그 사람을 따라 돈다
+            //    (각 PC가 화면에 보이는 늑대·사람 위치로 직접 그린다)
             art.Play("Aim");
             float track = rebound ? reboundTrack : aimTrackTime, lockTime = rebound ? reboundLock : aimLockTime;
-            float warn = track + lockTime;
-            StartCoroutine(Crackle(warn, 1.1f, .1f));
-            BossTelegraph path = BossTelegraph.Rect(start + foot, wall + foot, pathWidth, warn, Warning).Steady(.4f);
-            ChargeWarning arrows = ChargeWarning.Spawn(start + foot, wall + foot, pathWidth, warn, true);
+            StartCoroutine(Crackle(track + lockTime, 1.1f, .1f));
+            WolfAimPath.Show(this, target, track, pathWidth, Vector2.Distance(start, wall));
             float trackUntil = Time.time + track;
             while (Time.time < trackUntil && target != null && !target.GetComponent<Health>().IsDead)
             {
                 direction = Aim(start + foot, target);
-                wall = WallPoint(start, direction);
-                path.Reshape(start + foot, wall + foot, pathWidth);
-                if (arrows != null) arrows.Retarget(start + foot, wall + foot);
                 art.Face(direction);
                 yield return null;
             }
-            // ② 고정: 경로가 멈추고 화살표가 빨라지며 깜빡인다. 이때 옆으로 빠지거나 구르기로 뚫어야 한다
-            CameraFollow.Shake(.06f, lockTime);
+            // ② 고정: 경로가 그 자리에 멈춰 깔리고 화살표가 빨라지며 깜빡인다. 이때 옆으로 빠지거나 구르기로 뚫어야 한다
+            wall = WallPoint(start, direction);
+            BossTelegraph path = BossTelegraph.Rect(start + foot, wall + foot, pathWidth, lockTime, Warning).Steady(.4f);
+            ChargeWarning.Spawn(start + foot, wall + foot, pathWidth, lockTime, true);
+            Shake(.06f, lockTime);
             yield return new WaitForSeconds(lockTime);
             path.Fire();
 
@@ -1369,7 +1404,7 @@ namespace PersistentWorld.World
                     sliding = true;
                     art.Play("Slide");
                     Dust(ground + Vector2.down * .5f, 1.3f);
-                    CameraFollow.Shake(.15f, .1f);
+                    Shake(.15f, .1f);
                 }
                 float speed = sliding ? slideSpeed : dashSpeed;
                 Vector2 from = ground;
@@ -1461,8 +1496,8 @@ namespace PersistentWorld.World
                 freed.GetComponent<CombatStatus>()?.Knockback(direction, 1.2f, .15f);
             }
             Unstretch();
-            ScreenFlash.Show(.3f);
-            CameraFollow.Shake(.45f, .3f);
+            Flash(.3f);
+            Shake(.45f, .3f);
             HitSpark.Spawn(transform.position + Vector3.up * .4f, 2.2f, 0, 3000);
             WolfLightning.Burst((Vector2)transform.position + Vector2.up * .4f, 2.2f, 10, .25f);
             yield return HitStop(.1f);
@@ -1498,7 +1533,7 @@ namespace PersistentWorld.World
 
         private IEnumerator GrabSequence(ArcherController victim, Vector2 direction)
         {
-            CameraFollow.Shake(.28f, .22f);
+            Shake(.28f, .22f);
             HitSpark.Spawn(victim.transform.position + Vector3.up * .5f, 1.5f, 0, 3000);
             WolfLightning.Burst((Vector2)victim.transform.position + Vector2.up * .4f, 1.5f, 6);
             Hold(victim, new Vector2(direction.x >= 0 ? .9f : -.9f, 0f));
@@ -1526,7 +1561,7 @@ namespace PersistentWorld.World
                 if (held != null && Hurt(held, shakeDamage, .3f, Vector2.zero))
                 {
                     art.Freeze(.05f);
-                    CameraFollow.Shake(.12f, .08f);
+                    Shake(.12f, .08f);
                     // 물고 흔들 때 늑대와 잡힌 사람 사이로 번개가 흐른다
                     WolfLightning.Bolt((Vector2)transform.position + Vector2.up * .6f, (Vector2)held.transform.position + Vector2.up * .3f, .12f, .16f, .5f);
                     WolfLightning.Sparks((Vector2)held.transform.position + Vector2.up * .3f, .5f, 3);
@@ -1552,7 +1587,7 @@ namespace PersistentWorld.World
             ArcherController victimNow = held;
             Release();
             if (victimNow != null) Hurt(victimNow, slamDamage, .8f, Vector2.zero);
-            CameraFollow.Shake(.5f, .45f);
+            Shake(.5f, .45f);
             HitSpark.Spawn(at, 2.2f, 0, 3000);
             BossTelegraph.Shockwave(at, slamRadius, Warning);
             WolfLightning.Strike(at, 6.5f, 1.4f);
@@ -1571,7 +1606,7 @@ namespace PersistentWorld.World
         private void Crash(Vector2 direction)
         {
             Vector2 crash = (Vector2)transform.position + direction * .8f;
-            CameraFollow.Shake(.6f, .5f);
+            Shake(.6f, .5f);
             HitSpark.Spawn(crash + Vector2.up * .4f, 2.6f, 0, 3000);
             BossTelegraph.Shockwave(crash, 1.8f, new Color(.85f, .85f, .75f));
             WolfLightning.Erupt(new Vector2(crash.x, art.FeetY), 3.4f, false);
@@ -1658,7 +1693,7 @@ namespace PersistentWorld.World
         {
             for (int i = 0; i < 8; i++)
                 Dust(at + Vector2.down * .55f - dir * Random.Range(.1f, .7f) + Random.insideUnitCircle * .35f, Random.Range(1f, 1.5f));
-            CameraFollow.Shake(.22f, .15f);
+            Shake(.22f, .15f);
         }
 
         private void SpeedLines(Vector2 dir, Color color)
@@ -1718,6 +1753,7 @@ namespace PersistentWorld.World
 
         private void Afterimage(float alpha, Color tint)
         {
+            if (WolfFxNet.Send(WolfFxNet.Afterimage, transform.position, Vector2.zero, alpha, tint.r, tint.g, tint.b)) return;
             var source = GetComponent<SpriteRenderer>();
             if (source == null || source.sprite == null) return;
             var ghost = new GameObject("Wolf Afterimage");
@@ -1733,8 +1769,9 @@ namespace PersistentWorld.World
 
         // 흙먼지 한 덩이: 부드러운 원이 퍼지며 사라진다 (보이기만 하는 장식)
         private static Sprite puff;
-        private void Dust(Vector2 at, float size)
+        internal static void Dust(Vector2 at, float size)
         {
+            if (WolfFxNet.Send(WolfFxNet.Dust, at, Vector2.zero, size)) return;
             if (puff == null)
             {
                 const int n = 32;
@@ -1847,8 +1884,71 @@ namespace PersistentWorld.World
             }
         }
 
-        private static ArcherController[] Players() =>
-            FindObjectsByType<ArcherController>(FindObjectsSortMode.None).Where(p => p.isActiveAndEnabled && !p.GetComponent<Health>().IsDead).ToArray();
+        // 살아 있는 사람 중 늑대와 같은 구역에 있는 사람만 (온라인은 마을·필드·보스방이 한 장면에 나란히 있다)
+        private ArcherController[] Players() =>
+            FindObjectsByType<ArcherController>(FindObjectsSortMode.None)
+                .Where(p => p.isActiveAndEnabled && !p.GetComponent<Health>().IsDead && PersistentWorld.Networking.NetworkGameWorld.SameArea(p.transform.position, transform.position)).ToArray();
+
+        // 화면 흔들림·번쩍임: 온라인 서버면 늑대 방 사람들에게 신호로 보낸다
+        private void Shake(float magnitude, float duration)
+        {
+            if (!WolfFxNet.Send(WolfFxNet.Shake, transform.position, Vector2.zero, magnitude, duration)) CameraFollow.Shake(magnitude, duration);
+        }
+
+        private void Flash(float amount)
+        {
+            if (!WolfFxNet.Send(WolfFxNet.Flash, transform.position, Vector2.zero, amount)) ScreenFlash.Show(amount);
+        }
+
+        // ---------- 딜량표 (온라인 보스 처치 결과) ----------
+        private sealed class Tally { public int Dealt, Taken, Deaths; }
+        private readonly System.Collections.Generic.Dictionary<ArcherController, Tally> tallies = new System.Collections.Generic.Dictionary<ArcherController, Tally>();
+        private float engagedAt = -1f;
+
+        private void Count(Health target, int amount, GameObject source)
+        {
+            if (health == null || amount <= 0) return;
+            if (target == health)
+            {
+                var attacker = source != null ? source.GetComponentInParent<ArcherController>() : null;
+                if (attacker != null) TallyOf(attacker).Dealt += amount;
+                return;
+            }
+            if (engagedAt < 0 || health.IsDead || target.Faction != Faction.Player) return;
+            var player = target.GetComponent<ArcherController>();
+            if (player == null || !PersistentWorld.Networking.NetworkGameWorld.SameArea(player.transform.position, transform.position)) return;
+            Tally tally = TallyOf(player);
+            tally.Taken += amount;
+            if (target.IsDead) tally.Deaths++;
+        }
+
+        private Tally TallyOf(ArcherController player)
+        {
+            if (!tallies.TryGetValue(player, out Tally tally)) tallies[player] = tally = new Tally();
+            return tally;
+        }
+
+        public PersistentWorld.Networking.BossResultFrame BuildResult(System.Func<ArcherController, (ulong id, string name)> identify,
+            System.Collections.Generic.IEnumerable<ArcherController> participants = null)
+        {
+            if (participants != null) foreach (var player in participants) if (player != null) TallyOf(player);
+            var rows = new System.Collections.Generic.List<PersistentWorld.Networking.BossResultRow>();
+            foreach (var pair in tallies)
+            {
+                if (pair.Key == null) continue;
+                (ulong id, string name) = identify(pair.Key);
+                rows.Add(new PersistentWorld.Networking.BossResultRow
+                {
+                    id = id, name = name, character = (int)pair.Key.Loadout.Class,
+                    damage = pair.Value.Dealt, taken = pair.Value.Taken, deaths = pair.Value.Deaths
+                });
+            }
+            return new PersistentWorld.Networking.BossResultFrame
+            {
+                boss = displayName, seconds = engagedAt < 0 ? 0f : Time.time - engagedAt,
+                rows = rows.OrderByDescending(r => r.damage).ToArray()
+            };
+        }
 
         private ArcherController Nearest() =>
             Players().OrderBy(p => Vector2.Distance(p.transform.position, transform.position)).FirstOrDefault();

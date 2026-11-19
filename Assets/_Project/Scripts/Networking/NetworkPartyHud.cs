@@ -126,12 +126,12 @@ namespace PersistentWorld.Networking
                 GUILayout.BeginArea(ContextRect, GUI.skin.box);
                 if (partyContext)
                 {
-                    if (RpgGuiJuice.LayoutButton(me.area == (int)GameArea.BossArena ? "탈퇴하기 · 마을 귀환" : "탈퇴하기")) { Send(PartyCommand.Leave); context = false; }
+                    if (RpgGuiJuice.LayoutButton(GameAreas.IsBoss(me.area) ? "탈퇴하기 · 마을 귀환" : "탈퇴하기")) { Send(PartyCommand.Leave); context = false; }
                 }
                 else
                 {
                     PlayerFrame selected = world.Frame.players.FirstOrDefault(p => p.id == target);
-                    GUI.enabled = selected != null && selected.party == 0 && me.area != (int)GameArea.BossArena;
+                    GUI.enabled = selected != null && selected.party == 0 && !GameAreas.IsBoss(me.area);
                     if (RpgGuiJuice.LayoutButton("파티 초대")) { Send(PartyCommand.Invite, target); context = false; }
                     GUI.enabled = true;
                 }
@@ -139,17 +139,17 @@ namespace PersistentWorld.Networking
                 GUILayout.EndArea();
             }
             if (!string.IsNullOrEmpty(world.Frame.message)) DrawNotice(world.Frame.message, 18, 600, RpgGuiTheme.Gold);
-            if (me.area == (int)GameArea.BossArena && world.Frame.bossMax > 0)
+            if (GameAreas.IsBoss(me.area) && world.Frame.bossMax > 0)
             {
                 float width = Mathf.Min(360, Width - 24);
                 var bossBar = new Rect((Width - width) / 2, 78, width, 46);
                 RpgGuiTheme.Panel(bossBar, RpgGuiTheme.Red);
-                GUI.Label(new Rect(bossBar.x + 12, bossBar.y + 6, width - 24, 22), $"보스 HP {world.Frame.bossHp}/{world.Frame.bossMax}", menuTheme.Center);
+                GUI.Label(new Rect(bossBar.x + 12, bossBar.y + 6, width - 24, 22), $"보스 HP {world.Frame.bossHp}/{world.Frame.bossMax}" + (world.Frame.bossPhaseTwo ? " · 광폭화" : ""), menuTheme.Center);
                 Bar(new Rect(bossBar.x + 12, bossBar.y + 32, bossBar.width - 24, 5),
                     world.Frame.bossHp / (float)world.Frame.bossMax, new Color(.82f, .18f, .24f));
             }
-            if (me.area == (int)GameArea.BossArena && !string.IsNullOrEmpty(world.Frame.bossNotice)) PersistentWorld.World.BossWarningBanner.Draw(world.Frame.bossNotice, Width, 134);
-            if (me.hp == 0) DrawNotice("사망\n" + (me.area == (int)GameArea.BossArena ? "보스전 종료 또는 힐러 부활까지 대기" : "10초 후 마을 귀환"), Height / 2f - 35, 400, RpgGuiTheme.Red);
+            if (GameAreas.IsBoss(me.area) && !string.IsNullOrEmpty(world.Frame.bossNotice)) PersistentWorld.World.BossWarningBanner.Draw(world.Frame.bossNotice, Width, 134);
+            if (me.hp == 0) DrawNotice("사망\n" + (GameAreas.IsBoss(me.area) ? "보스전 종료 또는 힐러 부활까지 대기" : "10초 후 마을 귀환"), Height / 2f - 35, 400, RpgGuiTheme.Red);
             if (!menu && !ItemWindows.BlocksGameplay && !string.IsNullOrEmpty(world.Frame.prompt))
                 DrawNotice(world.Frame.prompt, CombatTop - 12, 400, RpgGuiTheme.Gold, true);
             if (!menu && me.area == (int)GameArea.Tutorial)

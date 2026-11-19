@@ -26,6 +26,8 @@ namespace PersistentWorld.Networking
         private double serverTime, receivedAt;
         private double clockOffset;
         private bool clockReady;
+        // 그림을 그리는 기준 서버 시각 (실제보다 0.1초 늦게 그려 두 화면 정보 사이를 부드럽게 잇는다)
+        public double RenderTime => System.Math.Min(serverTime, Time.unscaledTimeAsDouble + clockOffset - .10);
         public NetworkGameView(NetworkGameAssets registry, Transform parent)
         {
             assets = registry; root = parent;
@@ -61,10 +63,11 @@ namespace PersistentWorld.Networking
                         -5 => PersistentWorld.World.BossTelegraph.FramedSquareSprite,
                         -6 => PersistentWorld.World.SlimeJumpEnemyController.CircleSprite,
                         -7 => PersistentWorld.World.DroppedItem.Circle,
+                        -8 => null, // 늑대 위치 표시: 그림은 WolfPuppet이 직접 그린다
                         _ => square
                     };
-                    if (data.texture >= 0 && data.texture < assets.textures.Length && data.rect.width > 0 && data.rect.height > 0)
-                        sprite = Sprite.Create(assets.textures[data.texture], data.rect, data.pivot, Mathf.Max(1, data.ppu), 0, SpriteMeshType.FullRect);
+                    if (data.texture >= 0 && assets.TryGet(data.texture, out Texture2D texture) && data.rect.width > 0 && data.rect.height > 0)
+                        sprite = Sprite.Create(texture, data.rect, data.pivot, Mathf.Max(1, data.ppu), 0, SpriteMeshType.FullRect);
                     sprites[key] = sprite;
                 }
                 bool frozen = reactions.TryGetValue(data.id, out var hit) && Time.unscaledTime - hit.at < PersistentWorld.World.HitReaction.FreezeTime;
@@ -119,7 +122,7 @@ namespace PersistentWorld.Networking
         }
         public void Animate(float blend)
         {
-            double renderTime = System.Math.Min(serverTime, Time.unscaledTimeAsDouble + clockOffset - .10);
+            double renderTime = RenderTime;
             foreach (var pair in actors)
             {
                 SpriteFrame target = targets[pair.Key];
@@ -169,9 +172,7 @@ namespace PersistentWorld.Networking
                 if (effect.id == player.visual) continue;
                 if (effect.swordSwing && effect.follow == player.visual && effect.aim.sqrMagnitude > .001f)
                 { if (result.sqrMagnitude < .001f) result = effect.aim; continue; }
-                if (effect.texture < 0 || effect.texture >= assets.textures.Length) continue;
-                Texture2D texture = assets.textures[effect.texture];
-                if (texture == null) continue;
+                if (effect.texture < 0 || !assets.TryGet(effect.texture, out Texture2D texture)) continue;
                 string name = texture.name;
                 float sourceAngle;
                 switch (name)

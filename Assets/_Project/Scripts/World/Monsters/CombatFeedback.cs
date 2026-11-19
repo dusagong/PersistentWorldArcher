@@ -266,7 +266,11 @@ namespace PersistentWorld.World
         {
             if (target == null || target.GetComponent<CombatFeedback>() != null) return;
             if (target.Faction == Faction.Enemy)
-                target.gameObject.AddComponent<CombatFeedback>();
+            {
+                var feedback = target.gameObject.AddComponent<CombatFeedback>();
+                // 늑대 보스는 화면 위쪽 보스 체력바(페이즈마다 한 줄)가 따로 있다: 머리 위 체력바는 띄우지 않는다
+                if (target.GetComponent<WolfBossController>() != null) feedback.showHealthBar = false;
+            }
             else if (target.CompareTag("Player"))
                 target.gameObject.AddComponent<CombatFeedback>().Configure(false, false, false, new Color(1f, .35f, .35f));
         }

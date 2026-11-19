@@ -21387,7 +21387,7 @@ GameObject:
   - component: {fileID: 459476077}
   - component: {fileID: 459476076}
   m_Layer: 0
-  m_Name: BossArena Gate
+  m_Name: WolfArena Gate
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -21405,8 +21405,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 348bb0a6bcab9214d9240caffc8cd4db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  destinationScene: BossArena
-  prompt: "\uBCF4\uC2A4 \uC785\uC7A5 \xB7 \uD30C\uD2F0\uC7A5 F"
+  destinationScene: WolfArena
+  prompt: "\uB291\uB300 \uBCF4\uC2A4 \uC785\uC7A5 \xB7 \uD30C\uD2F0\uC7A5 F"
 --- !u!61 &459476072
 BoxCollider2D:
   m_ObjectHideFlags: 0

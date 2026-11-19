@@ -20,7 +20,7 @@ namespace PersistentWorld.Networking
     {
         public static NetworkGameWorld Instance { get; private set; }
         public NetworkManager manager;
-        public GameObject actorPrefab, bossPrefab;
+        public GameObject actorPrefab, bossPrefab, wolfPrefab;
         public Transform[] maps;
         public NetworkGameAssets assets;
         public Camera gameCamera;
@@ -33,12 +33,20 @@ namespace PersistentWorld.Networking
         public PlayerFrame Local => Frame?.players?.FirstOrDefault(p => p.id == manager.LocalClientId);
         public bool BossBattleActive => Parties.BossParty != 0 && CurrentBoss != null && !CurrentBoss.GetComponent<Health>().IsDead;
         public BossController CurrentBoss { get; private set; }
+        // 늑대 보스방(두 번째 필드의 보스)
+        public WolfBossController CurrentWolf { get; private set; }
+        public bool BattleActiveIn(GameArea area) => area == GameArea.WolfArena
+            ? Parties.RoomParty(GameArea.WolfArena) != 0 && CurrentWolf != null && !CurrentWolf.GetComponent<Health>().IsDead
+            : BossBattleActive;
         public int ValidationStage { get; set; }
         private readonly HashSet<SpriteRenderer> scenery = new HashSet<SpriteRenderer>();
-        private readonly Dictionary<Texture2D, int> textureIds = new Dictionary<Texture2D, int>();
         private readonly Dictionary<ulong, string> messages = new Dictionary<ulong, string>();
         private readonly Dictionary<ulong, float> messageTimes = new Dictionary<ulong, float>();
-        private ServerWorldEntity boss;
+        private ServerWorldEntity boss, wolf;
+        // 늑대 이펙트 신호: 그림 보간과 같은 시각(0.1초 늦게)에 재생하려고 잠깐 모아 둔다
+        private readonly List<EffectFrame> pendingWolfFx = new List<EffectFrame>();
+        private GameArea bossResultArea;
+        private int previousWolfParty;
         private NetworkGameView view;
         public Vector3 RenderedPosition(int visual, Vector3 fallback) => view != null ? view.Position(visual, fallback) : fallback;
         private NetworkPartyHud hud;
@@ -87,6 +95,9 @@ namespace PersistentWorld.Networking
                     if (clientDoom != null) Destroy(clientDoom.gameObject);
                     clientDoom = null;
                     break;
+                case EffectFrame.WolfFx:
+                    WolfFxNet.Replay(effect);
+                    break;
                 case EffectFrame.ChargeWarn:
                     // 신호가 기록된 뒤 이 화면 정보가 만들어지기까지 지난 시간(서버 기준)만큼 경고를 줄여 보스 출발과 맞춘다
                     if (Frame != null) effect.duration -= Mathf.Max(0f, (float)(Frame.time - effect.time));
@@ -99,7 +110,7 @@ namespace PersistentWorld.Networking
         private int previousBossParty;
         private int viewedArea = -1;
         public static Vector2 Origin(GameArea area) => Vector2.right * ((int)area * 1000);
-        public static GameArea AreaAt(Vector2 position) => (GameArea)Mathf.Clamp(Mathf.RoundToInt(position.x / 1000), 0, 4);
+        public static GameArea AreaAt(Vector2 position) => (GameArea)Mathf.Clamp(Mathf.RoundToInt(position.x / 1000), 0, (int)GameArea.WolfArena);
         public static bool SameArea(Vector2 a, Vector2 b) => Instance == null || AreaAt(a) == AreaAt(b);
 
         private void Awake()
@@ -108,7 +119,6 @@ namespace PersistentWorld.Networking
             Instance = this;
             Health.DamageApplied += RecordHit;
             Application.runInBackground = true;
-            for (int i = 0; i < assets.textures.Length; i++) if (assets.textures[i] != null) textureIds[assets.textures[i]] = i;
             bool server = NetworkSandbox.HasArgument("-pwa-server");
 #if UNITY_SERVER && !UNITY_EDITOR
             server = true;
@@ -125,7 +135,8 @@ namespace PersistentWorld.Networking
                 {
                     entity.SetSimulation(false);
                     if (!server) foreach (Renderer renderer in entity.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
-                    if (entity.GetComponent<BossController>() != null) { boss = entity; CurrentBoss = entity.GetComponent<BossController>(); }
+                    if (entity.GetComponent<WolfBossController>() != null) { wolf = entity; CurrentWolf = entity.GetComponent<WolfBossController>(); }
+                    else if (entity.GetComponent<BossController>() != null) { boss = entity; CurrentBoss = entity.GetComponent<BossController>(); }
                 }
             }
             manager.OnServerStarted += ServerStarted;
@@ -144,10 +155,11 @@ namespace PersistentWorld.Networking
         private void ServerStarted()
         {
             CurrentBoss.GetComponent<Health>().Died += AwardBoss;
+            if (CurrentWolf != null) CurrentWolf.GetComponent<Health>().Died += AwardWolf;
             foreach (ServerWorldEntity entity in FindObjectsByType<ServerWorldEntity>(FindObjectsSortMode.None))
             {
                 if (entity.area == GameArea.Field || entity.area == GameArea.Field2) PrepareFieldEnemy(entity);
-                if (entity.area != GameArea.BossArena) entity.SetSimulation(true);
+                if (!entity.area.IsBoss()) entity.SetSimulation(true);
             }
         }
         private void ClientConnected(ulong id)
@@ -229,7 +241,7 @@ namespace PersistentWorld.Networking
                 case PartyCommand.Accept: Parties.Respond(id, true, Time.unscaledTime, out reason); break;
                 case PartyCommand.Decline: Parties.Respond(id, false, Time.unscaledTime, out reason); break;
                 case PartyCommand.Leave:
-                    bool inBoss = Parties.Members[id].Area == GameArea.BossArena;
+                    bool inBoss = Parties.Members[id].Area.IsBoss();
                     if (Parties.Leave(id, out reason) && inBoss) ReturnToTown(id);
                     break;
                 case PartyCommand.Interact: Interact(id); break;
@@ -247,7 +259,7 @@ namespace PersistentWorld.Networking
                     break;
                 case PartyCommand.Menu: actor.SetMenuOpen(first != 0); break;
                 case PartyCommand.Tutorial:
-                    if (Parties.Members[id].Area == GameArea.BossArena || actor.Health.IsDead)
+                    if (Parties.Members[id].Area.IsBoss() || actor.Health.IsDead)
                     { reason = "보스전 또는 사망 중에는 연습장에 입장할 수 없습니다."; break; }
                     if (Parties.Members[id].Area == GameArea.Tutorial) ReturnToTown(id);
                     else
@@ -289,21 +301,28 @@ namespace PersistentWorld.Networking
         {
             if (!manager.IsServer || !Actors.TryGetValue(id, out ArcherController actor) || actor.Health.IsDead ||
                 Vector2.Distance(actor.transform.position, portal.transform.position) > 1.3f) return;
-            if (portal.Destination == "BossArena")
+            if (portal.Destination == "BossArena" || portal.Destination == "WolfArena")
             {
+                GameArea room = portal.Destination == "WolfArena" ? GameArea.WolfArena : GameArea.BossArena;
+                ServerWorldEntity entity = room == GameArea.WolfArena ? wolf : boss;
+                if (entity == null) { Message(id, "보스가 아직 준비되지 않았습니다."); return; }
                 SyncMembers();
-                if (!Parties.EnterBoss(id, out ulong[] entering, out string reason)) { Message(id, reason); return; }
-                for (int i = 0; i < entering.Length; i++) Teleport(entering[i], GameArea.BossArena, mapSpawns[(int)GameArea.BossArena] + Vector2.right * (.6f * i));
-                boss.SetSimulation(true); previousBossParty = Parties.BossParty;
+                if (!Parties.EnterBoss(id, room, out ulong[] entering, out string reason)) { Message(id, reason); return; }
+                for (int i = 0; i < entering.Length; i++) Teleport(entering[i], room, mapSpawns[(int)room] + Vector2.right * (.6f * i));
+                entity.SetSimulation(true);
+                if (room == GameArea.WolfArena) previousWolfParty = Parties.RoomParty(room); else previousBossParty = Parties.BossParty;
                 foreach (ulong member in entering) Message(member, reason);
             }
-            else if (Parties.Members[id].Area == GameArea.BossArena)
+            else if (Parties.Members[id].Area.IsBoss())
             {
+                // 보스방에서 나가는 문: 그 방의 파티원이 함께 나간다 (살아 있으면 문이 가리키는 필드로, 아니면 마을로)
+                GameArea room = Parties.Members[id].Area;
+                GameArea? field = portal.Destination == "Field" ? GameArea.Field : portal.Destination == "Field2" ? GameArea.Field2 : (GameArea?)null;
                 foreach (PartyMember member in Parties.Group(Parties.Members[id].Party))
                 {
-                    if (member.Area != GameArea.BossArena) continue;
-                    if (portal.Destination == "Field" && !Actors[member.Id].Health.IsDead)
-                        Teleport(member.Id, GameArea.Field, mapSpawns[(int)GameArea.Field]);
+                    if (member.Area != room) continue;
+                    if (field is GameArea target && !Actors[member.Id].Health.IsDead)
+                        Teleport(member.Id, target, mapSpawns[(int)target]);
                     else ReturnToTown(member.Id);
                 }
             }
@@ -340,6 +359,8 @@ namespace PersistentWorld.Networking
                 Frame = null;
                 viewedArea = -1;
                 view?.Clear();
+                WolfPuppet.Remove();
+                pendingWolfFx.Clear();
                 ApplyInventory(null);
                 clientSmithRequest = 0;
                 return;
@@ -358,17 +379,24 @@ namespace PersistentWorld.Networking
                         Teleport(pair.Key, area, mapSpawns[(int)area]);
                     }
             SyncMembers(); Parties.Expire(Time.unscaledTime);
-            if (Parties.BossParty != 0)
+            // 보스방마다: 들어간 파티가 전멸하면 마을로
+            foreach (GameArea room in GameAreas.BossRooms)
             {
-                PartyMember[] fighting = Parties.Group(Parties.BossParty).Where(p => p.Area == GameArea.BossArena).ToArray();
+                int party = Parties.RoomParty(room);
+                if (party == 0) continue;
+                PartyMember[] fighting = Parties.Group(party).Where(p => p.Area == room).ToArray();
                 if (fighting.Length > 0 && fighting.All(p => !p.Alive)) foreach (PartyMember member in fighting) ReturnToTown(member.Id);
             }
             if (previousBossParty != 0 && Parties.BossParty == 0) ResetBoss();
             previousBossParty = Parties.BossParty;
+            int wolfParty = Parties.RoomParty(GameArea.WolfArena);
+            if (previousWolfParty != 0 && wolfParty == 0) ResetWolf();
+            previousWolfParty = wolfParty;
             if (Time.unscaledTime < nextFrame) return;
             nextFrame = Time.unscaledTime + .1f;
             recentHits.RemoveAll(hit => Time.unscaledTimeAsDouble - hit.time > 1);
-            recentEffects.RemoveAll(effect => Time.unscaledTimeAsDouble - effect.time > 1);
+            // 늑대 이펙트는 아주 잦아서 짧게만 들고 있는다 (화면 정보는 0.1초마다 빠짐없이 가므로 충분하다)
+            recentEffects.RemoveAll(effect => Time.unscaledTimeAsDouble - effect.time > (effect.kind == EffectFrame.WolfFx ? .5 : 1));
             var renderers = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
             var lineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None);
             var frames = new GameFrame[maps.Length];
@@ -388,7 +416,7 @@ namespace PersistentWorld.Networking
                 frame.prompt = NearbyPrompt(Actors[recipient]);
                 frame.tutorial = tutorialProgress.TryGetValue(recipient, out int progress) ? progress : 0;
                 frame.practice = PracticeTargets(recipient);
-                frame.bossResult = bossResult != null && area == (int)GameArea.BossArena && bossResult.rows.Any(r => r.id == recipient) ? bossResult : null;
+                frame.bossResult = bossResult != null && area == (int)bossResultArea && bossResult.rows.Any(r => r.id == recipient) ? bossResult : null;
                 smithRequests.TryGetValue(recipient, out frame.smithRequest);
                 if (Parties.Invitations.TryGetValue(recipient, out PartyInvitation invitation))
                 {
@@ -405,15 +433,34 @@ namespace PersistentWorld.Networking
         }
         private void ResetBoss()
         {
-            bossResult = null;
+            if (bossResultArea == GameArea.BossArena) bossResult = null;
             if (boss != null) { boss.SetSimulation(false); Destroy(boss.gameObject); }
-            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
-                if (root != gameObject && root.transform.parent == null && root.GetComponent<NetworkObject>() == null &&
-                    root.GetComponent<NetworkActorContext>() == null && AreaAt(root.transform.position) == GameArea.BossArena &&
-                    !maps.Any(m => m.gameObject == root)) Destroy(root);
+            ClearRoom(GameArea.BossArena);
             boss = Instantiate(bossPrefab, maps[(int)GameArea.BossArena]).GetComponent<ServerWorldEntity>();
             boss.SetSimulation(false); CurrentBoss = boss.GetComponent<BossController>();
             CurrentBoss.GetComponent<Health>().Died += AwardBoss;
+        }
+        // 늑대방을 비우고 새 늑대를 세운다 (파티가 나가거나 전멸했을 때)
+        private void ResetWolf()
+        {
+            if (bossResultArea == GameArea.WolfArena) bossResult = null;
+            if (wolf != null) { wolf.SetSimulation(false); Destroy(wolf.gameObject); }
+            WolfWipeBanner.Hide();
+            WolfSliceZone.ClearAll();
+            WolfRed.Set(0f);
+            ClearRoom(GameArea.WolfArena);
+            if (wolfPrefab == null) { wolf = null; CurrentWolf = null; return; }
+            wolf = Instantiate(wolfPrefab, maps[(int)GameArea.WolfArena]).GetComponent<ServerWorldEntity>();
+            wolf.SetSimulation(false); CurrentWolf = wolf.GetComponent<WolfBossController>();
+            CurrentWolf.GetComponent<Health>().Died += AwardWolf;
+        }
+        // 보스방에 남은 연출 조각(경고 장판·투사체 등)을 지운다
+        private void ClearRoom(GameArea room)
+        {
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                if (root != gameObject && root.transform.parent == null && root.GetComponent<NetworkObject>() == null &&
+                    root.GetComponent<NetworkActorContext>() == null && AreaAt(root.transform.position) == room &&
+                    !maps.Any(m => m.gameObject == root)) Destroy(root);
         }
         private GameFrame Capture(GameArea area, SpriteRenderer[] renderers, LineRenderer[] lineRenderers)
         {
@@ -423,7 +470,8 @@ namespace PersistentWorld.Networking
                 if (!renderer.enabled || renderer.sprite == null || renderer.name == "Hit Flash" || scenery.Contains(renderer) || AreaAt(renderer.transform.position) != area || renderer.GetComponent<NetworkSandboxPlayer>() != null) continue;
                 Sprite sprite = renderer.sprite;
                 int texture = -1;
-                if (textureIds.TryGetValue(sprite.texture, out int index)) texture = index;
+                if (renderer.GetComponent<WolfBossController>() != null) texture = -8; // 늑대 몸: 위치만 보낸다 (그림은 클라이언트 인형이)
+                else if (assets.TryGetId(sprite.texture, out int textureId)) texture = textureId;
                 else if (renderer.GetComponent<ActorShadow>() != null) texture = -2;
                 else if (sprite.name == GroundBurst.CircleSpriteName) texture = -3;
                 else if (sprite.name == "Jump Warning Circle") texture = -6;
@@ -475,15 +523,48 @@ namespace PersistentWorld.Networking
                     attacks = attackSequences.TryGetValue(pair.Key, out int attacks) ? attacks : 0,
                     bossLearned = actor.Loadout.BossLearned, books = actor.Loadout.BossSkillBooks };
             }).ToArray();
+            bool wolfRoom = area == GameArea.WolfArena;
+            Health bossHealth = wolfRoom ? (CurrentWolf != null ? CurrentWolf.GetComponent<Health>() : null) : (CurrentBoss != null ? CurrentBoss.GetComponent<Health>() : null);
+            int bossHp = bossHealth != null ? bossHealth.Current : 0, bossMax = bossHealth != null ? bossHealth.Maximum : 0;
+            if (wolfRoom && CurrentWolf != null) CurrentWolf.BarValues(out bossHp, out bossMax); // 늑대는 페이즈마다 한 줄
             GameFrame frame = new GameFrame { time = Time.unscaledTimeAsDouble,
                 hits = recentHits.Where(hit => AreaAt(hit.position) == area).ToArray(),
                 effects = recentEffects.Where(effect => AreaAt(effect.position) == area).ToArray(),
-                players = players, sprites = visuals.ToArray(), lines = lines.ToArray(), bossParty = Parties.BossParty, validationStage = ValidationStage,
-                bossHp = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Current : 0, bossMax = CurrentBoss != null ? CurrentBoss.GetComponent<Health>().Maximum : 0,
-                bossPhaseTwo = CurrentBoss != null && CurrentBoss.IsPhaseTwo };
+                players = players, sprites = visuals.ToArray(), lines = lines.ToArray(),
+                bossParty = wolfRoom ? Parties.RoomParty(GameArea.WolfArena) : Parties.BossParty, validationStage = ValidationStage,
+                bossHp = bossHp, bossMax = bossMax,
+                bossPhaseTwo = wolfRoom ? CurrentWolf != null && CurrentWolf.IsPhaseTwo : CurrentBoss != null && CurrentBoss.IsPhaseTwo };
             if (area == GameArea.BossArena)
                 frame.bossNotice = FindObjectsByType<TextMesh>(FindObjectsSortMode.None).FirstOrDefault(t => t.text.Contains("즉사기") && SameArea(t.transform.position, Origin(area)))?.text;
+            if (wolfRoom)
+            {
+                frame.bossNotice = WolfWipeBanner.Current;
+                frame.wolf = WolfSnapshot();
+            }
             return frame;
+        }
+        // 클라이언트: 그 번호 사람이 화면에 그려지는 위치 (같은 구역에 없으면 null)
+        public Vector3? PlayerRenderedPosition(ulong id)
+        {
+            PlayerFrame player = Frame?.players?.FirstOrDefault(p => p.id == id);
+            if (player == null || Local == null || player.area != Local.area || player.hp <= 0) return null;
+            return player.renderedPosition;
+        }
+
+        // 클라이언트 늑대 인형에게 보낼 지금 상태
+        private WolfFrame WolfSnapshot()
+        {
+            if (CurrentWolf == null || !CurrentWolf.isActiveAndEnabled) return null;
+            WolfSpriteAnimator art = CurrentWolf.GetComponent<WolfSpriteAnimator>();
+            SpriteRenderer body = CurrentWolf.GetComponent<SpriteRenderer>();
+            if (art == null || body == null || !art.Ready) return null;
+            Vector2 shape = art.ShapeTarget;
+            return new WolfFrame
+            {
+                visual = body.GetInstanceID(), clip = art.CurrentClip, clipStart = Time.unscaledTimeAsDouble - art.ClipElapsed,
+                right = art.LookingRight, alive = !CurrentWolf.GetComponent<Health>().IsDead, lift = art.Lift,
+                shapeX = shape.x, shapeY = shape.y, shapeSpeed = art.ShapeSpeed, red = WolfRed.Amount, scale = art.BaseScale, sortBias = art.SortBias
+            };
         }
         private void Receive(ulong sender, FastBufferReader reader)
         {
@@ -513,15 +594,21 @@ namespace PersistentWorld.Networking
                 {
                     viewedArea = local.area;
                     view.Clear();
+                    WolfPuppet.Remove();
+                    pendingWolfFx.Clear();
                     gameCamera.transform.position = CameraTarget(local);
+                    cameraBase = gameCamera.transform.position; cameraBaseReady = true;
                     gameCamera.backgroundColor = mapBackgrounds[viewedArea];
                     gameCamera.orthographicSize = mapCameraSizes[viewedArea];
                     for (int i = 0; i < maps.Length; i++) maps[i].gameObject.SetActive(i == viewedArea);
                     // 보스방에 들어가면 보스 얼굴과 이름을 잠깐 보여 준다 (서버 보스도 그동안 공격하지 않는다)
                     if (viewedArea == (int)GameArea.BossArena && bossPrefab != null && bossPrefab.GetComponent<BossController>() is BossController bossInfo)
                         PersistentWorld.World.BossIntro.Show(bossInfo.DisplayName, bossInfo.DisplayTitle, bossInfo.Portrait);
+                    if (viewedArea == (int)GameArea.WolfArena && wolfPrefab != null && wolfPrefab.GetComponent<WolfBossController>() is WolfBossController wolfInfo)
+                        PersistentWorld.World.BossIntro.Show(wolfInfo.DisplayName, wolfInfo.DisplayTitle, wolfInfo.Portrait);
                 }
                 view.Apply(Frame);
+                WolfPuppet.Sync(Frame, viewedArea == (int)GameArea.WolfArena, maps[(int)GameArea.WolfArena]);
                 PlayerFrame oldLocal = previous?.players?.FirstOrDefault(p => p.id == local.id);
                 if (oldLocal != null && oldLocal.area == local.area)
                 {
@@ -537,7 +624,7 @@ namespace PersistentWorld.Networking
                     if (hit.sequence <= lastHit) continue;
                     lastHit = hit.sequence;
                     DamageNumber.Spawn(hit.position, hit.amount.ToString(), hit.player ? new Color(1, .5f, .4f) : Color.white);
-                    view.Flash(hit.visual);
+                    if (!WolfPuppet.Flash(hit.visual)) view.Flash(hit.visual);
                     if (!hit.player) view.React(hit.visual, NearestPlayerPosition(hit.position));
                     GameAudio.Hit(hit.player);
                 }
@@ -545,7 +632,8 @@ namespace PersistentWorld.Networking
                 {
                     if (effect.sequence <= lastEffect) continue;
                     lastEffect = effect.sequence;
-                    PlayEffect(effect);
+                    if (effect.kind == EffectFrame.WolfFx || (effect.kind == EffectFrame.ChargeWarn && effect.crater)) pendingWolfFx.Add(effect); // 늑대 몸과 같은 시각에 재생
+                    else PlayEffect(effect);
                 }
             }
             catch (Exception error) { Debug.LogWarning("Game frame rejected: " + error.Message); }
@@ -563,17 +651,36 @@ namespace PersistentWorld.Networking
                 }
             return best;
         }
+        private Vector3 cameraBase;
+        private bool cameraBaseReady;
         private static Vector3 CameraTarget(PlayerFrame local) => new Vector3(local.position.x, local.position.y + .4f, -10);
         private void LateUpdate()
         {
             if (view == null || Local is not PlayerFrame local) return;
             float blend = 1 - Mathf.Exp(-20 * Time.unscaledDeltaTime);
             view.Animate(blend);
+            WolfPuppet.Animate(view);
+            // 늑대 이펙트: 그림이 보간되어 그려지는 서버 시각(0.1초 전)에 이르면 재생한다 (너무 밀리면 바로)
+            if (pendingWolfFx.Count > 0)
+            {
+                double renderTime = view.RenderTime;
+                for (int i = 0; i < pendingWolfFx.Count; i++)
+                {
+                    EffectFrame effect = pendingWolfFx[i];
+                    if (effect.time > renderTime && effect.time - renderTime < .5) continue;
+                    pendingWolfFx.RemoveAt(i--);
+                    if (effect.kind == EffectFrame.ChargeWarn) PersistentWorld.World.ChargeWarning.Replay(effect);
+                    else WolfFxNet.Replay(effect);
+                }
+            }
             foreach (PlayerFrame player in Frame.players)
                 player.renderedPosition = view.Position(player.visual, player.position);
             Vector3 target = new Vector3(local.renderedPosition.x, local.renderedPosition.y + .4f, -10);
             Transform cameraBody = gameCamera.transform;
-            cameraBody.position = Vector3.Lerp(cameraBody.position, target, (cameraBody.position - target).sqrMagnitude > 25 ? 1 : blend);
+            // 따라가기는 흔들림을 뺀 위치로 계산하고, 흔들림(늑대 연출 신호 등)은 마지막에 더한다
+            if (!cameraBaseReady) { cameraBase = cameraBody.position; cameraBaseReady = true; }
+            cameraBase = Vector3.Lerp(cameraBase, target, (cameraBase - target).sqrMagnitude > 25 ? 1 : blend);
+            cameraBody.position = cameraBase + (Vector3)CameraFollow.ShakeOffset;
         }
         public static byte[] Compress(string json)
         {

@@ -42,7 +42,7 @@ namespace PersistentWorld.Networking
             GUI.Label(new Rect(14, 14, rect.width - 28, 22), me.party == 0 ? "파티 없음" : "파티 · 우클릭으로 탈퇴", menuTheme.SmallLeft);
             if (me.party == 0)
             {
-                GUI.enabled = me.area != (int)GameArea.BossArena;
+                GUI.enabled = !GameAreas.IsBoss(me.area);
                 if (RpgGuiJuice.Button(new Rect(12, 39, rect.width - 24, 30), "1인 파티 만들기", menuTheme.SmallButton)) Send(PartyCommand.Create);
                 GUI.enabled = true;
             }
@@ -104,6 +104,7 @@ namespace PersistentWorld.Networking
             GameArea.Field => "필드",
             GameArea.Field2 => "두 번째 필드",
             GameArea.BossArena => "보스방",
+            GameArea.WolfArena => "늑대 보스방",
             GameArea.Tutorial => "튜토리얼",
             _ => area.ToString(),
         };
@@ -263,7 +264,7 @@ namespace PersistentWorld.Networking
             {
                 GUILayout.Label("WASD로 이동하고 마우스로 조준합니다.\n우클릭: 평타 / 좌클릭: 직업 특수 스킬\nSpace: 회피 / Q·E·Shift: 장착한 스킬\n차징·범위 스킬은 키를 누른 채 조준하고 놓으면 사용됩니다.\n1·2: 장착한 포션 (각 10초 쿨타임)\nF: 가까운 NPC·포탈 상호작용\nK: 스킬 / I: 인벤토리 / ESC: 메뉴\n다른 플레이어 우클릭: 파티 초대\n파티 창 우클릭: 파티 탈퇴\n힐러 부활은 사망한 아군이 가까이 있어야 사용할 수 있습니다.");
                 GUILayout.Space(14);
-                GUI.enabled = me.hp > 0 && me.area != (int)GameArea.BossArena;
+                GUI.enabled = me.hp > 0 && !GameAreas.IsBoss(me.area);
                 if (RpgGuiJuice.LayoutButton(me.area == (int)GameArea.Tutorial ? "연습 종료" : "안전한 연습장에서 직접 해보기"))
                 { menu = false; Send(PartyCommand.Menu); Send(PartyCommand.Tutorial); }
                 GUI.enabled = true; return;

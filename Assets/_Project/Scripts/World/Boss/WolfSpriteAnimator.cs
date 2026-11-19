@@ -148,6 +148,25 @@ namespace PersistentWorld.World
         public bool Ready { get; private set; }
         public string CurrentClip => clip;
 
+        // ---------- 온라인 ----------
+        // 서버: 클라이언트 인형에게 보낼 지금 상태
+        public float ClipElapsed => Time.time - clipStartedAt;
+        public bool LookingRight => lookingRight;
+        public float Lift => lift;
+        public Vector2 ShapeTarget => shapeTarget;
+        public float ShapeSpeed => shapeSpeed;
+        public float BaseScale => Mathf.Abs(baseScale.x);
+        // 클라이언트 인형: 스스로 걷기·방향·다음 동작을 정하지 않고 서버가 정한 대로만 그린다 (그림자도 서버 것을 쓴다)
+        public bool Puppet { get; set; }
+        public void Pose(string name, float elapsed, bool right)
+        {
+            if (clip != name && Clips.TryGetValue(name, out Clip next) && frames.ContainsKey(next.Sheet)) clip = name;
+            clipStartedAt = Time.time - Mathf.Max(0f, elapsed);
+            lookingRight = right;
+        }
+        public Sprite CurrentSprite => visual != null ? visual.sprite : null;
+        public bool FlipX => visual != null && visual.flipX;
+
         private void Awake()
         {
             visual = GetComponent<SpriteRenderer>();
@@ -185,8 +204,8 @@ namespace PersistentWorld.World
             visual.color = Color.white;
             WolfRed.Apply(visual); // 2페이즈에 초록이 빨강으로 바뀌는 머티리얼
             lastPosition = transform.position;
-            shadow = ActorShadow.Attach(transform, bodyHeight * uniform * 1.3f, bodyHeight * uniform * .5f);
-            Play("Idle");
+            if (!Puppet) shadow = ActorShadow.Attach(transform, bodyHeight * uniform * 1.3f, bodyHeight * uniform * .5f);
+            if (!Puppet) Play("Idle");
         }
 
         public void Play(string name)
@@ -308,6 +327,7 @@ namespace PersistentWorld.World
         private void Update()
         {
             if (!Ready) return;
+            if (Puppet) { DrawPuppet(); return; }
             if (Time.time < freezeUntil)
             {
                 clipStartedAt += Time.deltaTime; // 멈춘 동안은 동작 시간이 흐르지 않는다
@@ -338,6 +358,18 @@ namespace PersistentWorld.World
             // 원본이 보는 쪽과 봐야 할 쪽이 다르면 뒤집는다
             visual.flipX = lookingRight != current.FacesRight;
             lastPosition = transform.position;
+        }
+
+        // 인형: 서버가 정한 동작의 지금 그림만 고른다 (끝나면 마지막 그림에 멈춰 다음 지시를 기다린다)
+        private void DrawPuppet()
+        {
+            Clip current = Clips[clip];
+            int step = Mathf.Max(0, Mathf.FloorToInt((Time.time - clipStartedAt) / current.FrameSeconds));
+            int index = current.Index(current.Loop ? step % current.Count : Mathf.Min(step, current.Count - 1));
+            visual.sprite = frames[current.Sheet][index];
+            shownSheet = current.Sheet;
+            shownIndex = index;
+            visual.flipX = lookingRight != current.FacesRight;
         }
 
         // 대기·걷기 사이 전환: 출발/멈춤 동작을 끼워 넣는다. 다른 동작(공격 등)을 재생 중이면 건드리지 않는다.

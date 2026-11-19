@@ -40,9 +40,17 @@ namespace PersistentWorld.World
                 basePosition = Vector3.SmoothDamp(basePosition, desired, ref velocity, smoothTime);
             }
 
-            float t = (Time.time - shakeStartedAt) / shakeDuration;
-            Vector2 shake = t < 1f ? Random.insideUnitCircle * shakeMagnitude * (1f - t) : Vector2.zero;
-            transform.position = basePosition + (Vector3)shake;
+            transform.position = basePosition + (Vector3)ShakeOffset;
+        }
+
+        // 지금 흔들림 (온라인 카메라도 이 값을 더한다)
+        public static Vector2 ShakeOffset
+        {
+            get
+            {
+                float t = (Time.time - shakeStartedAt) / Mathf.Max(.01f, shakeDuration);
+                return t < 1f ? Random.insideUnitCircle * shakeMagnitude * (1f - t) : Vector2.zero;
+            }
         }
     }
 }

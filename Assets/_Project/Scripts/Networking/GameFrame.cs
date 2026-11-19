@@ -54,6 +54,20 @@ namespace PersistentWorld.Networking
         public PracticeFrame[] practice;
         // 보스를 잡은 직후 보스방에 있는 참가자에게만 실린다. sequence가 0이면 없음.
         public BossResultFrame bossResult;
+        // 늑대 보스방에 있는 사람에게만: 늑대 인형을 그릴 정보 (null이면 늑대 없음)
+        public WolfFrame wolf;
+    }
+    // 늑대는 서버 그림을 찍어 보내지 않고, 각 클라이언트가 같은 그림·동작으로 직접 그린다(인형).
+    // 서버는 지금 동작 이름과 그 동작을 시작한 서버 시각, 보는 쪽, 공중 높이, 몸 비율, 붉은 정도만 보낸다.
+    // 위치는 visual(같은 번호의 위치 표시 그림)로 다른 그림들과 같은 보간을 탄다.
+    [Serializable] public sealed class WolfFrame
+    {
+        public int visual;
+        public string clip;
+        public double clipStart;
+        public bool right, alive;
+        public float lift, shapeX, shapeY, shapeSpeed, red, scale;
+        public int sortBias;
     }
     // 보스 딜량표: 누가 얼마나 때렸고 얼마나 맞았는지
     [Serializable] public sealed class BossResultFrame
@@ -85,12 +99,15 @@ namespace PersistentWorld.Networking
     // 보이기만 하는 연출(흙먼지·돌조각·즉사기)은 서버가 그리지 않고 이 신호만 보낸다. 각 클라이언트가 직접 그린다.
     [Serializable] public sealed class EffectFrame
     {
-        public const int Burst = 1, DoomBegin = 2, DoomDetonate = 3, DoomCancel = 4, ChargeWarn = 5;
+        public const int Burst = 1, DoomBegin = 2, DoomDetonate = 3, DoomCancel = 4, ChargeWarn = 5, WolfFx = 6;
         public int sequence, kind, chunks, puffs, debris;
         public Vector2 position, direction, size;
         public float radius, power, scale, linger, duration;
         public bool crater;
         public Color[] colors;
         public double time;
+        // 늑대 이펙트(WolfFx): 어떤 이펙트인지(op)와 숫자 인자들
+        public int op;
+        public float[] args;
     }
 }

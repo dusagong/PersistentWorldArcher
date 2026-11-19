@@ -11,6 +11,7 @@ namespace PersistentWorld.World
         // 속도선: 진행 방향으로 길게 뻗은 빛줄기가 뒤로 흩날리며 사라진다
         public static void SpeedLine(Vector2 at, Vector2 direction, Color color)
         {
+            if (WolfFxNet.Send(WolfFxNet.SpeedLine, at, direction, color.r, color.g, color.b, color.a)) return;
             if (streak == null) streak = MakeStreak();
             var obj = new GameObject("Wolf Speed Line");
             obj.transform.position = at;
@@ -25,6 +26,7 @@ namespace PersistentWorld.World
         // 짐승이 마구 할퀴고 간 느낌이 나도록 자리·각도·크기·좌우를 매번 크게 흩뜨리고, 가끔 겹쳐 긁힌 자국을 하나 더 남긴다.
         public static void Scrape(Vector2 at, Vector2 direction)
         {
+            if (WolfFxNet.Send(WolfFxNet.Scrape, at, direction)) return;
             if (scrape == null) scrape = Load("Boss/Wolf/WolfScrape", 32f);
             if (scrape == null) return;
             Vector2 forward = direction.sqrMagnitude > .001f ? direction.normalized : Vector2.left;
@@ -49,6 +51,7 @@ namespace PersistentWorld.World
         // 내려찍은 자리의 바닥 균열
         public static void Crack(Vector2 at, float size)
         {
+            if (WolfFxNet.Send(WolfFxNet.Crack, at, Vector2.zero, size)) return;
             if (crack == null) crack = Load("Boss/DoomCrack", 32f);
             if (crack == null) return;
             var obj = new GameObject("Wolf Slam Crack");

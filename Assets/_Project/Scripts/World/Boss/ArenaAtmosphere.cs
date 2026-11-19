@@ -66,7 +66,8 @@ namespace PersistentWorld.World
             if (lights != null)
                 foreach (LightPool light in lights)
                 {
-                    Vector2 offset = NetworkGameWorld.Instance == null ? Vector2.zero : NetworkGameWorld.Origin(GameArea.BossArena);
+                    // 온라인은 한 장면에 구역들이 나란히 놓인다: 이 연출이 놓인 구역(골렘방·늑대방)만큼 옮긴다
+                    Vector2 offset = NetworkGameWorld.Instance == null ? Vector2.zero : NetworkGameWorld.Origin(NetworkGameWorld.AreaAt(transform.position));
                     SpriteRenderer r = Create("Light Pool", light.position + offset, GroundOrder);
                     r.transform.localScale = new Vector3(light.radius * 2f, light.radius * 1.5f, 1f);
                     pools.Add(new Pool { Renderer = r, Color = light.color, Phase = Random.value * 6f });

@@ -20,6 +20,7 @@ namespace PersistentWorld.World
         // a → b 로 바닥을 긁은 한 획. width: 자국 칸의 폭(유닛), burstTime: 터지는 시각(Time.time)
         public static WolfSlashMark Spawn(Vector2 a, Vector2 b, float width, float burstTime)
         {
+            if (WolfFxNet.Send(WolfFxNet.SlashMark, a, b, width, burstTime - Time.time)) return null;
             if (Frames() == null) return null;
             Vector2 d = b - a;
             var obj = new GameObject("Wolf Claw Gouge");

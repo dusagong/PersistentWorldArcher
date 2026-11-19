@@ -18,12 +18,19 @@ namespace PersistentWorld.World
             if (FindFirstObjectByType<ArenaRedShift>() != null) return;
             var obj = new GameObject("Arena Red Shift");
             SceneManager.MoveGameObjectToScene(obj, scene);
-            obj.AddComponent<ArenaRedShift>().Collect(scene);
+            obj.AddComponent<ArenaRedShift>().Collect(scene.GetRootGameObjects());
         }
 
-        private void Collect(Scene scene)
+        // 온라인 클라이언트: 늑대 보스방 지도(한 장면 안의 한 구역)만 물들인다
+        public static void Attach(Transform map)
         {
-            foreach (GameObject root in scene.GetRootGameObjects())
+            if (map == null || FindFirstObjectByType<ArenaRedShift>() != null) return;
+            new GameObject("Arena Red Shift").AddComponent<ArenaRedShift>().Collect(new[] { map.gameObject });
+        }
+
+        private void Collect(GameObject[] roots)
+        {
+            foreach (GameObject root in roots)
             {
                 foreach (SpriteRenderer r in root.GetComponentsInChildren<SpriteRenderer>(true))
                 {

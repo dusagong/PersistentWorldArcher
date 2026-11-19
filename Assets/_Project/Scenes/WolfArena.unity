@@ -34716,7 +34716,7 @@ MonoBehaviour:
   roarRadius: 5
   roarPush: 3.5
   howlRadius: 7
-  howlSlow: 3
+  howlSlow: 1.5
   jumpDamage: 14
   jumpRadius: 2
   jumpHeight: 0.8
@@ -72267,7 +72267,7 @@ GameObject:
   - component: {fileID: 1377428411}
   - component: {fileID: 1377428410}
   m_Layer: 0
-  m_Name: Field Gate
+  m_Name: Field2 Gate
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -72285,8 +72285,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 348bb0a6bcab9214d9240caffc8cd4db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  destinationScene: Field
-  prompt: Leave the boss arena
+  destinationScene: Field2
+  prompt: "\uBCF4\uC2A4\uBC29 \uB098\uAC00\uAE30 \xB7 \uB450 \uBC88\uC9F8 \uD544\uB4DC\uB85C"
 --- !u!61 &1377428406
 BoxCollider2D:
   m_ObjectHideFlags: 0

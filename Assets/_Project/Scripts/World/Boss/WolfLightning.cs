@@ -31,6 +31,7 @@ namespace PersistentWorld.World
         // a에서 b로 한 줄기: 짧은 스파크를 이어 붙인다
         public static void Bolt(Vector2 a, Vector2 b, float width = .12f, float life = .2f, float jag = .3f)
         {
+            if (WolfFxNet.Send(WolfFxNet.Bolt, a, b, width, life, jag)) return;
             Vector2 d = b - a;
             float length = d.magnitude;
             if (length < .05f) return;
@@ -45,29 +46,53 @@ namespace PersistentWorld.World
 
         // ---- 받은 이펙트 그림 (Resources/Boss/Wolf/WolfFx*.png): 그림은 오른쪽을 향해 그려져 있다 ----
         // 발톱 세 줄 할퀴기 (연속 할퀴기). length: 할퀸 자국 폭(유닛)
-        public static void Claw(Vector2 center, Vector2 dir, float length = 2.2f, float spread = .45f, float life = .22f) =>
+        public static void Claw(Vector2 center, Vector2 dir, float length = 2.2f, float spread = .45f, float life = .22f)
+        {
+            if (WolfFxNet.Send(WolfFxNet.Claw, center, dir, length, spread, life)) return;
             Facing(Fx("WolfFxClaw"), center, dir, length * 1.25f, life);
+        }
 
         // 큰 발톱 네 줄 (큰 발톱 휩쓸기)
-        public static void BigClaw(Vector2 center, Vector2 dir, float width) => Facing(Fx("WolfFxBigClaw"), center, dir, width, .22f);
+        public static void BigClaw(Vector2 center, Vector2 dir, float width)
+        {
+            if (WolfFxNet.Send(WolfFxNet.BigClaw, center, dir, width)) return;
+            Facing(Fx("WolfFxBigClaw"), center, dir, width, .22f);
+        }
 
         // 초승달 참격
-        public static void Crescent(Vector2 center, Vector2 dir, float width) => Facing(Fx("WolfFxCrescent"), center, dir, width, .22f);
+        public static void Crescent(Vector2 center, Vector2 dir, float width)
+        {
+            if (WolfFxNet.Send(WolfFxNet.Crescent, center, dir, width)) return;
+            Facing(Fx("WolfFxCrescent"), center, dir, width, .22f);
+        }
 
         // 휘감는 번개 호 (회전 공격)
-        public static void Arc(Vector2 center, Vector2 dir, float width) => Facing(Fx("WolfFxArc"), center, dir, width, .22f);
+        public static void Arc(Vector2 center, Vector2 dir, float width)
+        {
+            if (WolfFxNet.Send(WolfFxNet.Arc, center, dir, width)) return;
+            Facing(Fx("WolfFxArc"), center, dir, width, .22f);
+        }
 
         // 바닥에 원을 그리며 터지는 번개 (착지·포효). at = 발밑, radius = 원 반지름
-        public static void GroundRing(Vector2 at, float radius, float flash = 0f) =>
+        public static void GroundRing(Vector2 at, float radius, float flash = 0f)
+        {
+            if (WolfFxNet.Send(WolfFxNet.GroundRing, at, Vector2.zero, radius, flash)) return;
             Spawn(Fx("WolfFxRing"), at, 0f, radius * 2.2f, 1f, .22f, Random.value < .5f, 0f, false, flash);
+        }
 
         // 땅에서 솟구치는 번개 폭발 (내려찍기·벽 충돌). big이면 큰 것
-        public static void Erupt(Vector2 at, float width, bool big = true) =>
+        public static void Erupt(Vector2 at, float width, bool big = true)
+        {
+            if (WolfFxNet.Send(WolfFxNet.Erupt, at, Vector2.zero, width, big ? 1f : 0f)) return;
             Spawn(Fx(big ? "WolfFxErupt" : "WolfFxErupt2"), at, 0f, width, 1f, .22f, Random.value < .5f, 0f, false, big ? .2f : 0f);
+        }
 
         // 바닥에서 비스듬히 튀는 작은 번개 (박차고 나갈 때)
-        public static void GroundSpark(Vector2 at, Vector2 dir, float width) =>
+        public static void GroundSpark(Vector2 at, Vector2 dir, float width)
+        {
+            if (WolfFxNet.Send(WolfFxNet.GroundSpark, at, dir, width)) return;
             Spawn(Fx("WolfFxSpark"), at, 0f, width, 1f, .22f, dir.x < 0f, 0f);
+        }
 
         // 방향을 보는 그림: 왼쪽이면 좌우를 뒤집고, 위아래로는 조금만 기울인다
         private static void Facing(Sheet sheet, Vector2 center, Vector2 dir, float width, float life)
@@ -81,12 +106,14 @@ namespace PersistentWorld.World
         // center에서 사방으로 뻗는 번개
         public static void Burst(Vector2 center, float radius, int count = 6, float life = .22f)
         {
+            if (WolfFxNet.Send(WolfFxNet.Burst, center, Vector2.zero, radius, count, life)) return;
             Spawn(BurstSheet(), center, 0f, radius, 1f, life, Random.value < .5f, radius * 1.4f, Random.value < .5f, radius >= 2.4f ? .15f : 0f);
         }
 
         // 둘레를 감싸는 번개 고리: 둘레를 따라 스파크를 띄엄띄엄 놓는다
         public static void Ring(Vector2 center, float radius, int pieces = 10, float life = .25f)
         {
+            if (WolfFxNet.Send(WolfFxNet.Ring, center, Vector2.zero, radius, pieces, life)) return;
             int count = Mathf.Clamp(pieces / 2 + 1, 4, 9);
             float start = Random.Range(0f, 360f);
             float piece = 2f * Mathf.PI * radius / count * .7f;
@@ -102,12 +129,14 @@ namespace PersistentWorld.World
         // 하늘에서 내리꽂히는 낙뢰 (받은 그림: 땅에 꽂히며 사방으로 튄다). at = 땅에 닿는 자리
         public static void Strike(Vector2 at, float height = 6f, float splash = 1.6f)
         {
+            if (WolfFxNet.Send(WolfFxNet.Strike, at, Vector2.zero, height, splash)) return;
             Spawn(Fx("WolfFxStrike"), at, 0f, splash * 3.4f, 1f, .22f, Random.value < .5f, 0f, false, .3f);
         }
 
         // from에서 to까지 길게 뻗는 번개 줄기: 내리꽂는 번개 그림을 눕혀 길이에 맞춘다 (한 장으로 끊김 없는 줄기)
         public static void Beam(Vector2 from, Vector2 to, float life = .12f, float flash = 0f)
         {
+            if (WolfFxNet.Send(WolfFxNet.Beam, from, to, life, flash)) return;
             Vector2 d = from - to;
             float length = d.magnitude;
             if (length < .1f) return;
@@ -119,6 +148,7 @@ namespace PersistentWorld.World
         // 몸 주변에서 지직거리는 짧은 스파크
         public static void Sparks(Vector2 center, float radius, int count = 2)
         {
+            if (WolfFxNet.Send(WolfFxNet.Sparks, center, Vector2.zero, radius, count)) return;
             for (int i = 0; i < count; i++)
                 Spawn(Spark(), center + Random.insideUnitCircle * radius, Random.Range(0f, 360f), Random.Range(.4f, .7f), 1f, .14f, Random.value < .5f, 0f);
         }

@@ -311,22 +311,31 @@ namespace PersistentWorld.Networking
         private bool NearSmith(ulong id, ArcherController actor, float radius) =>
             Parties.Members[id].Area == GameArea.Town && Vector2.Distance(actor.transform.position, onlineBlacksmith.transform.position) <= radius;
 
-        private void AwardBoss(Health defeated)
+        private void AwardBoss(Health defeated) => Award(GameArea.BossArena);
+        private void AwardWolf(Health defeated) => Award(GameArea.WolfArena);
+
+        private void Award(GameArea room)
         {
             // 딜량표: 보스방에 있던 파티원 전원을 넣는다 (피해를 못 줬어도)
-            var fighters = Parties.Group(Parties.BossParty).Where(m => m.Area == GameArea.BossArena && Actors.ContainsKey(m.Id)).ToArray();
-            if (CurrentBoss != null)
+            int party = Parties.RoomParty(room);
+            var fighters = Parties.Group(party).Where(m => m.Area == room && Actors.ContainsKey(m.Id)).ToArray();
+            System.Func<ArcherController, (ulong, string)> identify = actor =>
             {
-                bossResult = CurrentBoss.BuildResult(actor =>
-                {
-                    ulong client = actor.GetComponent<NetworkActorContext>()?.ClientId ?? 0;
-                    return (client, Parties.Members.TryGetValue(client, out PartyMember who) ? who.Name : "?");
-                }, fighters.Select(m => Actors[m.Id]));
+                ulong client = actor.GetComponent<NetworkActorContext>()?.ClientId ?? 0;
+                return (client, Parties.Members.TryGetValue(client, out PartyMember who) ? who.Name : "?");
+            };
+            BossResultFrame result = room == GameArea.WolfArena
+                ? CurrentWolf?.BuildResult(identify, fighters.Select(m => Actors[m.Id]))
+                : CurrentBoss?.BuildResult(identify, fighters.Select(m => Actors[m.Id]));
+            if (result != null)
+            {
+                bossResult = result;
+                bossResultArea = room;
                 bossResult.sequence = ++bossResultSequence;
             }
-            foreach (PartyMember member in Parties.Group(Parties.BossParty))
+            foreach (PartyMember member in Parties.Group(party))
             {
-                if (member.Area != GameArea.BossArena || !Actors.TryGetValue(member.Id, out ArcherController actor)) continue;
+                if (member.Area != room || !Actors.TryGetValue(member.Id, out ArcherController actor)) continue;
                 if (actor.Loadout.BossLearned || actor.Loadout.BossSkillBooks > 0) continue;
                 actor.Loadout.AddBossSkillBook();
                 SaveCharacter(characters[member.Id]);

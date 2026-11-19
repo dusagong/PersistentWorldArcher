@@ -4,7 +4,15 @@ using System.Linq;
 
 namespace PersistentWorld.Networking
 {
-    public enum GameArea { Town, Field, BossArena, Field2, Tutorial }
+    // 순서를 바꾸지 않는다 (구역 번호가 좌표·통신에 쓰인다). 새 구역은 끝에 붙인다.
+    public enum GameArea { Town, Field, BossArena, Field2, Tutorial, WolfArena }
+    public static class GameAreas
+    {
+        // 보스방: 골렘방(BossArena)과 늑대방(WolfArena). 방마다 한 파티만 들어간다.
+        public static readonly GameArea[] BossRooms = { GameArea.BossArena, GameArea.WolfArena };
+        public static bool IsBoss(this GameArea area) => area == GameArea.BossArena || area == GameArea.WolfArena;
+        public static bool IsBoss(int area) => ((GameArea)area).IsBoss();
+    }
     public sealed class PartyMember
     {
         public ulong Id;
@@ -27,14 +35,17 @@ namespace PersistentWorld.Networking
         public readonly Dictionary<ulong, PartyInvitation> Invitations = new Dictionary<ulong, PartyInvitation>();
         private readonly Dictionary<int, ulong> leaders = new Dictionary<int, ulong>();
         private int nextParty;
-        public int BossParty { get; private set; }
+        private readonly Dictionary<GameArea, int> rooms = new Dictionary<GameArea, int>();
+        // 골렘방을 쓰는 파티 (예전 이름 그대로 둔다)
+        public int BossParty => RoomParty(GameArea.BossArena);
+        public int RoomParty(GameArea room) => rooms.TryGetValue(room, out int party) ? party : 0;
         public ulong Leader(int party) => leaders.TryGetValue(party, out ulong id) ? id : ulong.MaxValue;
         public PartyMember[] Group(int party) => Members.Values.Where(p => party != 0 && p.Party == party).OrderBy(p => p.Id).ToArray();
         public void Add(ulong id, string name) => Members[id] = new PartyMember { Id = id, Name = name, Area = GameArea.Town };
         public bool Create(ulong id, out string reason)
         {
             reason = "보스 룸에서는 파티를 편성할 수 없습니다.";
-            if (!Members.TryGetValue(id, out PartyMember player) || player.Area == GameArea.BossArena) return false;
+            if (!Members.TryGetValue(id, out PartyMember player) || player.Area.IsBoss()) return false;
             if (player.Party != 0) { reason = "이미 파티에 속해 있습니다."; return false; }
             player.Party = ++nextParty; leaders[player.Party] = id; reason = "1인 파티를 만들었습니다."; return true;
         }
@@ -42,7 +53,7 @@ namespace PersistentWorld.Networking
         {
             Expire(now); reason = "초대할 수 없는 대상입니다.";
             if (from == to || !Members.TryGetValue(from, out PartyMember source) || !Members.TryGetValue(to, out PartyMember target)) return false;
-            if (source.Area == GameArea.BossArena || target.Area == GameArea.BossArena) { reason = "보스 룸에서는 파티 초대가 불가능합니다."; return false; }
+            if (source.Area.IsBoss() || target.Area.IsBoss()) { reason = "보스 룸에서는 파티 초대가 불가능합니다."; return false; }
             if (source.Area != target.Area) { reason = "같은 맵의 캐릭터를 선택해주세요."; return false; }
             if (target.Party != 0) { reason = "상대는 이미 파티에 속해 있습니다."; return false; }
             if (source.Party == 0) Create(from, out _);
@@ -59,7 +70,7 @@ namespace PersistentWorld.Networking
             if (!accept) { reason = "파티 초대를 거절했습니다."; return true; }
             if (!Members.TryGetValue(to, out PartyMember target) || !Members.TryGetValue(invitation.From, out PartyMember source) ||
                 source.Party != invitation.Party || source.Party == 0 || target.Party != 0 ||
-                source.Area == GameArea.BossArena || target.Area == GameArea.BossArena || source.Area != target.Area)
+                source.Area.IsBoss() || target.Area.IsBoss() || source.Area != target.Area)
                 return false;
             if (Group(invitation.Party).Length >= Capacity) { reason = "이미 파티 정원이 찼습니다."; return false; }
             target.Party = invitation.Party; reason = "파티에 참가했습니다."; return true;
@@ -69,26 +80,28 @@ namespace PersistentWorld.Networking
             reason = "소속된 파티가 없습니다.";
             if (!Members.TryGetValue(id, out PartyMember member) || member.Party == 0) return false;
             int party = member.Party; member.Party = 0;
-            if (member.Area == GameArea.BossArena) member.Area = GameArea.Town;
+            if (member.Area.IsBoss()) member.Area = GameArea.Town;
             CancelInvites(id);
             PartyMember[] remaining = Group(party);
             if (remaining.Length == 0) leaders.Remove(party);
             else if (Leader(party) == id) leaders[party] = remaining[0].Id;
             ReleaseEmptyRoom(); reason = "파티에서 탈퇴했습니다."; return true;
         }
-        public bool EnterBoss(ulong id, out ulong[] entering, out string reason)
+        public bool EnterBoss(ulong id, out ulong[] entering, out string reason) => EnterBoss(id, GameArea.BossArena, out entering, out reason);
+        public bool EnterBoss(ulong id, GameArea room, out ulong[] entering, out string reason)
         {
             entering = Array.Empty<ulong>(); reason = "필드의 보스 입구에서 입장해주세요.";
             if (!Members.TryGetValue(id, out PartyMember requester) ||
                 (requester.Area != GameArea.Field && requester.Area != GameArea.Field2) || !requester.Alive) return false;
-            if (BossParty != 0) { reason = "다른 파티가 보스 룸을 사용 중입니다."; return false; }
+            if (!room.IsBoss()) return false;
+            if (RoomParty(room) != 0) { reason = "다른 파티가 보스 룸을 사용 중입니다."; return false; }
             if (requester.Party == 0) { reason = "파티에 가입하거나 1인 파티를 먼저 만들어주세요."; return false; }
             if (Leader(requester.Party) != id) { reason = "파티장만 보스 입장을 요청할 수 있습니다."; return false; }
             PartyMember[] group = Group(requester.Party);
             if (group.Any(p => p.Area != requester.Area || !p.Alive)) { reason = "파티원 전원이 같은 필드에 살아 있어야 합니다."; return false; }
-            BossParty = requester.Party;
+            rooms[room] = requester.Party;
             entering = group.Select(p => p.Id).ToArray();
-            foreach (PartyMember player in group) { player.Area = GameArea.BossArena; CancelInvites(player.Id); }
+            foreach (PartyMember player in group) { player.Area = room; CancelInvites(player.Id); }
             reason = "파티가 보스 룸에 입장했습니다."; return true;
         }
         public void Move(ulong id, GameArea area)
@@ -110,7 +123,11 @@ namespace PersistentWorld.Networking
         }
         private void ReleaseEmptyRoom()
         {
-            if (BossParty != 0 && !Members.Values.Any(p => p.Party == BossParty && p.Area == GameArea.BossArena)) BossParty = 0;
+            foreach (GameArea room in GameAreas.BossRooms)
+            {
+                int party = RoomParty(room);
+                if (party != 0 && !Members.Values.Any(p => p.Party == party && p.Area == room)) rooms[room] = 0;
+            }
         }
     }
 }

@@ -50,7 +50,7 @@ namespace PersistentWorld.Networking
             !HasArgument("-pwa-probe");
         public string PlayerName(ulong id) => names.TryGetValue(id, out string value) ? value : "Player " + id;
         // The town assets change the shared render registry's texture indices.
-        public const int Protocol = 7;
+        public const int Protocol = 8; // 8: 늑대 보스방·늑대 인형 동기화·이펙트 신호·텍스처 고유 번호
         private const int CooperativePacketQueueSize = 1024;
         [Serializable] private sealed class Ticket { public int protocol, selected; public string code, name, characterKey, mode; }
 
