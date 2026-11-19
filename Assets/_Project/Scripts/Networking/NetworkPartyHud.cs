@@ -18,6 +18,7 @@ namespace PersistentWorld.Networking
         private Vector2 contextAt, scroll;
         private GUIStyle playerNameStyle;
         private GUIStyle playerHealthStyle;
+        private GUIStyle practiceButtonStyle;
         private CombatHud combatHud;
         private Rect practicePanelRect = new Rect(12, 220, 300, 330);
         // 보스 딜량표: 서버가 보낸 결과를 한 번만 띄운다
@@ -169,8 +170,9 @@ namespace PersistentWorld.Networking
                     string label = practice.kind == 0 ? "회복 연습" : practice.kind == 1 ? "정화 연습" : "부활 연습";
                     GUI.Box(new Rect(at.x - 63, Height - at.y - 18, 126, 38), label + (practice.complete ? " · 완료" : "") + $"\nHP {practice.hp}/{practice.maximum}");
                 }
-                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 9, 280, 30), "연습 초기화 · HP / MP / 쿨타임")) Send(PartyCommand.ResetPractice);
-                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 46, 280, 30), "연습 종료 · 마을로")) Send(PartyCommand.Tutorial);
+                practiceButtonStyle ??= new GUIStyle(menuTheme.SmallButton) { wordWrap = false };
+                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 9, 280, 30), "연습 초기화 · HP / MP / 쿨타임", practiceButtonStyle)) Send(PartyCommand.ResetPractice);
+                if (RpgGuiJuice.Button(new Rect(22, 220 + practiceHeight + 46, 280, 30), "연습 종료 · 마을로", practiceButtonStyle)) Send(PartyCommand.Tutorial);
             }
             if (menu) DrawMenu(me);
             if (result != null && PersistentWorld.World.BossResultWindow.Draw(result, Time.unscaledTime - resultOpenedAt, me.id, Width, Height, menuTheme)) CloseResult();
