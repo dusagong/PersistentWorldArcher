@@ -37,7 +37,8 @@ namespace PersistentWorld.Editor
                 new EditorBuildSettingsScene(SceneFolder + "/Town.unity", true),
                 new EditorBuildSettingsScene(SceneFolder + "/Field.unity", true),
                 new EditorBuildSettingsScene(SceneFolder + "/Field2.unity", true),
-                new EditorBuildSettingsScene(SceneFolder + "/BossArena.unity", true)
+                new EditorBuildSettingsScene(SceneFolder + "/BossArena.unity", true),
+                new EditorBuildSettingsScene(SceneFolder + "/WolfArena.unity", true) // 두 번째 필드의 늑대 보스방 (직접 만든 장면, 다시 만들지 않는다)
             };
 
             AssetDatabase.SaveAssets();

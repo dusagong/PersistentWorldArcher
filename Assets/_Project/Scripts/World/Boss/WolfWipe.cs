@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PersistentWorld.Combat;
 using UnityEngine;
 
 namespace PersistentWorld.World
@@ -22,6 +23,7 @@ namespace PersistentWorld.World
         private float fromDeg, toDeg, nextArc, nextEdge, nextSpark;
         private bool leadersShown;
         private bool plain; // 뇌격 휩쓸기 경고: 표적·번개 장식 없이, 진행 표시가 휩쓸 방향으로 각도째 차오른다
+        private bool ghost; // 온라인 서버: 그림 없이 표적 자리만 기억한다 (그림은 각 클라이언트가 신호를 받아 그린다)
         private SpriteRenderer[] marks;
         private const float Visible = 12f; // 효과는 화면에 보이는 거리 안쪽에만
 
@@ -33,7 +35,8 @@ namespace PersistentWorld.World
             Spawn(center, fromDeg, toDeg, inner, reach, warnTime, color, true);
 
         // fromDeg~toDeg 부채꼴, 중심에서 inner~reach 사이
-        public static WolfSliceZone Spawn(Vector2 center, float fromDeg, float toDeg, float inner, float reach, float warnTime, Color color, bool plain = false)
+        // targets: 낙뢰 자리를 정해서 줄 때 (온라인 클라이언트가 서버와 같은 자리를 쓰도록). null이면 여기서 정한다
+        public static WolfSliceZone Spawn(Vector2 center, float fromDeg, float toDeg, float inner, float reach, float warnTime, Color color, bool plain = false, Vector2[] targets = null)
         {
             var obj = new GameObject("Wolf Slice Zone");
             obj.transform.position = center;
@@ -46,6 +49,16 @@ namespace PersistentWorld.World
             zone.fromDeg = fromDeg;
             zone.toDeg = toDeg;
             zone.plain = plain;
+            zone.ghost = PersistentWorld.Networking.NetworkGameWorld.IsServerWorld;
+            if (zone.ghost)
+            {
+                zone.Targets = plain ? new Vector2[0] : zone.RollTargets(center);
+                var args = new List<float> { fromDeg, toDeg, inner, reach, warnTime, color.r, color.g, color.b, color.a, plain ? 1f : 0f, 0f };
+                foreach (Vector2 t in zone.Targets) { args.Add(t.x); args.Add(t.y); }
+                WolfFxNet.Send(WolfFxNet.Slice, center, Vector2.zero, args.ToArray());
+                all.Add(zone);
+                return zone;
+            }
             zone.area = zone.Fan("Area", fromDeg, toDeg, inner, reach, SortingOrder);
             zone.fill = zone.Fan("Fill", fromDeg, toDeg, inner, reach, SortingOrder + 1);
             // 경계선: 바깥 끝 → 안쪽 → 바깥 끝 (조각 모양이 또렷하게)
@@ -59,7 +72,7 @@ namespace PersistentWorld.World
             zone.edge.SetPosition(1, Vector3.zero);
             zone.edge.SetPosition(2, Polar(toDeg, reach));
             if (plain) { zone.Targets = new Vector2[0]; zone.marks = new SpriteRenderer[0]; }
-            else zone.PlaceTargets(center);
+            else zone.PlaceTargets(targets ?? zone.RollTargets(center));
             all.Add(zone);
             zone.Update();
             return zone;
@@ -67,11 +80,15 @@ namespace PersistentWorld.World
 
         public static void FireAll()
         {
+            WolfSliceZone any = all.Find(z => z != null);
+            if (any != null && any.ghost) WolfFxNet.Send(WolfFxNet.SliceFire, any.transform.position, Vector2.zero);
             foreach (WolfSliceZone zone in all) if (zone != null && zone.firedAt < 0f) zone.firedAt = Time.time;
         }
 
         public static void ClearAll()
         {
+            WolfSliceZone any = all.Find(z => z != null);
+            if (any != null && any.ghost) WolfFxNet.Send(WolfFxNet.SliceClear, any.transform.position, Vector2.zero);
             foreach (WolfSliceZone zone in all) if (zone != null) Destroy(zone.gameObject);
             all.Clear();
         }
@@ -80,6 +97,13 @@ namespace PersistentWorld.World
 
         private void Update()
         {
+            if (ghost)
+            {
+                if (firedAt >= 0f ? Time.time - firedAt > .35f : plain && Time.time - startTime > warnTime) Destroy(gameObject);
+                return;
+            }
+            // 휩쓸기 경고는 다 차면 저절로 사라진다 (온라인 클라이언트는 따로 지우라는 신호를 받지 않는다)
+            if (plain && firedAt < 0f && Time.time - startTime > warnTime) { Destroy(gameObject); return; }
             if (firedAt >= 0f)
             {
                 // 번쩍인 뒤 빠르게 사라진다
@@ -119,16 +143,25 @@ namespace PersistentWorld.World
             return (Vector2)transform.position + (Vector2)Polar(a, d);
         }
 
-        private void PlaceTargets(Vector2 center)
+        // 낙뢰 자리 6곳: 조각 안에 고르게 (거리를 나눠 하나씩)
+        private Vector2[] RollTargets(Vector2 center)
         {
-            Targets = new Vector2[6];
+            var targets = new Vector2[6];
+            for (int i = 0; i < targets.Length; i++)
+            {
+                float a = Mathf.Lerp(fromDeg, toDeg, Random.Range(.15f, .85f));
+                float d = Mathf.Lerp(inner + 1f, Visible, (i + Random.Range(.15f, .85f)) / targets.Length);
+                targets[i] = center + (Vector2)Polar(a, d);
+            }
+            return targets;
+        }
+
+        private void PlaceTargets(Vector2[] targets)
+        {
+            Targets = targets;
             marks = new SpriteRenderer[Targets.Length];
             for (int i = 0; i < Targets.Length; i++)
             {
-                // 조각 안에 고르게: 거리를 나눠 하나씩
-                float a = Mathf.Lerp(fromDeg, toDeg, Random.Range(.15f, .85f));
-                float d = Mathf.Lerp(inner + 1f, Visible, (i + Random.Range(.15f, .85f)) / Targets.Length);
-                Targets[i] = center + (Vector2)Polar(a, d);
                 var obj = new GameObject("Strike Mark");
                 obj.transform.SetParent(transform, false);
                 obj.transform.position = Targets[i];
@@ -230,7 +263,7 @@ namespace PersistentWorld.World
         }
 
         // 조준 고리: 굵은 테두리 + 네 방향 눈금 + 가운데 점 (돌아가며 조여 든다)
-        private static Sprite Reticle
+        internal static Sprite Reticle
         {
             get
             {
@@ -271,21 +304,75 @@ namespace PersistentWorld.World
         }
     }
 
+    // 혼자 하기 늑대 체력바: 화면 위쪽 가운데. 페이즈마다 한 줄씩 (2페이즈로 넘어가며 다시 꽉 차오른다)
+    public sealed class WolfBossBar : MonoBehaviour
+    {
+        private WolfBossController wolf;
+        private Health health;
+        private static Texture2D white;
+
+        public static void Show(WolfBossController target)
+        {
+            if (Application.isBatchMode || target == null) return;
+            var bar = new GameObject("Wolf Boss Bar").AddComponent<WolfBossBar>();
+            bar.wolf = target;
+            bar.health = target.GetComponent<Health>();
+        }
+
+        private void OnGUI()
+        {
+            if (wolf == null || health == null) { Destroy(gameObject); return; }
+            if (health.IsDead || BossIntro.Active || Event.current.type != EventType.Repaint) return;
+            if (white == null) white = Texture2D.whiteTexture;
+            wolf.BarValues(out int current, out int max);
+            float scale = Mathf.Max(.5f, Mathf.Min(Screen.width / 1280f, Screen.height / 720f));
+            Matrix4x4 previous = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+            float width = Mathf.Min(420f, Screen.width / scale - 32f);
+            var box = new Rect((Screen.width / scale - width) / 2f, 18f, width, 50f);
+            Color red = WolfRed.Tint(new Color(.45f, .85f, .25f), new Color(.9f, .2f, .18f));
+            Fill(box, new Color(.06f, .05f, .05f, .82f));
+            Fill(new Rect(box.x, box.y, box.width, 2f), red);
+            var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 15 };
+            style.normal.textColor = Color.white;
+            string phase = wolf.IsPhaseTwo ? " · 광폭화" : "";
+            GUI.Label(new Rect(box.x, box.y + 4f, box.width, 22f), $"{wolf.DisplayName}{phase}  {current}/{max}", style);
+            var track = new Rect(box.x + 12f, box.y + 32f, box.width - 24f, 9f);
+            Fill(track, new Color(0f, 0f, 0f, .7f));
+            Fill(new Rect(track.x, track.y, track.width * Mathf.Clamp01(current / (float)max), track.height), red);
+            GUI.matrix = previous;
+        }
+
+        private static void Fill(Rect r, Color c)
+        {
+            Color old = GUI.color;
+            GUI.color = c;
+            GUI.DrawTexture(r, white);
+            GUI.color = old;
+        }
+    }
+
     // 전멸기 진행 중 화면 위쪽 경고 띠 (혼자 하기). 글은 늑대가 매 프레임 알려 준다
     public sealed class WolfWipeBanner : MonoBehaviour
     {
         private static WolfWipeBanner instance;
         private System.Func<string> text;
+        private static System.Func<string> source;
+        // 지금 띄울 글 (없으면 null). 온라인 서버는 이 글을 늑대 보스방 화면 정보에 실어 보낸다
+        public static string Current => source?.Invoke();
 
-        public static void Show(System.Func<string> source)
+        public static void Show(System.Func<string> text)
         {
-            if (Application.isBatchMode) return;
+            source = text;
+            if (Application.isBatchMode || PersistentWorld.Networking.NetworkGameWorld.Instance != null) return;
+            var source_ = text;
             if (instance == null) instance = new GameObject("Wolf Wipe Banner").AddComponent<WolfWipeBanner>();
-            instance.text = source;
+            instance.text = source_;
         }
 
         public static void Hide()
         {
+            source = null;
             if (instance != null) Destroy(instance.gameObject);
             instance = null;
         }

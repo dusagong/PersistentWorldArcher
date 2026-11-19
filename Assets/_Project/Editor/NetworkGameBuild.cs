@@ -78,7 +78,15 @@ namespace PersistentWorld.Editor
                     SceneManager.MoveGameObjectToScene(root, destination);
                     root.transform.position += (Vector3)NetworkGameWorld.Origin(area);
                     BossController boss = root.GetComponent<BossController>();
-                    if (boss != null)
+                    WolfBossController wolf = root.GetComponent<WolfBossController>();
+                    if (wolf != null)
+                    {
+                        // 늑대는 아레나 가운데 좌표를 구역 위치만큼 옮긴다 (골렘 표시용 BossController는 그대로 꺼 둔다)
+                        SerializedObject serialized = new SerializedObject(wolf);
+                        serialized.FindProperty("wipeCenter").vector2Value += NetworkGameWorld.Origin(area);
+                        serialized.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                    else if (boss != null)
                     {
                         SerializedObject serialized = new SerializedObject(boss);
                         serialized.FindProperty("arenaCenter").vector2Value += NetworkGameWorld.Origin(area);
@@ -88,9 +96,13 @@ namespace PersistentWorld.Editor
                     if (root.GetComponentsInChildren<Health>(true).Length > 0)
                     {
                         ServerWorldEntity gate = root.AddComponent<ServerWorldEntity>(); gate.area = area;
-                        gate.serverBehaviours = root.GetComponentsInChildren<MonoBehaviour>(true).Where(b => b != gate && b.enabled).ToArray();
+                        // 늑대에 붙은 골렘 두뇌(BossController)는 보스라는 표시로만 남긴다: 켜지 않는다
+                        gate.serverBehaviours = root.GetComponentsInChildren<MonoBehaviour>(true)
+                            .Where(b => b != gate && b.enabled && !(wolf != null && b is BossController)).ToArray();
+                        if (wolf != null && root.GetComponent<BossController>() is BossController marker) marker.enabled = false;
                         foreach (MonoBehaviour behaviour in gate.serverBehaviours) behaviour.enabled = false;
-                        if (boss != null) world.bossPrefab = PrefabUtility.SaveAsPrefabAsset(root, Folder + "/CooperativeBoss.prefab");
+                        if (wolf != null) world.wolfPrefab = PrefabUtility.SaveAsPrefabAsset(root, Folder + "/CooperativeWolf.prefab");
+                        else if (boss != null) world.bossPrefab = PrefabUtility.SaveAsPrefabAsset(root, Folder + "/CooperativeBoss.prefab");
                     }
                     root.transform.SetParent(map.transform, true);
                 }
@@ -100,10 +112,15 @@ namespace PersistentWorld.Editor
             string registryPath = Folder + "/NetworkGameAssets.asset";
             NetworkGameAssets registry = AssetDatabase.LoadAssetAtPath<NetworkGameAssets>(registryPath);
             if (registry == null) { registry = ScriptableObject.CreateInstance<NetworkGameAssets>(); AssetDatabase.CreateAsset(registry, registryPath); }
-            registry.textures = AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets" }).Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(p => p, StringComparer.Ordinal).Select(AssetDatabase.LoadAssetAtPath<Texture2D>).Where(t => t != null).ToArray();
+            // 그림마다 프로젝트 경로로 고유 번호를 붙인다 (빌드한 PC마다 그림 개수가 달라도 같은 그림은 같은 번호)
+            string[] paths = AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets" }).Select(AssetDatabase.GUIDToAssetPath)
+                .Distinct().OrderBy(p => p, StringComparer.Ordinal).Where(p => AssetDatabase.LoadAssetAtPath<Texture2D>(p) != null).ToArray();
+            registry.textures = paths.Select(AssetDatabase.LoadAssetAtPath<Texture2D>).ToArray();
+            registry.ids = paths.Select(NetworkGameAssets.IdOf).ToArray();
+            foreach (var clash in paths.GroupBy(NetworkGameAssets.IdOf).Where(g => g.Count() > 1))
+                Debug.LogError("Texture id clash: " + string.Join(", ", clash));
             EditorUtility.SetDirty(registry); world.assets = registry;
-            if (world.actorPrefab == null || world.bossPrefab == null) throw new InvalidOperationException("Missing cooperative actor or boss template.");
+            if (world.actorPrefab == null || world.bossPrefab == null || world.wolfPrefab == null) throw new InvalidOperationException("Missing cooperative actor or boss template.");
             SceneManager.SetActiveScene(destination); EditorSceneManager.SaveScene(destination, ScenePath);
             AssetDatabase.SaveAssets();
             Debug.Log("PWA_COOPERATIVE_WORLD_READY textures=" + registry.textures.Length);

@@ -8,6 +8,6 @@ namespace PersistentWorld.Networking
         public ulong ClientId;
         public GameArea Area;
         public CharacterClass StartingClass;
-        public bool BattleActive => Area == GameArea.BossArena && NetworkGameWorld.Instance != null && NetworkGameWorld.Instance.BossBattleActive;
+        public bool BattleActive => Area.IsBoss() && NetworkGameWorld.Instance != null && NetworkGameWorld.Instance.BattleActiveIn(Area);
     }
 }

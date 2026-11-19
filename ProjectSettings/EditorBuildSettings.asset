@@ -17,5 +17,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Project/Scenes/BossArena.unity
     guid: cf318f40591d73b47ae45fba140e2a7f
+  - enabled: 1
+    path: Assets/_Project/Scenes/WolfArena.unity
+    guid: f342bff95dc19c84492ad74d6721df68
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

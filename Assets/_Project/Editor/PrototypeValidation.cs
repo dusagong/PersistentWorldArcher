@@ -26,9 +26,9 @@ namespace PersistentWorld.Editor
 
         private static void ValidateBuildSettings()
         {
-            if (EditorBuildSettings.scenes.Length != 4)
+            if (EditorBuildSettings.scenes.Length != 5)
             {
-                throw new InvalidOperationException("Expected exactly four scenes in Build Settings (Town, Field, Field2, BossArena).");
+                throw new InvalidOperationException("Expected exactly five scenes in Build Settings (Town, Field, Field2, BossArena, WolfArena).");
             }
 
             foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)

@@ -86,6 +86,13 @@ namespace PersistentWorld.World
             if (this != null) Destroy(gameObject);
         }
 
+        // 보스가 쓰러졌을 때 그 구역에 남은 경고를 모두 지운다
+        public static void ClearNear(Vector2 position)
+        {
+            foreach (BossTelegraph t in FindObjectsByType<BossTelegraph>(FindObjectsSortMode.None))
+                if (PersistentWorld.Networking.NetworkGameWorld.SameArea(t.transform.position, position)) Destroy(t.gameObject);
+        }
+
         private static BossTelegraph Create(string name, Color color, float warnTime, Sprite sprite, bool isCircle, Vector2 rectSize)
         {
             GameObject obj = new GameObject(name);
@@ -126,6 +133,8 @@ namespace PersistentWorld.World
             }
 
             float t = Mathf.Clamp01((Time.time - startTime) / warnTime);
+            // 경고 시간이 한참 지나도 발동되지 않았으면 주인이 사라진 장판이다 (보스가 쓰러짐 등): 치운다
+            if (Time.time - startTime > warnTime + 3f) { Destroy(gameObject); return; }
             // 깜빡임: 처음엔 느리게, 발동 직전엔 빠르게
             float phase = (Time.time - startTime) * Mathf.Lerp(4f, 18f, t * t);
             float blink = .5f + .5f * Mathf.Sin(phase * Mathf.PI * 2f);
