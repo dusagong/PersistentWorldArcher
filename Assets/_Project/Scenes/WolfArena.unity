@@ -34313,6 +34313,7 @@ GameObject:
   - component: {fileID: 178957804}
   - component: {fileID: 178957806}
   - component: {fileID: 178957805}
+  - component: {fileID: 9000000715831213}
   m_Layer: 0
   m_Name: TX Props Gravestone A
   m_TagString: Untagged
@@ -35782,8 +35783,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &216614191
-CircleCollider2D:
+--- !u!60 &216614191
+PolygonCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -35816,8 +35817,27 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.45
+  m_Offset: {x: 0, y: 1.09375}
+  m_AutoTiling: 0
+  m_Points:
+    m_Paths:
+    - - {x: 1.4375, y: 0.0}
+      - {x: 1.3280768, y: 0.3946423}
+      - {x: 1.016466, y: 0.7292039}
+      - {x: 0.5501074, y: 0.9527508}
+      - {x: 0.0, y: 1.03125}
+      - {x: -0.5501074, y: 0.9527508}
+      - {x: -1.016466, y: 0.7292039}
+      - {x: -1.3280768, y: 0.3946423}
+      - {x: -1.4375, y: 0.0}
+      - {x: -1.3280768, y: -0.3946423}
+      - {x: -1.016466, y: -0.7292039}
+      - {x: -0.5501074, y: -0.9527508}
+      - {x: -0.0, y: -1.03125}
+      - {x: 0.5501074, y: -0.9527508}
+      - {x: 1.016466, y: -0.7292039}
+      - {x: 1.3280768, y: -0.3946423}
+  m_UseDelaunayMesh: 0
 --- !u!114 &216614192
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -36427,6 +36447,7 @@ GameObject:
   - component: {fileID: 257640326}
   - component: {fileID: 257640328}
   - component: {fileID: 257640327}
+  - component: {fileID: 9000001030561301}
   m_Layer: 0
   m_Name: TX Props Gravestone C
   m_TagString: Untagged
@@ -37152,6 +37173,7 @@ GameObject:
   - component: {fileID: 283322447}
   - component: {fileID: 283322449}
   - component: {fileID: 283322448}
+  - component: {fileID: 9000001133289785}
   m_Layer: 0
   m_Name: TX Props Gravestone B
   m_TagString: Untagged
@@ -42058,8 +42080,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &447029120
-CircleCollider2D:
+--- !u!61 &447029120
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -42092,8 +42114,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &447029121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44931,6 +44955,7 @@ GameObject:
   - component: {fileID: 531676270}
   - component: {fileID: 531676272}
   - component: {fileID: 531676271}
+  - component: {fileID: 9000002126705077}
   m_Layer: 0
   m_Name: TX Props Gravestone C
   m_TagString: Untagged
@@ -45154,8 +45179,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &550112069
-CircleCollider2D:
+--- !u!61 &550112069
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -45188,8 +45213,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &550112070
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -47989,8 +48016,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &636242522
-CircleCollider2D:
+--- !u!61 &636242522
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -48023,8 +48050,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.35
+  m_Offset: {x: 0, y: 0.34375}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.625}
+  m_EdgeRadius: 0
 --- !u!114 &636242523
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -51962,8 +51991,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &766110433
-CircleCollider2D:
+--- !u!61 &766110433
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -51996,8 +52025,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &766110434
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -54499,8 +54530,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &825776283
-CircleCollider2D:
+--- !u!61 &825776283
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -54533,8 +54564,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.75, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &825776284
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55548,8 +55581,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &854223106
-CircleCollider2D:
+--- !u!61 &854223106
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -55582,8 +55615,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &854223107
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -61014,8 +61049,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1047704096
-CircleCollider2D:
+--- !u!61 &1047704096
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -61048,8 +61083,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1047704097
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -63995,8 +64032,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1140646394
-CircleCollider2D:
+--- !u!61 &1140646394
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -64029,8 +64066,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1140646395
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -65529,8 +65568,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1164188326
-CircleCollider2D:
+--- !u!61 &1164188326
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -65563,8 +65602,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1164188327
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -67592,8 +67633,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1238069050
-CircleCollider2D:
+--- !u!61 &1238069050
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -67626,8 +67667,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.9375, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1238069051
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -69506,8 +69549,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1309810825
-CircleCollider2D:
+--- !u!61 &1309810825
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -69540,8 +69583,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.75, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1309810826
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -71083,8 +71128,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1358403368
-CircleCollider2D:
+--- !u!61 &1358403368
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -71117,8 +71162,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.3
+  m_Offset: {x: 0, y: 0.3125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.75, y: 0.5}
+  m_EdgeRadius: 0
 --- !u!114 &1358403369
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -73264,6 +73311,7 @@ GameObject:
   - component: {fileID: 1403661308}
   - component: {fileID: 1403661310}
   - component: {fileID: 1403661309}
+  - component: {fileID: 9000005614645229}
   m_Layer: 0
   m_Name: TX Props Gravestone A
   m_TagString: Untagged
@@ -77143,8 +77191,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1537769964
-CircleCollider2D:
+--- !u!61 &1537769964
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -77177,8 +77225,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.4
+  m_Offset: {x: 0, y: 0.4375}
+  m_AutoTiling: 0
+  m_Size: {x: 1.9375, y: 0.8125}
+  m_EdgeRadius: 0
 --- !u!114 &1537769965
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -80880,8 +80930,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1647363789
-CircleCollider2D:
+--- !u!61 &1647363789
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -80914,8 +80964,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.25
+  m_Offset: {x: 0, y: 0.21875}
+  m_AutoTiling: 0
+  m_Size: {x: 0.625, y: 0.375}
+  m_EdgeRadius: 0
 --- !u!114 &1647363790
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -88542,8 +88594,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &1875346229
-CircleCollider2D:
+--- !u!61 &1875346229
+BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -88576,8 +88628,10 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.25
+  m_Offset: {x: 0, y: 0.21875}
+  m_AutoTiling: 0
+  m_Size: {x: 0.625, y: 0.375}
+  m_EdgeRadius: 0
 --- !u!114 &1875346230
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -93838,8 +93892,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0df4ca049f2d26646bb8ba1b92951958, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!58 &2052709180
-CircleCollider2D:
+--- !u!60 &2052709180
+PolygonCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -93872,8 +93926,20 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0.25}
-  m_Radius: 0.45
+  m_Offset: {x: 0, y: 0}
+  m_AutoTiling: 0
+  m_Points:
+    m_Paths:
+    - - {x: -0.75, y: 0.125}
+      - {x: -0.84375, y: 0.34375}
+      - {x: -0.65625, y: 0.6875}
+      - {x: -0.21875, y: 0.78125}
+      - {x: 0.4375, y: 0.71875}
+      - {x: 0.8125, y: 0.46875}
+      - {x: 0.8125, y: 0.1875}
+      - {x: 0.46875, y: 0.03125}
+      - {x: -0.40625, y: 0.03125}
+  m_UseDelaunayMesh: 0
 --- !u!114 &2052709181
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -96110,3 +96176,193 @@ SceneRoots:
   - {fileID: 1602068628}
   - {fileID: 185939184}
   - {fileID: 371864957}
+--- !u!61 &9000000715831213
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 178957803}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0.25}
+  m_AutoTiling: 0
+  m_Size: {x: 0.875, y: 0.4375}
+  m_EdgeRadius: 0
+--- !u!61 &9000001030561301
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 257640325}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0.28125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.875, y: 0.5}
+  m_EdgeRadius: 0
+--- !u!61 &9000001133289785
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 283322446}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0.25}
+  m_AutoTiling: 0
+  m_Size: {x: 0.5, y: 0.4375}
+  m_EdgeRadius: 0
+--- !u!61 &9000002126705077
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 531676269}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0.28125}
+  m_AutoTiling: 0
+  m_Size: {x: 0.875, y: 0.5}
+  m_EdgeRadius: 0
+--- !u!61 &9000005614645229
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1403661307}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0.25}
+  m_AutoTiling: 0
+  m_Size: {x: 0.875, y: 0.4375}
+  m_EdgeRadius: 0
